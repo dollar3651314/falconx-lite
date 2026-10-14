@@ -11,6 +11,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  pull-requests: read   # 密钥扫描（gitleaks-action）要读取 PR 的提交列表，只读
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
