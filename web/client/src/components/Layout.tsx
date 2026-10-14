@@ -9,7 +9,6 @@ import { useUnread } from '../hooks/useUnread';
 import { formatAmount, formatPercent } from '../lib/format';
 import { marginLevelTone } from '../lib/trading';
 import { Icon, Logo, type IconName } from './Icon';
-import { InstallPrompt } from './InstallPrompt';
 import { ProtoPanel } from './ProtoPanel';
 import { PushListener } from './PushListener';
 
@@ -99,7 +98,6 @@ export function Layout() {
           </NavLink>
         ))}
       </nav>
-      <InstallPrompt />
       <ProtoPanel />
       <PushListener />
     </div>

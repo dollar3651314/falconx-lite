@@ -127,6 +127,15 @@ function contract(s: Seed): Pick<SymbolInfo, 'contractSize' | 'unit'> {
   }
 }
 
+/**
+ * 维持保证金率（示意值）：取最大杠杆下初始保证金的一半，保证用满杠杆开仓时也留有缓冲；
+ * 上限 0.5%。正式值以后台"交易参数"为准。
+ */
+function maintenanceRate(maxLev: number): string {
+  const bp = Math.min(50, Math.floor(5000 / maxLev)); // 万分之几
+  return (bp / 10000).toFixed(4);
+}
+
 export interface SymbolSeed {
   info: SymbolInfo;
   price: string;
@@ -150,7 +159,7 @@ export const SYMBOL_SEEDS: SymbolSeed[] = SEEDS.map((s) => {
     maxLots: s.cat === 'fx' ? '50' : '20',
     lotStep: '0.01',
     feeRate: '0.00005',
-    maintenanceMarginRate: '0.005',
+    maintenanceMarginRate: maintenanceRate(s.lev),
     hot: !!s.hot,
     openPaused: !!s.paused,
     tradingOpen: !s.closed,

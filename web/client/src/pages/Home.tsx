@@ -5,6 +5,7 @@ import { listNotifications } from '../api/notifications';
 import { useAccount, useSymbols } from '../app/contexts';
 import { EmptyState, ErrorState, Loading } from '../components/AsyncView';
 import { Icon, Logo } from '../components/Icon';
+import { InstallPrompt } from '../components/InstallPrompt';
 import { PositionsTabs } from '../components/PositionsTabs';
 import { currentLang } from '../i18n';
 import { useAsync } from '../hooks/useAsync';
@@ -44,8 +45,8 @@ function AccountOverview() {
         <div>
           {t('account.marginLevel')}
           <span className={`num tone-${tone}`}>
-            {metrics.marginLevel ? formatPercent(metrics.marginLevel, { dp: 1 }) : t('account.noPosition')}
-            {metrics.marginLevel && <span className={`pill pill-${tone}`}>{t(`account.level.${tone}`)}</span>}
+            {metrics.marginLevel !== null ? formatPercent(metrics.marginLevel, { dp: 1 }) : t('account.noPosition')}
+            {metrics.marginLevel !== null && <span className={`pill pill-${tone}`}>{t(`account.level.${tone}`)}</span>}
           </span>
         </div>
       </div>
@@ -153,6 +154,7 @@ export default function Home() {
       <HotTicker />
       <div className="home-grid">
         <div className="home-main">
+          <InstallPrompt />
           <AccountOverview />
           <section className="card flush">
             <div className="card-head pad">

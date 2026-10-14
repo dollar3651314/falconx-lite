@@ -1,5 +1,6 @@
 /**
- * 首次进入时的提示卡片："添加到主屏幕，接收提醒" + "允许通知"。
+ * 首页里的提示卡片（页面内普通卡片，不浮动遮挡）："添加到主屏幕，接收提醒" + "允许通知"。
+ * 点"以后再说""添加到主屏幕""允许通知"任一按钮后本地记住，不再出现。
  * 原型里只调用浏览器的通知权限请求，不接后端推送服务。
  */
 import { useEffect, useState } from 'react';
@@ -32,7 +33,7 @@ export function InstallPrompt() {
   const toast = useToast();
   const [visible, setVisible] = useState(() => !readInstallDismissed() && !isStandalone());
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [perm, setPerm] = useState(notificationPermission());
+  const [, setPerm] = useState(notificationPermission());
 
   useEffect(() => {
     const onBip = (e: Event) => {
@@ -59,6 +60,7 @@ export function InstallPrompt() {
 
   const allow = async () => {
     const r = await requestNotificationPermission();
+    dismiss();
     setPerm(r);
     if (r === 'granted') toast.show({ tone: 'success', title: t('install.permGranted') });
     else if (r === 'denied') toast.show({ tone: 'warn', title: t('install.permDenied') });
@@ -69,11 +71,12 @@ export function InstallPrompt() {
     if (!deferred) return;
     await deferred.prompt();
     setDeferred(null);
+    dismiss();
   };
 
   if (!visible) return null;
   return (
-    <aside className="install-card" aria-labelledby="install-title">
+    <section className="card install-card" aria-labelledby="install-title">
       <div className="install-icon">
         <Icon name="phone" size={22} />
       </div>
@@ -86,14 +89,14 @@ export function InstallPrompt() {
               {t('install.add')}
             </button>
           )}
-          <button type="button" className="btn btn-primary btn-sm" onClick={allow} disabled={perm === 'granted'}>
-            {perm === 'granted' ? t('install.allowed') : t('install.allow')}
+          <button type="button" className="btn btn-primary btn-sm" onClick={allow}>
+            {t('install.allow')}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={dismiss}>
             {t('install.later')}
           </button>
         </div>
       </div>
-    </aside>
+    </section>
   );
 }

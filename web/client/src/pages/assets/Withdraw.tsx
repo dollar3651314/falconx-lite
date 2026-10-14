@@ -66,7 +66,7 @@ function WithdrawForm({ info, whitelist, onDone }: { info: WithdrawInfo; whiteli
   const receive = amt && fee ? sub(amt, dec(fee)) : null;
   const used = dec(info.usedToday);
   const pct = cmp(dec(info.dailyLimit), ZERO) > 0 ? Number(toFixed(mul(div(used, dec(info.dailyLimit)), dec(100)), 1)) : 0;
-  const large = amt && cmp(amt, dec(info.largeAmount)) >= 0;
+  const large = amt !== null && cmp(amt, dec(info.largeAmount)) >= 0;
 
   const fillAll = () => {
     let m = dec(info.available);
@@ -112,8 +112,7 @@ function WithdrawForm({ info, whitelist, onDone }: { info: WithdrawInfo; whiteli
   return (
     <>
       <section className="card">
-        <div className="field-label">
-          <span>{t('withdraw.to')}</span>
+        <div className="wd-wl-link">
           <Link to="/assets/whitelist" className="small">
             {t('withdraw.manageWhitelist', { n: whitelist.length, max: info.maxWhitelist })}
           </Link>
@@ -123,10 +122,10 @@ function WithdrawForm({ info, whitelist, onDone }: { info: WithdrawInfo; whiteli
             {t('withdraw.noWhitelist')} <Link to="/assets/whitelist">{t('whitelist.add')}</Link>
           </div>
         ) : (
-          <Select label={t('withdraw.address')} value={wid} onChange={setWid} options={options} errors={shown.whitelistId} />
+          <Select label={t('withdraw.to')} value={wid} onChange={setWid} options={options} errors={shown.whitelistId} />
         )}
         {whitelist.length === 0 && <FieldErrors id="wl-err" errors={shown.whitelistId} />}
-        <p className="muted small">{t('withdraw.newAddressRule')}</p>
+        <p className="muted small wd-rule">{t('withdraw.newAddressRule')}</p>
 
         <TextField
           label={t('withdraw.amount')}

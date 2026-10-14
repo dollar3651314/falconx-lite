@@ -98,7 +98,7 @@ const REJECT_REASON = {
 };
 
 export function getKyc(lang: Lang): Promise<KycInfo> {
-  return respond(
+  return respond<KycInfo>(
     () => {
       const { rejectReasonI18n, ...rest } = db.kyc;
       void rejectReasonI18n;

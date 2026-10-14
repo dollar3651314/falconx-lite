@@ -96,7 +96,7 @@ function PositionList({ positions, table, onAction, onSelectSymbol }: { position
         {t('positions.tpsl')}
       </button>
       <button type="button" onClick={() => onAction({ kind: 'margin', position: p, symbol: s })}>
-        {t('positions.addMargin')}
+        {table ? t('positions.addMarginShort') : t('positions.addMargin')}
       </button>
     </div>
   );
@@ -109,7 +109,6 @@ function PositionList({ positions, table, onAction, onSelectSymbol }: { position
               <th>{t('order.symbol')}</th>
               <th>{t('positions.lotsLev')}</th>
               <th>{t('positions.openPrice')}</th>
-              <th>{t('positions.current')}</th>
               <th>{t('positions.margin')}</th>
               <th>{t('positions.tpSlCol')}</th>
               <th>{t('positions.liq')}</th>
@@ -118,7 +117,7 @@ function PositionList({ positions, table, onAction, onSelectSymbol }: { position
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ p, s, q, pnl }) => (
+            {rows.map(({ p, s, pnl }) => (
               <tr key={p.id}>
                 <td className="tx">
                   <button type="button" className="link-btn num" onClick={() => onSelectSymbol?.(p.symbol)}>
@@ -130,7 +129,6 @@ function PositionList({ positions, table, onAction, onSelectSymbol }: { position
                   {formatLots(p.lots)} · {p.leverage}×
                 </td>
                 <td>{formatPrice(p.openPrice, s.digits)}</td>
-                <td>{q ? formatPrice(closePrice(p.side, q), s.digits) : '—'}</td>
                 <td>{formatAmount(p.margin)}</td>
                 <td>
                   <span className="sub">

@@ -11,11 +11,11 @@ import { placeOrder } from '../api/trading';
 import type { Side, SymbolInfo } from '../api/types';
 import { useAccount, useToast } from '../app/contexts';
 import { useQuote } from '../hooks/useQuotes';
-import { add, cmp, dec, isDecimalString, sub, toPlain, ZERO, type Dec } from '../lib/decimal';
+import { add, cmp, dec, isDecimalString, mul, sub, toFixed, toPlain, ZERO, type Dec } from '../lib/decimal';
 import { formatAmount, formatLots, formatPrice } from '../lib/format';
 import { contractUnitText, symbolName } from '../lib/symbol';
 import { estimateOrder, execPrice, pnlAt } from '../lib/trading';
-import { hasErrors, validateOrder, type FieldErrors, type OrderForm } from '../lib/validators';
+import { hasErrors, sanitizeLots, validateOrder, type FieldErrors, type OrderForm } from '../lib/validators';
 import { FieldErrors as Errors, Segmented, Switch, TextField } from './Form';
 import { ConfirmDialog } from './Modal';
 import { Icon } from './Icon';
@@ -179,7 +179,7 @@ export function OrderPanel({ symbol, initialSide = 'buy', inline, onDone }: { sy
         <div className="field">
           <div className="field-label">
             <label htmlFor="lots-input">{t('order.lots')}</label>
-            <em>
+            <em className="lots-range">
               {formatLots(symbol.minLots)} – {formatLots(symbol.maxLots)}
             </em>
           </div>
@@ -187,7 +187,7 @@ export function OrderPanel({ symbol, initialSide = 'buy', inline, onDone }: { sy
             <button type="button" onClick={() => stepLots(-1)} aria-label={t('order.lotsDec')}>
               −
             </button>
-            <input id="lots-input" className="mono" inputMode="decimal" value={form.lots} onChange={(e) => set('lots', e.target.value)} aria-invalid={!!shown.lots} aria-describedby="lots-err" />
+            <input id="lots-input" className="mono" inputMode="decimal" value={form.lots} onChange={(e) => set('lots', sanitizeLots(form.lots, e.target.value))} aria-invalid={!!shown.lots} aria-describedby="lots-err" />
             <button type="button" onClick={() => stepLots(1)} aria-label={t('order.lotsInc')}>
               +
             </button>
@@ -201,7 +201,7 @@ export function OrderPanel({ symbol, initialSide = 'buy', inline, onDone }: { sy
           onChange={(v) => set('leverage', v.replace(/[^\d]/g, ''))}
           inputMode="numeric"
           mono
-          suffix="×"
+          suffix={t('order.times')}
           errors={shown.leverage}
         />
       </div>
@@ -236,7 +236,11 @@ export function OrderPanel({ symbol, initialSide = 'buy', inline, onDone }: { sy
                   label={t(`order.${k}Toggle`)}
                   onChange={(v) => {
                     set(k === 'takeProfit' ? 'tpOn' : 'slOn', v);
-                    if (v && !val && refPrice && isDecimalString(refPrice)) set(k, toPlain(dec(refPrice), symbol.digits));
+                    if (v && !val && refPrice && isDecimalString(refPrice)) {
+                      // 默认填在参考价 ±1% 处，方向符合止盈止损规则
+                      const above = (k === 'takeProfit') === (form.side === 'buy');
+                      set(k, toFixed(mul(dec(refPrice), dec(above ? '1.01' : '0.99')), symbol.digits));
+                    }
                   }}
                 />
               </div>
@@ -297,7 +301,7 @@ export function OrderPanel({ symbol, initialSide = 'buy', inline, onDone }: { sy
         </div>
       )}
       <button type="button" className={`btn btn-lg btn-block btn-${form.side}`} onClick={onSubmit}>
-        {t(form.side === 'buy' ? 'order.submitBuy' : 'order.submitSell', { lots: isDecimalString(form.lots) ? formatLots(form.lots) : form.lots, symbol: symbol.code })}
+        {t(form.side === 'buy' ? 'order.submitBuy' : 'order.submitSell', { lots: form.lots || '0', symbol: symbol.code })}
       </button>
       <div className="op-foot">{t('order.footNote')}</div>
 

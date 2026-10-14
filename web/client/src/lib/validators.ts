@@ -269,3 +269,12 @@ export function validateKyc(f: { docType: string; docNumber: string; front: File
   validateKycFile(f.selfie).forEach((k) => push(errs, 'selfie', k));
   return errs;
 }
+
+/**
+ * 手数输入过滤：只允许数字和最多 2 位小数（步长 0.01）。
+ * 输入不合法时返回上一次的值（阻止输入），保证输入框、预估和确认按钮始终是同一个值。
+ */
+export function sanitizeLots(prev: string, next: string): string {
+  const v = next.replace(/,/g, '').trim();
+  return /^\d*(\.\d{0,2})?$/.test(v) ? v : prev;
+}

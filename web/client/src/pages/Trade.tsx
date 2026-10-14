@@ -130,8 +130,8 @@ function AccountStrip() {
       <div>
         {t('account.marginLevel')}
         <span className={`num tone-${tone}`}>
-          {metrics?.marginLevel ? formatPercent(metrics.marginLevel, { dp: 1 }) : metrics ? t('account.noPosition') : '—'}
-          {metrics?.marginLevel && <span className={`pill pill-${tone}`}>{t(`account.level.${tone}`)}</span>}
+          {metrics && metrics.marginLevel !== null ? formatPercent(metrics.marginLevel, { dp: 1 }) : metrics ? t('account.noPosition') : '—'}
+          {metrics?.marginLevel != null && <span className={`pill pill-${tone}`}>{t(`account.level.${tone}`)}</span>}
         </span>
       </div>
     </section>
