@@ -47,6 +47,7 @@ export function RiskPage() {
     <Form.Item
       name={name}
       label={label}
+      required
       rules={[{ validator: (_r, v: string | undefined) => (isPositiveInteger(v ?? '') ? Promise.resolve() : Promise.reject(new Error(t('validation.positiveInteger')))) }]}
     >
       <Input inputMode="numeric" suffix="USD" />

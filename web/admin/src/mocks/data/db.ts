@@ -81,7 +81,7 @@ export const customerById = (id: number) => customers.find((c) => c.id === id);
 // ---------------- KYC ----------------
 export const kycApplications: KycApplication[] = customers
   .filter((c) => c.kycStatus !== 'none')
-  .map((c, i) => {
+  .map((c, i): KycApplication => {
     const status = c.kycStatus as KycApplication['status'];
     const passport = c.nationality !== 'CN';
     return {
@@ -273,29 +273,37 @@ const priceOf: Record<string, string> = {
 const tradeSymbols = Object.keys(priceOf);
 
 // ---------------- 持仓、订单、挂单 ----------------
+/** 按比例偏移价格（只用于生成模拟数据），保留原价格的小数位 */
+function shiftPrice(price: string, pct: number): string {
+  const digits = price.includes('.') ? price.split('.')[1].length : 0;
+  return (Number(price) * (1 + pct)).toFixed(digits);
+}
+
 export const positions: Position[] = Array.from({ length: 38 }, (_, i) => {
   const c = customers[(i * 7) % (customers.length - 6)];
   const sym = i === 0 ? 'XAUUSD' : rng.pick(tradeSymbols);
-  const side = rng.bool() ? 'buy' : 'sell';
-  const lev = rng.pick([10, 20, 50, 100]);
-  const pnlNeg = rng.bool(0.45);
-  const level = i === 3 ? '62.40' : i === 8 ? '98.15' : rng.amount(120, 2600);
+  const side = i === 0 ? 'buy' : rng.bool() ? 'buy' : 'sell';
+  const lev = i === 0 ? 100 : rng.pick([10, 20, 50, 100]);
+  const move = (rng.next() - 0.5) * 0.02;
+  const open = priceOf[sym];
+  const pnlNeg = (side === 'buy') !== move > 0;
+  const level = i === 3 ? '62.40' : i === 8 ? '98.15' : rng.amount(120, 900);
   return {
     id: `PS-${String(660000 + 38 - i)}`,
     customerId: c.id,
     customerName: c.name,
     symbol: sym,
     side,
-    lots: i === 5 ? '12.50' : rng.pick(['0.01', '0.05', '0.10', '0.50', '1.00', '2.00']),
-    openPrice: priceOf[sym],
-    currentPrice: priceOf[sym],
+    lots: i === 0 ? '0.10' : i === 5 ? '12.50' : rng.pick(['0.01', '0.05', '0.10', '0.50', '1.00', '2.00']),
+    openPrice: open,
+    currentPrice: shiftPrice(open, move),
     leverage: lev,
-    margin: rng.amount(20, 8000),
-    pnl: (pnlNeg ? '-' : '') + rng.amount(0, 2400),
+    margin: i === 0 ? '1210.25' : rng.amount(20, 3000),
+    pnl: i === 0 ? '186.40' : (pnlNeg ? '-' : '') + rng.amount(0, 900),
     marginLevel: level,
-    liquidationPrice: priceOf[sym],
-    stopLoss: rng.bool(0.4) ? priceOf[sym] : null,
-    takeProfit: rng.bool(0.4) ? priceOf[sym] : null,
+    liquidationPrice: shiftPrice(open, (side === 'buy' ? -0.7 : 0.7) / lev),
+    stopLoss: rng.bool(0.4) ? shiftPrice(open, side === 'buy' ? -0.01 : 0.01) : null,
+    takeProfit: rng.bool(0.4) ? shiftPrice(open, side === 'buy' ? 0.015 : -0.015) : null,
     openedAt: minutesAgo(rng.int(5, 60 * 24 * 10)),
   };
 });

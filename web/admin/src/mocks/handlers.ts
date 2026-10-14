@@ -43,6 +43,7 @@ import {
 } from '../api/types';
 import { MENU, type MenuItemDef } from '../config/menu';
 import { PERMISSIONS, SUPER_ADMIN_ROLE } from '../config/permissions';
+import { sanitizeAuditPayload } from '../utils/audit';
 import { compareAmounts, fromScaled, isValidAmountInput, sumAmounts, toScaled, usagePercent } from '../utils/money';
 import * as db from './data/db';
 import { createRng, minutesAgo, nowString } from './data/seed';
@@ -75,11 +76,7 @@ function requireReason(reason: string | undefined): string {
 }
 
 /** 审计里不记录任何密码字段（修复 fxsystem S5）：服务端写入前就过滤 */
-const SENSITIVE_KEY = /pass(word)?|pwd|secret|hash/i;
-function scrub(obj: Record<string, AuditValue> | null): Record<string, AuditValue> | null {
-  if (!obj) return obj;
-  return Object.fromEntries(Object.entries(obj).filter(([k]) => !SENSITIVE_KEY.test(k)));
-}
+const scrub = sanitizeAuditPayload;
 
 let auditSeq = 240001;
 function audit(action: string, target: string, highRisk: boolean, reason: string | null, before: AuditLog['before'], after: AuditLog['after']): void {
@@ -209,7 +206,7 @@ export function getMenuBadges(): Promise<MenuBadges> {
       kyc: db.kycApplications.filter((k) => k.status === 'pending').length,
       withdrawals: db.withdrawals.filter((w) => w.status === 'pending').length,
     }),
-    { bypass: true },
+    { empty: () => ({ kyc: 0, withdrawals: 0 }) },
   );
 }
 
@@ -229,11 +226,12 @@ export function listCustomers(q: CustomerQuery): Promise<Page<CustomerSummary>> 
 function ledgerFor(c: CustomerSummary, empty: boolean): LedgerEntry[] {
   if (empty) return [];
   const rng = createRng(c.id);
-  const types: LedgerEntry['type'][] = ['deposit', 'fee', 'pnl', 'swap', 'pnl', 'withdraw', 'fee', 'pnl', 'refund', 'adjust'];
+  const types: LedgerEntry['type'][] = ['pnl', 'fee', 'swap', 'pnl', 'fee', 'withdraw', 'pnl', 'refund', 'swap', 'adjust', 'fee', 'deposit'];
   let bal = toScaled(c.balance) ?? 0n;
-  return Array.from({ length: 12 }, (_, i) => {
-    const type = types[i % types.length];
-    const raw = type === 'deposit' ? rng.amount(500, 12000) : type === 'fee' ? rng.amount(0, 30) : rng.amount(0, 900);
+  // 单笔金额不超过余额的 1/15（余额为 0 时按 500 计），倒推 11 笔后余额仍为正
+  const cap = Number((bal > 50000n ? bal : 50000n) / 15n) / 100;
+  return types.map((type, i) => {
+    const raw = type === 'deposit' ? rng.amount(500, 12000) : type === 'fee' || type === 'swap' ? rng.amount(0, Math.min(30, cap)) : rng.amount(0, cap);
     const negative = type === 'withdraw' || type === 'fee' || ((type === 'pnl' || type === 'swap') && rng.bool(0.5));
     const amount = (negative ? '-' : '') + raw;
     const entry: LedgerEntry = {
@@ -241,10 +239,11 @@ function ledgerFor(c: CustomerSummary, empty: boolean): LedgerEntry[] {
       type,
       amount,
       balanceAfter: fromScaled(bal),
-      ref: type === 'deposit' ? 'DP-20261013-000812' : type === 'withdraw' ? 'WD-20261010-000101' : type === 'adjust' ? 'ADJ-0007' : `PS-${660000 + i}`,
+      ref: type === 'deposit' ? 'DP-20261001-000412' : type === 'withdraw' ? 'WD-20261010-000101' : type === 'adjust' ? 'ADJ-0007' : `PS-${660000 + i}`,
       time: minutesAgo(i * 300 + 15),
     };
     bal -= toScaled(amount) ?? 0n;
+    if (bal < 0n) bal = 0n;
     return entry;
   });
 }
@@ -286,6 +285,8 @@ function mutateRead<T extends object>(produce: () => T): Promise<T> {
   return respond(produce, {
     empty: () => {
       const v = produce() as T & { positions?: unknown[]; ledger?: unknown[]; recentDeposits?: unknown[]; recentWithdrawals?: unknown[] };
+      const acc = (v as { account?: CustomerDetail['account'] }).account;
+      if (acc) Object.assign(acc, { usedMargin: '0.00', floatingPnl: '0.00', frozenWithdraw: '0.00', available: acc.balance });
       if (v.positions) v.positions = [];
       if (v.ledger) v.ledger = [];
       if (v.recentDeposits) v.recentDeposits = [];
@@ -929,7 +930,7 @@ export function updateMenu(key: string, patch: Pick<MenuNode, 'order'>): Promise
 }
 
 export function listPermissions() {
-  return respond(() => [...PERMISSIONS], { bypass: true });
+  return respond(() => [...PERMISSIONS], { empty: () => [] });
 }
 
 // ============ 系统：审计、配置 ============

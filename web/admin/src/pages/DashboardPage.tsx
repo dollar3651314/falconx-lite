@@ -47,7 +47,7 @@ export function DashboardPage() {
             <div className="card kpi orange">
               <div className="k">{t('dashboard.pendingKyc')}</div>
               <div className="v">
-                <b>{t('common.countUnit', { count: data.pendingKyc })}</b>
+                <b>{t('common.countItems', { count: data.pendingKyc })}</b>
                 {can('kyc:view') ? <Link className="kpi-link" to="/kyc">{t('dashboard.goReview')}</Link> : null}
               </div>
             </div>
@@ -61,14 +61,14 @@ export function DashboardPage() {
             <div className={`card kpi ${data.failedTasks > 0 ? 'red' : ''}`}>
               <div className="k">{t('dashboard.failedTasks')}</div>
               <div className="v">
-                <b>{t('common.countUnit', { count: data.failedTasks })}</b>
+                <b>{t('common.countItems', { count: data.failedTasks })}</b>
                 {can('task:view') ? <Link className="kpi-link" to="/funds/tasks">{t('common.view')}</Link> : null}
               </div>
             </div>
             <div className={`card kpi ${data.openReconciliations > 0 ? 'red' : ''}`}>
               <div className="k">{t('dashboard.openRecon')}</div>
               <div className="v">
-                <b>{t('common.countUnit', { count: data.openReconciliations })}</b>
+                <b>{t('common.countItems', { count: data.openReconciliations })}</b>
                 {can('recon:view') ? <Link className="kpi-link" to="/funds/reconciliation">{t('common.view')}</Link> : null}
               </div>
             </div>

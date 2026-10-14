@@ -56,6 +56,7 @@ export function ChangePasswordPage() {
             <Form.Item
               name="newPassword"
               label={t('auth.newPassword')}
+              required
               extra={t('auth.pwdRule', { min: PASSWORD_MIN })}
               dependencies={['oldPassword']}
               rules={[

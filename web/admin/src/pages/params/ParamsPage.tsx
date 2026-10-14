@@ -33,6 +33,7 @@ export function ParamsPage() {
           <Form.Item
             name="marginCallLevel"
             label={t('params.marginCall')}
+            required
             rules={[{ validator: (_r, v: string | undefined) => (isValidPercent(v ?? '') ? Promise.resolve() : Promise.reject(new Error(t('validation.percentFormat')))) }]}
           >
             <Input suffix="%" inputMode="decimal" />
@@ -40,6 +41,7 @@ export function ParamsPage() {
           <Form.Item
             name="liquidationLevel"
             label={t('params.liquidation')}
+            required
             dependencies={['marginCallLevel']}
             rules={[
               ({ getFieldValue }) => ({

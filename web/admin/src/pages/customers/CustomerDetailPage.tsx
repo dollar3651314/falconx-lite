@@ -80,6 +80,7 @@ export function CustomerDetailPage() {
           <Form.Item
             name="amount"
             label={t('customers.adjustAmount')}
+            required
             rules={[
               {
                 validator: (_r, value: string | undefined) => {

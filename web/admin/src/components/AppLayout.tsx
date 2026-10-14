@@ -152,7 +152,7 @@ export function AppLayout() {
           </Dropdown>
         </div>
       </Layout.Header>
-      <Layout className="app-body">
+      <Layout className={`app-body${isDesktop ? ' with-sider' : ''}`} hasSider={isDesktop}>
         {isDesktop ? (
           <Layout.Sider width={200} className="app-sider" theme="light">
             {menu}
@@ -165,6 +165,7 @@ export function AppLayout() {
             width={260}
             title={<Logo />}
             className="menu-drawer"
+            rootClassName="menu-drawer-root"
             styles={{ body: { padding: '8px 0' } }}
           >
             {menu}

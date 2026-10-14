@@ -10,7 +10,7 @@ import { AuthProvider } from './auth/AuthContext';
 export function Providers({ children }: { children: ReactNode }) {
   const { i18n } = useTranslation();
   return (
-    <ConfigProvider theme={antdTheme} locale={i18n.language.startsWith('zh') ? zhCN : enUS}>
+    <ConfigProvider theme={antdTheme} button={{ autoInsertSpace: false }} locale={i18n.language.startsWith('zh') ? zhCN : enUS}>
       <AntApp>
         <AuthProvider>{children}</AuthProvider>
       </AntApp>
