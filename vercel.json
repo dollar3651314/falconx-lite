@@ -4,12 +4,41 @@
   "installCommand": "echo 依赖在 build-prototype.sh 里安装",
   "buildCommand": "bash scripts/build-prototype.sh",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/admin",
+      "destination": "/admin/",
+      "permanent": false
+    }
+  ],
   "rewrites": [
-    { "source": "/admin/(.*)", "destination": "/admin/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/admin/(.*)",
+      "destination": "/admin/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
-    { "source": "/(.*)", "headers": [ { "key": "X-Robots-Tag", "value": "noindex, nofollow" } ] },
-    { "source": "/sw.js", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] }
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    }
   ]
 }
