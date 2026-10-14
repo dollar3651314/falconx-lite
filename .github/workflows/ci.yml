@@ -1,0 +1,34 @@
+# 每个 PR 的自动检查（agents 规则 C54）。模板：agents/模板/ci.yml
+# 仓库为私有、GitHub 免费版时开不了分支保护：合并前人工确认本检查是绿的，并在 PR 或汇报里附运行链接。
+# 原则：不需要任何密钥（外部服务用替身）；用到数据库的，用 GitHub 提供的数据库容器在真实数据库上跑（C37）。
+# v0.1：还没有代码，只跑项目地图和索引检查、密钥扫描。代码目录建立的同一个 PR 里，加上 Maven 单元测试（MySQL、Redis 容器）、前端测试/lint/构建、端到端测试。
+name: ci
+on:
+  pull_request:
+    branches: [staging, main]
+  push:
+    branches: [staging, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read   # 密钥扫描（gitleaks-action）要读取 PR 的提交列表，只读
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: 项目地图和索引检查（C53）
+        run: node scripts/check-project-index.mjs
+      - name: 密钥扫描（仓库里不能出现密钥的值）
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

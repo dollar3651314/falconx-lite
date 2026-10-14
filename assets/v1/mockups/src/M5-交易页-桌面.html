@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280">
+<title>M5 交易页 · 桌面</title>
+<style>
+/* 设计 token：取自 fxsystem/falconx-frontend/src/styles/tokens.css 的 light 主题（默认浅色）。 */
+:root{
+  --bg:#f4f7fb; --s1:#ffffff; --s2:#f8fafc; --s3:#eef5f9;
+  --border:rgba(15,23,42,.12); --hair:rgba(15,23,42,.07);
+  --text:#0f172a; --muted:#475569; --subtle:#64748b;
+  --cyan:#0891b2; --cyan-deep:#0e7490;
+  --long:#15803d; --short:#dc2626; --risk:#c2410c;
+  --r-sm:6px; --r-md:8px; --r-lg:12px;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.04);
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Hiragino Sans GB","WenQuanYi Zen Hei",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono","DejaVu Sans Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;font-size:13px}
+body{width:1280px;height:800px;overflow:hidden;display:flex;flex-direction:column}
+.num{font-family:var(--mono);letter-spacing:-.01em}
+.up{color:var(--long)} .down{color:var(--short)}
+
+.top{height:52px;flex:none;background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:20px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;color:var(--cyan-deep)}
+.logo small{font-size:11px;font-weight:600;color:var(--subtle);border:1px solid var(--border);border-radius:4px;padding:0 5px}
+.menu{display:flex;gap:4px;margin-left:12px}
+.menu a{padding:7px 14px;border-radius:var(--r-sm);color:var(--muted);text-decoration:none;font-size:14px}
+.menu a.on{color:var(--cyan-deep);background:rgba(8,145,178,.09);font-weight:700}
+.acc{margin-left:auto;display:flex;gap:18px;align-items:center}
+.acc div{font-size:11px;color:var(--subtle)}
+.acc div .num{display:block;font-size:13.5px;color:var(--text);font-weight:600}
+.dep{background:var(--cyan-deep);color:#fff;border-radius:var(--r-sm);padding:7px 14px;font-weight:700;font-size:13px}
+.mock-tag{font-size:11px;color:var(--subtle);border:1px solid var(--border);border-radius:999px;padding:2px 9px;background:var(--s2)}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;color:var(--cyan-deep);font-weight:700}
+
+.main{flex:1;display:grid;grid-template-columns:232px minmax(0,1fr) 284px;gap:8px;padding:8px;min-height:0}
+.panel{background:var(--s1);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow);min-height:0;overflow:hidden}
+
+/* 行情列表 */
+.wl{display:flex;flex-direction:column}
+.search{margin:10px 10px 8px;height:32px;border:1px solid var(--border);border-radius:var(--r-sm);display:flex;align-items:center;gap:6px;padding:0 9px;color:var(--subtle);background:var(--s2)}
+.cats{display:flex;gap:2px;padding:0 8px 8px;border-bottom:1px solid var(--hair)}
+.cats a{font-size:12px;padding:4px 7px;border-radius:5px;color:var(--muted)}
+.cats a.on{background:rgba(8,145,178,.09);color:var(--cyan-deep);font-weight:700}
+.wh{display:grid;grid-template-columns:minmax(0,1fr) 86px 56px;padding:6px 10px;font-size:11px;color:var(--subtle)}
+.wh span:not(:first-child){text-align:right}
+.wr{display:grid;grid-template-columns:minmax(0,1fr) 86px 56px;padding:7px 10px;align-items:center;border-left:3px solid transparent}
+.wr.on{background:rgba(8,145,178,.07);border-left-color:var(--cyan)}
+.wr b{font-family:var(--mono);font-size:12.5px;display:block}
+.wr small{font-size:11px;color:var(--subtle);white-space:nowrap}
+.wr .p{text-align:right;font-family:var(--mono);font-size:12.5px}
+.wr .c{text-align:right;font-family:var(--mono);font-size:11px;font-weight:600}
+.wr .c span{padding:2px 4px;border-radius:4px}
+.wr .c .up{background:rgba(22,163,74,.09)} .wr .c .down{background:rgba(220,38,38,.07)}
+.paused{font-size:10px;color:var(--risk);border:1px solid rgba(194,65,12,.4);border-radius:3px;padding:0 3px;margin-left:3px;white-space:nowrap;font-family:var(--sans);font-weight:600}
+
+/* 中间 */
+.center{display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0}
+.chartp{flex:1;display:flex;flex-direction:column}
+.sh{display:flex;align-items:center;gap:20px;white-space:nowrap;padding:10px 14px;border-bottom:1px solid var(--hair)}
+.sh .nm b{font-family:var(--mono);font-size:18px}
+.sh .nm small{font-size:12.5px;color:var(--muted);margin-left:6px}
+.sh .px{font-size:22px;font-weight:700}
+.sh .st div{font-size:11px;color:var(--subtle)}
+.sh .st .num{display:block;font-size:12.5px;color:var(--text)}
+.tfb{display:flex;gap:2px;padding:6px 10px;border-bottom:1px solid var(--hair);align-items:center}
+.tfb a{font-family:var(--mono);font-size:12px;padding:4px 9px;border-radius:5px;color:var(--muted)}
+.tfb a.on{background:rgba(8,145,178,.1);color:var(--cyan-deep);font-weight:700}
+.tfb .sep{width:1px;height:16px;background:var(--border);margin:0 6px}
+.tfb .tx{font-family:var(--sans)}
+.chart{flex:1;position:relative;min-height:0}
+.ohlc{position:absolute;left:12px;top:8px;font-size:11px;color:var(--subtle);font-family:var(--mono);display:flex;gap:12px}
+.ohlc i{font-style:normal;color:var(--muted)}
+
+.posp{height:236px;flex:none;display:flex;flex-direction:column}
+.ptabs{display:flex;gap:20px;padding:0 14px;border-bottom:1px solid var(--hair);align-items:center}
+.ptabs a{font-size:13.5px;color:var(--muted);padding:9px 0;position:relative}
+.ptabs a.on{color:var(--text);font-weight:700}
+.ptabs a.on:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--cyan)}
+.ptabs .r{margin-left:auto;font-size:12px;color:var(--subtle)}
+table{width:100%;border-collapse:collapse}
+th{font-size:11.5px;color:var(--muted);font-weight:500;text-align:right;padding:7px 7px;background:var(--s3);white-space:nowrap}
+td{font-size:12px;text-align:right;padding:6px 7px;border-bottom:1px solid var(--hair);white-space:nowrap;font-family:var(--mono)}
+th:first-child,td:first-child{text-align:left}
+td.tx{font-family:var(--sans)}
+.side{font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px;font-family:var(--sans)}
+.side.l{color:var(--long);background:rgba(22,163,74,.10)} .side.s{color:var(--short);background:rgba(220,38,38,.08)}
+.lk{font-family:var(--sans);font-size:12px;color:var(--cyan-deep);margin-left:7px}
+td .sub{display:block;font-size:11px;color:var(--subtle);line-height:1.4}
+td .sub b{font-weight:400;color:var(--text)}
+.lk.cl{color:#fff;background:var(--cyan-deep);border-radius:4px;padding:3px 8px}
+
+/* 下单面板 */
+.op{display:flex;flex-direction:column;padding:12px 14px}
+.op h3{font-size:14px;margin-bottom:10px;display:flex;justify-content:space-between}
+.op h3 span{font-family:var(--mono)}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--s3);border-radius:8px;padding:3px;margin-bottom:10px}
+.seg a{text-align:center;padding:6px 0;border-radius:6px;color:var(--muted);font-size:13px}
+.seg a.on{background:var(--s1);color:var(--text);font-weight:700;box-shadow:0 1px 3px rgba(15,23,42,.12)}
+.dir{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.dir a{border-radius:8px;padding:6px 10px;border:1.5px solid var(--border);text-align:center}
+.dir a small{display:block;font-size:11.5px;color:var(--muted)}
+.dir a b{font-family:var(--mono);font-size:15px}
+.dir a.sell b{color:var(--short)}
+.dir a.buy.on{background:var(--long);border-color:var(--long)}
+.dir a.buy.on small,.dir a.buy.on b{color:#fff}
+.lbl{font-size:12px;color:var(--muted);margin:0 0 4px;display:flex;justify-content:space-between}
+.lbl em{font-style:normal;color:var(--subtle)}
+.field{height:36px;border:1px solid var(--border);border-radius:var(--r-sm);display:flex;align-items:center;padding:0 10px;margin-bottom:10px;justify-content:space-between}
+.field .num{font-size:14px;font-weight:600}
+.field small{color:var(--subtle);font-size:12px}
+.field.dim{background:var(--s2);border-style:dashed}
+.field.dim span{color:var(--subtle);font-size:12.5px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lev{display:flex;gap:4px;margin:-4px 0 10px}
+.lev a{flex:1;text-align:center;font-family:var(--mono);font-size:11.5px;padding:3px 0;border:1px solid var(--border);border-radius:4px;color:var(--muted)}
+.lev a.on{border-color:var(--cyan);color:var(--cyan-deep);font-weight:700;background:rgba(8,145,178,.06)}
+.est{background:var(--s2);border:1px solid var(--hair);border-radius:var(--r-md);padding:8px 10px;margin-bottom:10px}
+.est div{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);line-height:1.75}
+.est .num{color:var(--text)}
+.go{height:44px;border:0;border-radius:var(--r-md);background:var(--long);color:#fff;font-size:15px;font-weight:700;font-family:var(--sans)}
+.foot{font-size:11px;color:var(--subtle);text-align:center;margin-top:6px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo"><svg width="30" height="18" viewBox="0 0 160 96"><path d="M80 39 10 8l28 45-24 35 66-28 66 28-24-35 28-45-70 31Z" fill="#0e7490"/><path d="M80 52 66 75h28L80 52Z" fill="#0e7490" opacity=".88"/></svg>FalconX<small>Lite</small></div>
+  <nav class="menu"><a>首页</a><a>行情</a><a class="on">交易</a><a>资产</a><a>我的</a></nav>
+  <div class="acc">
+    <div>净值<span class="num">10,250.00</span></div>
+    <div>可用<span class="num">8,261.63</span></div>
+    <div>保证金水平<span class="num up">515.5%</span></div>
+    <span class="dep">充值</span>
+    <span class="mock-tag">效果图 · 非真实数据</span>
+    <span class="avatar">L</span>
+  </div>
+</header>
+
+<main class="main">
+  <!-- 左：行情列表 -->
+  <aside class="panel wl">
+    <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>搜索品种</div>
+    <div class="cats"><a class="on">自选</a><a>外汇</a><a>贵金属</a><a>指数</a><a>加密</a></div>
+    <div class="wh"><span>品种</span><span>卖价</span><span>涨跌</span></div>
+    <div class="wr on"><div><b>XAUUSD</b><small>黄金</small></div><span class="p up">4,126.35</span><span class="c"><span class="up">+0.42%</span></span></div>
+    <div class="wr"><div><b>EURUSD</b><small>欧元/美元</small></div><span class="p">1.16420</span><span class="c"><span class="down">-0.08%</span></span></div>
+    <div class="wr"><div><b>USDJPY</b><small>美元/日元</small></div><span class="p">151.842</span><span class="c"><span class="up">+0.21%</span></span></div>
+    <div class="wr"><div><b>GBPUSD</b><small>英镑/美元</small></div><span class="p">1.33185</span><span class="c"><span class="down">-0.15%</span></span></div>
+    <div class="wr"><div><b>XAGUSD</b><small>白银</small></div><span class="p">48.625</span><span class="c"><span class="up">+1.06%</span></span></div>
+    <div class="wr"><div><b>NAS100</b><small>纳指 100</small></div><span class="p">24,812.6</span><span class="c"><span class="up">+0.63%</span></span></div>
+    <div class="wr"><div><b>US30</b><small>道琼斯 30</small></div><span class="p">46,385.2</span><span class="c"><span class="up">+0.18%</span></span></div>
+    <div class="wr"><div><b>BTCUSD</b><small><span class="paused" style="margin-left:0">暂停开仓</span></small></div><span class="p">112,480.5</span><span class="c"><span class="down">-1.34%</span></span></div>
+    <div class="wr"><div><b>ETHUSD</b><small>以太坊</small></div><span class="p">4,086.20</span><span class="c"><span class="down">-0.92%</span></span></div>
+    <div class="wr"><div><b>AUDUSD</b><small>澳元/美元</small></div><span class="p">0.65412</span><span class="c"><span class="up">+0.05%</span></span></div>
+  </aside>
+
+  <!-- 中：K 线 + 持仓 -->
+  <section class="center">
+    <div class="panel chartp">
+      <div class="sh">
+        <div class="nm"><b>XAUUSD</b><small>黄金 · 现货</small></div>
+        <div class="px num up">4,126.35</div>
+        <div class="st"><div>涨跌<span class="num up">+17.26 (+0.42%)</span></div></div>
+        <div class="st"><div>卖 / 买<span class="num">4,126.35 / 4,126.75</span></div></div>
+        <div class="st"><div>今日最高<span class="num">4,131.80</span></div></div>
+        <div class="st"><div>今日最低<span class="num">4,098.45</span></div></div>
+              </div>
+      <div class="tfb"><a class="tx">分时</a><a>1m</a><a>5m</a><a class="on">15m</a><a>1h</a><a>4h</a><a>1d</a><span class="sep"></span><a class="tx">指标</a><a class="tx">Bid/Ask</a></div>
+      <div class="chart" id="chart"><div class="ohlc"><span><i>开</i> 4,121.10</span><span><i>高</i> 4,128.90</span><span><i>低</i> 4,119.40</span><span><i>收</i> 4,126.35</span><span style="color:#b45309">MA7 4,122.84</span><span style="color:#7c3aed">MA25 4,115.62</span></div></div>
+    </div>
+    <div class="panel posp">
+      <nav class="ptabs"><a class="on">持仓 (2)</a><a>挂单 (1)</a><a>历史</a><span class="r">浮动盈亏 <b class="num up">+43.00</b> USDT</span></nav>
+      <table>
+        <thead><tr><th>品种</th><th>手数 · 杠杆</th><th>开仓价</th><th>保证金</th><th>止盈 / 止损</th><th>强平价</th><th>浮动盈亏</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr><td>XAUUSD <span class="side l">买</span></td><td>0.10 · 50×</td><td>4,120.85</td><td>824.17</td><td><span class="sub">止盈 <b>4,180.00</b></span><span class="sub">止损 <b>4,095.00</b></span></td><td style="color:var(--risk)">4,059.04</td><td class="up">+55.00</td><td class="tx"><span class="lk cl">平仓</span><span class="lk">止盈止损</span><span class="lk">加保证金</span></td></tr>
+          <tr><td>EURUSD <span class="side s">卖</span></td><td>1.00 · 100×</td><td>1.16420</td><td>1,164.20</td><td><span class="sub">止盈 <b>未设置</b></span><span class="sub">止损 <b>1.16900</b></span></td><td style="color:var(--risk)">1.17002</td><td class="down">-12.00</td><td class="tx"><span class="lk cl">平仓</span><span class="lk">止盈止损</span><span class="lk">加保证金</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 右：下单面板 -->
+  <aside class="panel op">
+    <h3>下单 <span>XAUUSD</span></h3>
+    <nav class="seg"><a class="on">市价</a><a>限价</a></nav>
+    <div class="dir"><a class="sell"><small>卖出</small><b>4,126.35</b></a><a class="buy on"><small>买入</small><b>4,126.75</b></a></div>
+    <div class="lbl">价格</div>
+    <div class="field dim"><span>市价成交（按买价 ask）</span></div>
+    <div class="two">
+      <div><div class="lbl">数量（手）</div><div class="field"><span class="num">0.10</span><small>手</small></div></div>
+      <div><div class="lbl">杠杆<em>≤100×</em></div><div class="field"><span class="num">50×</span><small>▾</small></div></div>
+    </div>
+    <div class="lev"><a>10×</a><a>20×</a><a class="on">50×</a><a>100×</a></div>
+    <div class="two">
+      <div><div class="lbl">止盈<em>可选</em></div><div class="field"><span class="num">4,180.00</span></div></div>
+      <div><div class="lbl">止损<em>可选</em></div><div class="field"><span class="num">4,095.00</span></div></div>
+    </div>
+    <div class="est">
+      <div>预估保证金<span class="num">825.35 USDT</span></div>
+      <div>手续费<span class="num">2.06 USDT</span></div>
+      <div>预估强平价<span class="num" style="color:var(--risk)">4,064.85</span></div>
+      <div>可用余额<span class="num">8,261.63 USDT</span></div>
+    </div>
+    <button class="go">买入 0.10 手 XAUUSD</button>
+    <div class="foot">逐仓 · 提交后二次确认</div>
+  </aside>
+</main>
+<script>
+/* 内联蜡烛图：固定种子的随机游走，仅用于效果图展示，非真实行情 */
+function drawCandles(el,o){
+  var W=el.clientWidth,H=el.clientHeight,padR=o.axisW||58,padT=o.padT||38,padB=o.padB||22,volH=o.volH||26;
+  var s=o.seed||1;function rnd(){s|=0;s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}
+  var n=o.n,c=[],p=0;
+  for(var i=0;i<n;i++){var op=p,cl=op+o.drift*(0.5+Math.sin(i/6))+ (rnd()-0.5)*o.vol*2;var hi=Math.max(op,cl)+rnd()*o.vol*0.7,lo=Math.min(op,cl)-rnd()*o.vol*0.7;c.push([op,hi,lo,cl,0.3+rnd()]);p=cl}
+  var shift=o.last-p;c.forEach(function(k){for(var j=0;j<4;j++)k[j]+=shift});
+  var mx=-1e9,mn=1e9;c.forEach(function(k){mx=Math.max(mx,k[1]);mn=Math.min(mn,k[2])});
+  var r=(mx-mn)*0.08;mx+=r;mn-=r;
+  var ch=H-padT-padB-volH,cw=(W-padR-8)/n;
+  function y(v){return padT+(mx-v)/(mx-mn)*ch}
+  var g='<svg width="'+W+'" height="'+H+'" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:0;top:0">';
+  var raw=(mx-mn)/(o.ticks||7),mag=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,5,10].map(function(m){return m*mag}).filter(function(v){return v>=raw})[0];for(var gv=Math.ceil(mn/st)*st;gv<mx;gv+=st){var gy=y(gv);if(Math.abs(gy-y(o.last))<12)continue;g+='<line x1="0" x2="'+(W-padR)+'" y1="'+gy+'" y2="'+gy+'" stroke="rgba(15,23,42,.06)"/>';g+='<text x="'+(W-padR+6)+'" y="'+(gy+3.5)+'" font-size="'+(o.fs||10)+'" fill="#64748b" font-family="ui-monospace,Menlo,Consolas,DejaVu Sans Mono,monospace">'+gv.toLocaleString('en-US',{minimumFractionDigits:o.dec,maximumFractionDigits:o.dec})+'</text>'}
+  for(var vi=0;vi<o.times.length;vi++){var tx=8+cw*(n-1)*(vi+0.5)/o.times.length;g+='<line x1="'+tx+'" x2="'+tx+'" y1="'+padT+'" y2="'+(H-padB)+'" stroke="rgba(15,23,42,.05)"/><text x="'+tx+'" y="'+(H-7)+'" text-anchor="middle" font-size="'+(o.fs||10)+'" fill="#64748b" font-family="ui-monospace,Menlo,Consolas,DejaVu Sans Mono,monospace">'+o.times[vi]+'</text>'}
+  var ma=function(per,col){var d='';for(var i=per-1;i<n;i++){var sm=0;for(var j=0;j<per;j++)sm+=c[i-j][3];d+=(d?'L':'M')+(8+cw*i+cw/2).toFixed(1)+' '+y(sm/per).toFixed(1)}return '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="1.2" opacity=".85"/>'};
+  c.forEach(function(k,i){var x=8+cw*i,up=k[3]>=k[0],col=up?'#16a34a':'#dc2626',bw=Math.max(1.5,cw*0.62);
+    g+='<line x1="'+(x+cw/2)+'" x2="'+(x+cw/2)+'" y1="'+y(k[1])+'" y2="'+y(k[2])+'" stroke="'+col+'" stroke-width="1"/>';
+    var t=y(Math.max(k[0],k[3])),h=Math.max(1,Math.abs(y(k[0])-y(k[3])));
+    g+='<rect x="'+(x+(cw-bw)/2)+'" y="'+t+'" width="'+bw+'" height="'+h+'" fill="'+col+'" rx="0.5"/>';
+    var vh=k[4]*volH*0.9;g+='<rect x="'+(x+(cw-bw)/2)+'" y="'+(H-padB-vh)+'" width="'+bw+'" height="'+vh+'" fill="'+col+'" opacity=".22"/>'});
+  g+=ma(7,'#d97706')+ma(25,'#7c3aed');
+  var ly=y(o.last);g+='<line x1="0" x2="'+(W-padR)+'" y1="'+ly+'" y2="'+ly+'" stroke="#16a34a" stroke-dasharray="3 3" opacity=".8"/>';
+  g+='<rect x="'+(W-padR+1)+'" y="'+(ly-9)+'" width="'+(padR-2)+'" height="18" rx="3" fill="#15803d"/><text x="'+(W-padR+5)+'" y="'+(ly+4)+'" font-size="'+(o.fs||10)+'" font-weight="700" fill="#fff" font-family="ui-monospace,Menlo,Consolas,DejaVu Sans Mono,monospace">'+o.last.toLocaleString('en-US',{minimumFractionDigits:o.dec})+'</text>';
+  if(o.posLine){var py=y(o.posLine);g+='<line x1="0" x2="'+(W-padR)+'" y1="'+py+'" y2="'+py+'" stroke="#0e7490" stroke-dasharray="6 4" opacity=".7"/><rect x="4" y="'+(py-9)+'" width="'+(o.posLabel.length*(o.fs||10)*0.62+10)+'" height="18" rx="3" fill="#fff" stroke="#0e7490" stroke-opacity=".5"/><text x="9" y="'+(py+4)+'" font-size="'+(o.fs||10)+'" fill="#0e7490" font-family="var(--sans)">'+o.posLabel+'</text>'}
+  g+='</svg>';el.insertAdjacentHTML('beforeend',g);
+}
+
+drawCandles(document.getElementById('chart'),{n:96,seed:11,drift:0.3,vol:2.4,last:4126.35,dec:2,padT:30,axisW:70,fs:11,volH:40,times:['10-13 18:00','22:00','10-14 02:00','06:00','10:00','14:00'],posLine:4120.85,posLabel:'买 0.10 手 @ 4,120.85'});
+</script>
+</body>
+</html>

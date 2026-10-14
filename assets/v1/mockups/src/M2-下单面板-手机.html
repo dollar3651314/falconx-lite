@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>M2 下单面板 · 手机</title>
+<style>
+/* 设计 token：取自 fxsystem/falconx-frontend/src/styles/tokens.css 的 light 主题（默认浅色）。 */
+:root{
+  --bg:#f4f7fb; --s1:#ffffff; --s2:#f8fafc; --s3:#eef5f9;
+  --border:rgba(15,23,42,.12); --hair:rgba(15,23,42,.06);
+  --text:#0f172a; --muted:#475569; --subtle:#64748b;
+  --cyan:#0891b2; --cyan-deep:#0e7490;
+  --long:#15803d; --short:#dc2626; --risk:#c2410c;
+  --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:18px;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Hiragino Sans GB","WenQuanYi Zen Hei",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono","DejaVu Sans Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+body{width:390px;height:844px;overflow:hidden;position:relative}
+.num{font-family:var(--mono);letter-spacing:-.01em}
+.up{color:var(--long)} .down{color:var(--short)}
+
+/* 背景：交易页（被遮罩压暗） */
+.status{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;font-size:15px;font-weight:600;background:var(--s1)}
+.mock-tag{font-size:10px;font-weight:500;color:var(--subtle);border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:var(--s2)}
+.head{background:var(--s1);padding:6px 16px 10px;display:flex;justify-content:space-between;align-items:flex-end}
+.head b{font-size:19px;font-family:var(--mono)}
+.chart{background:var(--s1);height:220px;position:relative}
+.mask{position:absolute;inset:44px 0 0 0;background:rgba(15,23,42,.48)}
+
+/* 底部弹出面板 */
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--s1);border-radius:20px 20px 0 0;padding:8px 16px 30px;box-shadow:0 -12px 32px rgba(15,23,42,.18)}
+.grab{width:40px;height:5px;border-radius:3px;background:#cbd5e1;margin:0 auto 8px}
+.st{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.st h2{font-size:17px;display:flex;align-items:baseline;gap:6px}
+.st h2 .num{font-size:17px}
+.st h2 small{font-size:13px;color:var(--muted);font-weight:400}
+.x{width:30px;height:30px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--s3);border-radius:10px;padding:3px;margin-bottom:10px}
+.seg a{text-align:center;font-size:14px;padding:7px 0;border-radius:8px;color:var(--muted);text-decoration:none}
+.seg a.on{background:var(--s1);color:var(--text);font-weight:700;box-shadow:0 1px 3px rgba(15,23,42,.12)}
+
+.dir{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.dir a{border-radius:10px;padding:7px 10px;text-decoration:none;border:1.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted)}
+.dir a .num{font-size:14px}
+.dir a.sell .num{color:var(--short)}
+.dir a.buy.on{background:var(--long);border-color:var(--long);color:#fff;font-weight:700}
+.dir a.buy.on .num{color:#fff}
+
+.mkt{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);background:var(--s2);border:1px dashed var(--border);border-radius:var(--r-md);padding:7px 10px;margin-bottom:10px}
+.mkt .num{color:var(--text)}
+
+.row2{display:grid;grid-template-columns:1.25fr 1fr;gap:8px;margin-bottom:8px}
+.lbl{font-size:12px;color:var(--muted);margin-bottom:4px;display:flex;justify-content:space-between}
+.lbl em{font-style:normal;color:var(--subtle)}
+.field{height:42px;border:1px solid var(--border);border-radius:var(--r-md);display:flex;align-items:center;padding:0 4px;background:var(--s1)}
+.field .step{width:32px;height:32px;border-radius:6px;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text)}
+.field .v{flex:1;text-align:center;font-family:var(--mono);font-size:16px;font-weight:600}
+.field .u{font-size:12px;color:var(--subtle);margin-right:6px}
+.field.sel{padding:0 10px;justify-content:space-between}
+.chips{display:flex;gap:6px;margin-bottom:10px}
+.chips a{flex:1;text-align:center;font-family:var(--mono);font-size:12px;padding:4px 0;border-radius:6px;background:var(--s2);border:1px solid var(--border);color:var(--muted)}
+.chips a.on{border-color:var(--cyan);color:var(--cyan-deep);background:rgba(8,145,178,.06);font-weight:700}
+
+.tpsl{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.tp .field{padding:0 10px;justify-content:space-between}
+.tp .field .v{text-align:left;font-size:15px}
+.tp .hint{font-size:11.5px;margin-top:3px;color:var(--subtle)}
+.sw{width:30px;height:18px;border-radius:9px;background:var(--cyan-deep);position:relative;display:inline-block;vertical-align:middle}
+.sw:after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+
+.est{background:var(--s2);border:1px solid var(--hair);border-radius:var(--r-lg);padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-bottom:12px}
+.est div{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+.est .num{color:var(--text);font-size:12.5px}
+.est .note{grid-column:1/3;font-size:11px;color:var(--subtle);border-top:1px dashed var(--border);padding-top:6px;display:block}
+
+.confirm{width:100%;height:50px;border:0;border-radius:var(--r-lg);background:var(--long);color:#fff;font-size:16px;font-weight:700;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:6px}
+.confirm .num{font-size:16px}
+.foot{text-align:center;font-size:11.5px;color:var(--subtle);margin-top:7px}
+.home-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#0f172a}
+</style>
+</head>
+<body>
+<div class="status"><span>9:41</span><span class="mock-tag">效果图 · 非真实数据</span>
+  <span style="display:flex;gap:5px"><svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#0f172a"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#0f172a"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#0f172a"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#0f172a"/></svg><svg width="26" height="12" viewBox="0 0 26 12"><rect x=".5" y=".5" width="22" height="11" rx="3" fill="none" stroke="#0f172a" opacity=".45"/><rect x="2" y="2" width="17" height="8" rx="1.5" fill="#0f172a"/></svg></span></div>
+<div class="head"><b>XAUUSD</b><b class="up" style="font-size:22px">4,126.35</b></div>
+<div class="chart" id="chart"></div>
+<div class="mask"></div>
+
+<section class="sheet">
+  <div class="grab"></div>
+  <div class="st"><h2><span class="num">XAUUSD</span><small>黄金 · 下单</small></h2>
+    <span class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M6 6l12 12M18 6 6 18"/></svg></span></div>
+
+  <nav class="seg"><a class="on">市价</a><a>限价</a></nav>
+
+  <div class="dir">
+    <a class="sell">卖出<span class="num">4,126.35</span></a>
+    <a class="buy on">买入<span class="num">4,126.75</span></a>
+  </div>
+
+  <div class="mkt"><span>成交价：市价（按买价 ask 成交）</span><span>当前 <b class="num">4,126.75</b></span></div>
+
+  <div class="row2">
+    <div><div class="lbl">数量（手）<em>0.01 – 20</em></div>
+      <div class="field"><span class="step">−</span><span class="v">0.10</span><span class="step">+</span></div></div>
+    <div><div class="lbl">杠杆<em>上限 100×</em></div>
+      <div class="field sel"><span class="v" style="text-align:left">50×</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></div></div>
+  </div>
+  <div class="chips"><a>0.01</a><a class="on">0.10</a><a>0.50</a><a>1.00</a><a>2.00</a></div>
+
+  <div class="tpsl">
+    <div class="tp"><div class="lbl">止盈价 <span class="sw"></span></div>
+      <div class="field"><span class="v">4,180.00</span><span class="u">USD</span></div>
+      <div class="hint">预计盈利 <b class="num up">+532.50</b></div></div>
+    <div class="tp"><div class="lbl">止损价 <span class="sw"></span></div>
+      <div class="field"><span class="v">4,095.00</span><span class="u">USD</span></div>
+      <div class="hint">预计亏损 <b class="num down">-317.50</b></div></div>
+  </div>
+
+  <div class="est">
+    <div>预估保证金<span class="num">825.35</span></div>
+    <div>手续费<span class="num">2.06</span></div>
+    <div>名义价值<span class="num">41,267.50</span></div>
+    <div>预估强平价<span class="num" style="color:var(--risk)">4,064.85</span></div>
+    <div>可用余额<span class="num">8,261.63</span></div>
+    <div>合约单位<span class="num">100 盎司/手</span></div>
+    <span class="note">单位 USDT。逐仓：本笔最多亏损其保证金，不影响其他持仓。</span>
+  </div>
+
+  <button class="confirm">确认买入 <span class="num">0.10</span> 手 XAUUSD</button>
+  <div class="foot">点击后弹出二次确认，显示方向、数量与保证金</div>
+  <span class="home-ind"></span>
+</section>
+<script>
+/* 内联蜡烛图：固定种子的随机游走，仅用于效果图展示，非真实行情 */
+function drawCandles(el,o){
+  var W=el.clientWidth,H=el.clientHeight,padR=o.axisW||58,padT=o.padT||38,padB=o.padB||22,volH=o.volH||26;
+  var s=o.seed||1;function rnd(){s|=0;s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}
+  var n=o.n,c=[],p=0;
+  for(var i=0;i<n;i++){var op=p,cl=op+o.drift*(0.5+Math.sin(i/6))+ (rnd()-0.5)*o.vol*2;var hi=Math.max(op,cl)+rnd()*o.vol*0.7,lo=Math.min(op,cl)-rnd()*o.vol*0.7;c.push([op,hi,lo,cl,0.3+rnd()]);p=cl}
+  var shift=o.last-p;c.forEach(function(k){for(var j=0;j<4;j++)k[j]+=shift});
+  var mx=-1e9,mn=1e9;c.forEach(function(k){mx=Math.max(mx,k[1]);mn=Math.min(mn,k[2])});
+  var r=(mx-mn)*0.08;mx+=r;mn-=r;
+  var ch=H-padT-padB-volH,cw=(W-padR-8)/n;
+  function y(v){return padT+(mx-v)/(mx-mn)*ch}
+  var g='<svg width="'+W+'" height="'+H+'" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:0;top:0">';
+  var raw=(mx-mn)/(o.ticks||7),mag=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,5,10].map(function(m){return m*mag}).filter(function(v){return v>=raw})[0];for(var gv=Math.ceil(mn/st)*st;gv<mx;gv+=st){var gy=y(gv);if(Math.abs(gy-y(o.last))<12)continue;g+='<line x1="0" x2="'+(W-padR)+'" y1="'+gy+'" y2="'+gy+'" stroke="rgba(15,23,42,.06)"/>';g+='<text x="'+(W-padR+6)+'" y="'+(gy+3.5)+'" font-size="'+(o.fs||10)+'" fill="#64748b" font-family="ui-monospace,Menlo,Consolas,DejaVu Sans Mono,monospace">'+gv.toLocaleString('en-US',{minimumFractionDigits:o.dec,maximumFractionDigits:o.dec})+'</text>'}
+  for(var vi=0;vi<o.times.length;vi++){var tx=8+cw*(n-1)*(vi+0.5)/o.times.length;g+='<line x1="'+tx+'" x2="'+tx+'" y1="'+padT+'" y2="'+(H-padB)+'" stroke="rgba(15,23,42,.05)"/><text x="'+tx+'" y="'+(H-7)+'" text-anchor="middle" font-size="'+(o.fs||10)+'" fill="#64748b" font-family="ui-monospace,Menlo,Consolas,DejaVu Sans Mono,monospace">'+o.times[vi]+'</text>'}
+  var ma=function(per,col){var d='';for(var i=per-1;i<n;i++){var sm=0;for(var j=0;j<per;j++)sm+=c[i-j][3];d+=(d?'L':'M')+(8+cw*i+cw/2).toFixed(1)+' '+y(sm/per).toFixed(1)}return '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="1.2" opacity=".85"/>'};
+  c.forEach(function(k,i){var x=8+cw*i,up=k[3]>=k[0],col=up?'#16a34a':'#dc2626',bw=Math.max(1.5,cw*0.62);
+    g+='<line x1="'+(x+cw/2)+'" x2="'+(x+cw/2)+'" y1="'+y(k[1])+'" y2="'+y(k[2])+'" stroke="'+col+'" stroke-width="1"/>';
+    var t=y(Math.max(k[0],k[3])),h=Math.max(1,Math.abs(y(k[0])-y(k[3])));
+    g+='<rect x="'+(x+(cw-bw)/2)+'" y="'+t+'" width="'+bw+'" height="'+h+'" fill="'+col+'" rx="0.5"/>';
+    var vh=k[4]*volH*0.9;g+='<rect x="'+(x+(cw-bw)/2)+'" y="'+(H-padB-vh)+'" width="'+bw+'" height="'+vh+'" fill="'+col+'" opacity=".22"/>'});
+  g+=ma(7,'#d97706')+ma(25,'#7c3aed');
+  var ly=y(o.last);g+='<line x1="0" x2="'+(W-padR)+'" y1="'+ly+'" y2="'+ly+'" stroke="#16a34a" stroke-dasharray="3 3" opacity=".8"/>';
+  g+='<rect x="'+(W-padR+1)+'" y="'+(ly-9)+'" width="'+(padR-2)+'" height="18" rx="3" fill="#15803d"/><text x="'+(W-padR+5)+'" y="'+(ly+4)+'" font-size="'+(o.fs||10)+'" font-weight="700" fill="#fff" font-family="ui-monospace,Menlo,Consolas,DejaVu Sans Mono,monospace">'+o.last.toLocaleString('en-US',{minimumFractionDigits:o.dec})+'</text>';
+  if(o.posLine){var py=y(o.posLine);g+='<line x1="0" x2="'+(W-padR)+'" y1="'+py+'" y2="'+py+'" stroke="#0e7490" stroke-dasharray="6 4" opacity=".7"/><text x="6" y="'+(py-4)+'" font-size="'+(o.fs||10)+'" fill="#0e7490" font-family="var(--sans)">'+o.posLabel+'</text>'}
+  g+='</svg>';el.insertAdjacentHTML('beforeend',g);
+}
+
+drawCandles(document.getElementById('chart'),{n:40,seed:11,drift:0.55,vol:2.6,last:4126.35,dec:2,padT:14,times:['10:00','11:00','12:00','13:00']});
+</script>
+</body>
+</html>
