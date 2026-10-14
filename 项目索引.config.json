@@ -1,0 +1,12 @@
+{
+  "_说明": "项目地图和项目索引的检查配置（agents 规则 C53）。由 scripts/check-project-index.mjs 读取，CI 每次 PR 都会运行。v0.1：还没有代码，只检查文档、资源、脚本和 CI；代码目录建立时补充 include 和 lists（代码按模块和包列出，见 v0.9 的 C53 补充）。",
+  "map": "项目地图.md",
+  "index": "项目索引.md",
+  "entry": ["CLAUDE.md", "AGENTS.md"],
+  "files": {
+    "_说明": "include：必须写进索引的文件；exclude：不用写的。",
+    "include": ["*.md", "*.json", "需求文档/**", "技术方案/**", "测试报告/**", "部署方案/**", "交付记录/**", "assets/**", "scripts/**", ".github/workflows/**"],
+    "exclude": ["**/package-lock.json", "**/.gitignore"]
+  },
+  "lists": []
+}
