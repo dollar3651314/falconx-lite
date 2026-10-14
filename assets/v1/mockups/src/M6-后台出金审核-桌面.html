@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280">
+<title>M6 后台出金审核 · 桌面</title>
+<style>
+/* 设计 token：取自 fxsystem/falconx-console-frontend/src/styles/console-tokens.css 与 ConsoleAntdProvider 的 light 主题
+   （colorPrimary #0891b2、borderRadius 6、fontSize 13）。白底文字用 cyan-700 #0e7490 以满足 AA。 */
+:root{
+  --bg:#f4f7fb; --s1:#ffffff; --s2:#f8fafc; --s3:#eef5f9;
+  --border:rgba(15,23,42,.12); --hair:rgba(15,23,42,.07);
+  --text:#0f172a; --muted:#475569; --subtle:#64748b;
+  --primary:#0891b2; --primary-deep:#0e7490;
+  --long:#15803d; --short:#dc2626; --warn:#b45309; --risk:#c2410c;
+  --danger:#b91c1c; --danger-bg:rgba(220,38,38,.07); --danger-bd:rgba(220,38,38,.45);
+  --r:6px; --r-lg:8px;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.04);
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Hiragino Sans GB","WenQuanYi Zen Hei",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono","DejaVu Sans Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+body{width:1280px;height:800px;overflow:hidden;display:grid;grid-template-columns:200px 1fr;grid-template-rows:52px 1fr}
+.num{font-family:var(--mono);letter-spacing:-.01em}
+.up{color:var(--long)} .down{color:var(--short)}
+
+.top{grid-column:1/3;background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px 0 16px;gap:14px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;color:var(--primary-deep);width:168px}
+.logo small{font-size:12px;font-weight:600;color:var(--muted)}
+.crumb{color:var(--subtle);font-size:13px}
+.crumb b{color:var(--text);font-weight:600}
+.tr{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13px;color:var(--muted)}
+.mock-tag{font-size:11px;color:var(--subtle);border:1px solid var(--border);border-radius:999px;padding:2px 9px;background:var(--s2)}
+.bell{position:relative}.bell i{position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--short)}
+.who{display:flex;align-items:center;gap:8px}
+.who span{width:28px;height:28px;border-radius:50%;background:var(--s3);color:var(--primary-deep);display:flex;align-items:center;justify-content:center;font-weight:700}
+
+.side{background:var(--s1);border-right:1px solid var(--border);padding:10px 8px}
+.side a{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--r);color:var(--muted);text-decoration:none;font-size:13.5px;margin-bottom:2px}
+.side a svg{width:16px;height:16px;flex:none}
+.side a.on{background:rgba(8,145,178,.10);color:var(--primary-deep);font-weight:700}
+.side a .badge{margin-left:auto;font-size:11px;background:var(--short);color:#fff;border-radius:999px;padding:0 6px;font-weight:600;font-family:var(--mono)}
+
+.content{padding:16px 20px;overflow:hidden;display:flex;flex-direction:column;gap:12px;min-width:0}
+.ph{display:flex;align-items:baseline;gap:10px}
+.ph h1{font-size:18px}
+.ph span{font-size:12.5px;color:var(--subtle)}
+.card{background:var(--s1);border:1px solid var(--hair);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+
+.filter{display:flex;align-items:center;gap:14px;padding:10px 14px}
+.filter label{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.inp{height:30px;border:1px solid var(--border);border-radius:var(--r);padding:0 9px;display:inline-flex;align-items:center;justify-content:space-between;gap:8px;color:var(--text);background:var(--s1);font-size:13px}
+.inp.ph2{color:var(--subtle)}
+.btn{height:30px;padding:0 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--s1);display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:var(--text);font-family:var(--sans)}
+.btn.pri{background:var(--primary-deep);border-color:var(--primary-deep);color:#fff;font-weight:600}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kpi{padding:10px 14px;border-left:3px solid var(--primary)}
+.kpi .k{font-size:12.5px;color:var(--muted)}
+.kpi .v{display:flex;align-items:baseline;gap:10px;margin-top:3px}
+.kpi .v b{font-size:20px;font-family:var(--mono)}
+.kpi .v span{font-size:12.5px;color:var(--subtle)}
+.kpi .v span .num{color:var(--text);font-size:13px}
+
+.split{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:12px;min-height:0}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;color:var(--muted);font-weight:500;text-align:left;padding:8px 10px;background:var(--s3);white-space:nowrap}
+td{font-size:12.5px;padding:7px 10px;border-bottom:1px solid var(--hair);white-space:nowrap}
+td.r,th.r{text-align:right}
+tr.sel td{background:rgba(8,145,178,.07)}
+tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--primary)}
+.u b{display:block;font-weight:600;font-size:13px}
+.u small{color:var(--subtle);font-size:11.5px}
+.chain{font-family:var(--mono);font-size:11px;font-weight:700;padding:1px 5px;border-radius:4px;background:var(--s3);color:var(--muted)}
+.tag{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;display:inline-block}
+.tag.pend{color:#9a3412;background:#ffedd5}
+.tag.delay{color:#6d28d9;background:#ede9fe}
+.tag.ok{color:#166534;background:#dcfce7}
+.tag.warn{color:#9a3412;background:#fff7ed;border:1px solid #fdba74}
+.pager{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-size:12px;color:var(--subtle)}
+.pager .pg{display:flex;gap:4px}
+.pager .pg span{min-width:24px;height:24px;border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);color:var(--muted)}
+.pager .pg span.on{border-color:var(--primary);color:var(--primary-deep);font-weight:700}
+
+.det{display:flex;flex-direction:column;padding:12px 14px;gap:10px;min-height:0}
+.det h3{font-size:14px;display:flex;justify-content:space-between;align-items:center}
+.det h3 .num{font-size:12px;color:var(--subtle);font-weight:400}
+.who2{display:flex;gap:10px;align-items:center}
+.who2 .av{width:36px;height:36px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;color:var(--primary-deep);font-weight:700;font-size:15px}
+.who2 b{font-size:14px}
+.who2 small{display:block;color:var(--subtle);font-size:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;background:var(--s2);border-radius:var(--r);padding:8px 10px}
+.grid div{font-size:12px;color:var(--subtle)}
+.grid .num{display:block;color:var(--text);font-size:13px;margin-top:1px}
+.addr{border:1px solid #fdba74;background:#fff7ed;border-radius:var(--r);padding:8px 10px;font-size:12px;color:#7c2d12;line-height:1.55}
+.addr .num{color:var(--text);font-size:12px}
+.mini{font-size:12px;color:var(--muted)}
+.mini .row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--hair)}
+.mini .row .num{color:var(--text)}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.acts .btn{height:36px;font-size:14px}
+.acts .btn.rej{color:var(--danger);border-color:var(--danger-bd)}
+textarea{width:100%;height:44px;border:1px solid var(--border);border-radius:var(--r);padding:6px 9px;font-family:var(--sans);font-size:12px;color:var(--subtle);resize:none;background:var(--s1)}
+.emg{height:34px;border-radius:var(--r);border:1px dashed var(--danger-bd);background:var(--danger-bg);color:var(--danger);display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px}
+.foot{font-size:11.5px;color:var(--subtle);display:flex;align-items:center;gap:5px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo"><svg width="28" height="17" viewBox="0 0 160 96"><path d="M80 39 10 8l28 45-24 35 66-28 66 28-24-35 28-45-70 31Z" fill="#0e7490"/><path d="M80 52 66 75h28L80 52Z" fill="#0e7490" opacity=".88"/></svg>FalconX<small>管理后台</small></div>
+  <div class="crumb">资金 / <b>出金审核</b></div>
+  <div class="tr">
+    <span class="mock-tag">效果图 · 非真实数据</span>
+    <span class="bell"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"/></svg><i></i></span>
+    <span class="who"><span>李</span>李娜 · 财务审核</span>
+  </div>
+</header>
+
+<nav class="side">
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>仪表盘</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 21c1-4 4-6 7-6s6 2 7 6M17 4a4 4 0 0 1 0 8M22 21c-.5-3-2-5-4-5.5"/></svg>客户</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="M14 10h4M14 14h4"/></svg>KYC 审核<span class="badge">4</span></a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12m-5-5 5 5 5-5M5 20h14"/></svg>入金记录</a>
+  <a class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V8m-5 5 5-5 5 5M5 4h14"/></svg>出金审核<span class="badge">12</span></a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h10M4 17h7M17 15l2 2 3-4"/></svg>对账</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 4v16M17 4v16M5 8h4v8H5zM15 6h4v6h-4z"/></svg>订单与持仓</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg>风控</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/></svg>品种与行情</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>交易参数</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"/></svg>通知</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>系统与权限</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7"/></svg>审计日志</a>
+</nav>
+
+<main class="content">
+  <div class="ph"><h1>出金审核</h1><span>冷静期结束后进入待审核；≥3,000 USDT 通过后延迟 6 小时上链</span></div>
+
+  <section class="card filter">
+    <label>状态 <span class="inp" style="width:132px;white-space:nowrap">待处理（全部）<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span></label>
+    <label>链 <span class="inp" style="width:84px">全部<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span></label>
+    <label>金额 <span class="inp ph2" style="width:76px">最小</span>~<span class="inp ph2" style="width:76px">最大</span></label>
+    <label>用户 <span class="inp ph2" style="width:170px">姓名 / 邮箱 / 用户 ID</span></label>
+    <span style="margin-left:auto;display:flex;gap:8px"><span class="btn">重置</span><span class="btn pri">查询</span></span>
+  </section>
+
+  <section class="kpis">
+    <div class="card kpi" style="border-left-color:#ea580c"><div class="k">待审核</div><div class="v"><b>12 笔</b><span>合计 <span class="num">18,430.00</span> USDT</span></div></div>
+    <div class="card kpi" style="border-left-color:#7c3aed"><div class="k">延迟期中（可紧急取消）</div><div class="v"><b>3 笔</b><span>合计 <span class="num">21,000.00</span> USDT</span></div></div>
+    <div class="card kpi"><div class="k">冷静期中（客户可撤销）</div><div class="v"><b>5 笔</b><span>合计 <span class="num">4,260.00</span> USDT</span></div></div>
+    <div class="card kpi" style="border-left-color:#16a34a"><div class="k">今日已上链</div><div class="v"><b>9 笔</b><span>合计 <span class="num">26,850.00</span> USDT</span></div></div>
+  </section>
+
+  <section class="split">
+    <div class="card" style="display:flex;flex-direction:column;overflow:hidden">
+      <table>
+        <thead><tr><th>用户</th><th class="r">金额 USDT</th><th>链</th><th>地址</th><th>状态</th><th>提交时间</th></tr></thead>
+        <tbody>
+          <tr class="sel"><td class="u"><b>张三</b><small>zhangsan@qq.com</small></td><td class="r num"><b>5,000.00</b></td><td><span class="chain">TRC20</span></td><td class="num">TQ8n…w3kPq <span class="tag warn">首次</span></td><td><span class="tag pend">待审核</span></td><td class="num">10-14 09:12</td></tr>
+          <tr><td class="u"><b>Li Wei</b><small>liwei88@163.com</small></td><td class="r num">800.00</td><td><span class="chain">BSC</span></td><td class="num">0x4a1c…9e02</td><td><span class="tag pend">待审核</span></td><td class="num">10-14 09:05</td></tr>
+          <tr><td class="u"><b>王五</b><small>wangwu@foxmail.com</small></td><td class="r num">12,000.00</td><td><span class="chain">ERC20</span></td><td class="num">0x9b3f…11ad</td><td><span class="tag delay">延迟期中 · 剩 2:15</span></td><td class="num">10-14 00:41</td></tr>
+          <tr><td class="u"><b>陈晓</b><small>chenxiao@126.com</small></td><td class="r num">2,350.00</td><td><span class="chain">TRC20</span></td><td class="num">TMz2…8hRc</td><td><span class="tag pend">待审核</span></td><td class="num">10-14 08:47</td></tr>
+          <tr><td class="u"><b>赵敏</b><small>zhaomin@outlook.com</small></td><td class="r num">1,200.00</td><td><span class="chain">TRC20</span></td><td class="num">TJk5…2wVd</td><td><span class="tag pend">待审核</span></td><td class="num">10-14 08:30</td></tr>
+          <tr><td class="u"><b>刘洋</b><small>liuyang@sina.com</small></td><td class="r num">4,500.00</td><td><span class="chain">BSC</span></td><td class="num">0x27e8…c4f1</td><td><span class="tag delay">延迟期中 · 剩 4:52</span></td><td class="num">10-14 03:58</td></tr>
+          <tr><td class="u"><b>孙磊</b><small>sunlei@qq.com</small></td><td class="r num">680.00</td><td><span class="chain">TRC20</span></td><td class="num">TVb9…k1Nq</td><td><span class="tag pend">待审核</span></td><td class="num">10-14 07:16</td></tr>
+          <tr><td class="u"><b>周婷</b><small>zhouting@163.com</small></td><td class="r num">3,000.00</td><td><span class="chain">ERC20</span></td><td class="num">0x5d0e…a37b</td><td><span class="tag pend">待审核</span></td><td class="num">10-14 06:52</td></tr>
+        </tbody>
+      </table>
+      <div class="pager" style="margin-top:auto"><span>共 15 条 · 每页 8 条</span><span class="pg"><span>‹</span><span class="on">1</span><span>2</span><span>›</span></span></div>
+    </div>
+
+    <aside class="card det">
+      <h3>出金详情 <span class="num">WD-20261014-000318</span></h3>
+      <div class="who2"><span class="av">张</span><div><b>张三</b> <span class="tag ok">KYC 已通过</span><small>zhangsan@qq.com · 用户 ID 100482</small></div></div>
+      <div class="grid">
+        <div>申请金额<span class="num">5,000.00 USDT</span></div>
+        <div>链 / 手续费<span class="num">TRC20 / 1.00</span></div>
+        <div>注册时长<span class="num">30 天</span></div>
+        <div>累计入金<span class="num">20,000.00</span></div>
+        <div>账户余额<span class="num">6,820.40</span></div>
+        <div>当前持仓<span class="num">1 笔</span></div>
+      </div>
+      <div class="addr">⚠ 地址 <span class="num">TQ8nH4cR…Zp7w3kPq</span> <b>首次使用</b><br>白名单添加于 10-12 08:30，已过 24 小时生效期</div>
+      <div class="mini">
+        <div style="font-weight:600;color:var(--text);margin-bottom:2px">最近入金</div>
+        <div class="row"><span>10-13 20:14 · TRC20</span><span class="num up">+12,000.00</span></div>
+        <div class="row"><span>09-28 11:02 · TRC20</span><span class="num up">+8,000.00</span></div>
+        <div style="margin-top:4px">最近出金：<b style="color:var(--text)">无</b></div>
+      </div>
+      <textarea>拒绝原因（选择拒绝时必填）</textarea>
+      <div class="acts"><span class="btn pri">通过</span><span class="btn rej">拒绝</span></div>
+      <div class="emg"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>紧急取消（仅延迟期内可用 · 本单不适用）</div>
+      <div class="foot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 3h9l4 4v14H6z"/></svg>所有操作写入审计日志</div>
+    </aside>
+  </section>
+</main>
+</body>
+</html>

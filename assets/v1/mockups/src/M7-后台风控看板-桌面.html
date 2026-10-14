@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280">
+<title>M7 后台风控看板 · 桌面</title>
+<style>
+/* 设计 token：取自 fxsystem/falconx-console-frontend/src/styles/console-tokens.css 与 ConsoleAntdProvider 的 light 主题
+   （colorPrimary #0891b2、borderRadius 6、fontSize 13）。白底文字用 cyan-700 #0e7490 以满足 AA。 */
+:root{
+  --bg:#f4f7fb; --s1:#ffffff; --s2:#f8fafc; --s3:#eef5f9;
+  --border:rgba(15,23,42,.12); --hair:rgba(15,23,42,.07);
+  --text:#0f172a; --muted:#475569; --subtle:#64748b;
+  --primary:#0891b2; --primary-deep:#0e7490;
+  --long:#15803d; --short:#dc2626; --warn:#b45309; --risk:#c2410c;
+  --danger:#b91c1c; --danger-bg:rgba(220,38,38,.07); --danger-bd:rgba(220,38,38,.45);
+  --r:6px; --r-lg:8px;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.04);
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Hiragino Sans GB","WenQuanYi Zen Hei",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono","DejaVu Sans Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+body{width:1280px;height:800px;overflow:hidden;display:grid;grid-template-columns:200px 1fr;grid-template-rows:52px 1fr}
+.num{font-family:var(--mono);letter-spacing:-.01em}
+.up{color:var(--long)} .down{color:var(--short)}
+
+.top{grid-column:1/3;background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px 0 16px;gap:14px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;color:var(--primary-deep);width:168px}
+.logo small{font-size:12px;font-weight:600;color:var(--muted)}
+.crumb{color:var(--subtle);font-size:13px}
+.crumb b{color:var(--text);font-weight:600}
+.tr{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13px;color:var(--muted)}
+.mock-tag{font-size:11px;color:var(--subtle);border:1px solid var(--border);border-radius:999px;padding:2px 9px;background:var(--s2)}
+.bell{position:relative}.bell i{position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--short)}
+.who{display:flex;align-items:center;gap:8px}
+.who span{width:28px;height:28px;border-radius:50%;background:var(--s3);color:var(--primary-deep);display:flex;align-items:center;justify-content:center;font-weight:700}
+
+.side{background:var(--s1);border-right:1px solid var(--border);padding:10px 8px}
+.side a{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--r);color:var(--muted);text-decoration:none;font-size:13.5px;margin-bottom:2px}
+.side a svg{width:16px;height:16px;flex:none}
+.side a.on{background:rgba(8,145,178,.10);color:var(--primary-deep);font-weight:700}
+.side a .badge{margin-left:auto;font-size:11px;background:var(--short);color:#fff;border-radius:999px;padding:0 6px;font-weight:600;font-family:var(--mono)}
+
+.content{padding:16px 20px;overflow:hidden;display:flex;flex-direction:column;gap:12px;min-width:0}
+.ph{display:flex;align-items:baseline;gap:10px}
+.ph h1{font-size:18px}
+.ph span{font-size:12.5px;color:var(--subtle)}
+.card{background:var(--s1);border:1px solid var(--hair);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+
+.filter{display:flex;align-items:center;gap:14px;padding:10px 14px}
+.filter label{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.inp{height:30px;border:1px solid var(--border);border-radius:var(--r);padding:0 9px;display:inline-flex;align-items:center;justify-content:space-between;gap:8px;color:var(--text);background:var(--s1);font-size:13px}
+.inp.ph2{color:var(--subtle)}
+.btn{height:30px;padding:0 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--s1);display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:var(--text);font-family:var(--sans)}
+.btn.pri{background:var(--primary-deep);border-color:var(--primary-deep);color:#fff;font-weight:600}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kpi{padding:10px 14px;border-left:3px solid var(--primary)}
+.kpi .k{font-size:12.5px;color:var(--muted)}
+.kpi .v{display:flex;align-items:baseline;gap:10px;margin-top:3px}
+.kpi .v b{font-size:20px;font-family:var(--mono)}
+.kpi .v span{font-size:12.5px;color:var(--subtle)}
+.kpi .v span .num{color:var(--text);font-size:13px}
+
+.split{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:12px;min-height:0}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;color:var(--muted);font-weight:500;text-align:left;padding:8px 10px;background:var(--s3);white-space:nowrap}
+td{font-size:12.5px;padding:7px 10px;border-bottom:1px solid var(--hair);white-space:nowrap}
+td.r,th.r{text-align:right}
+tr.sel td{background:rgba(8,145,178,.07)}
+tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--primary)}
+.u b{display:block;font-weight:600;font-size:13px}
+.u small{color:var(--subtle);font-size:11.5px}
+.chain{font-family:var(--mono);font-size:11px;font-weight:700;padding:1px 5px;border-radius:4px;background:var(--s3);color:var(--muted)}
+.tag{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;display:inline-block}
+.tag.pend{color:#9a3412;background:#ffedd5}
+.tag.delay{color:#6d28d9;background:#ede9fe}
+.tag.ok{color:#166534;background:#dcfce7}
+.tag.warn{color:#9a3412;background:#fff7ed;border:1px solid #fdba74}
+.pager{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-size:12px;color:var(--subtle)}
+.pager .pg{display:flex;gap:4px}
+.pager .pg span{min-width:24px;height:24px;border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);color:var(--muted)}
+.pager .pg span.on{border-color:var(--primary);color:var(--primary-deep);font-weight:700}
+
+.det{display:flex;flex-direction:column;padding:12px 14px;gap:10px;min-height:0}
+.det h3{font-size:14px;display:flex;justify-content:space-between;align-items:center}
+.det h3 .num{font-size:12px;color:var(--subtle);font-weight:400}
+.who2{display:flex;gap:10px;align-items:center}
+.who2 .av{width:36px;height:36px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;color:var(--primary-deep);font-weight:700;font-size:15px}
+.who2 b{font-size:14px}
+.who2 small{display:block;color:var(--subtle);font-size:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;background:var(--s2);border-radius:var(--r);padding:8px 10px}
+.grid div{font-size:12px;color:var(--subtle)}
+.grid .num{display:block;color:var(--text);font-size:13px;margin-top:1px}
+.addr{border:1px solid #fdba74;background:#fff7ed;border-radius:var(--r);padding:8px 10px;font-size:12px;color:#7c2d12;line-height:1.55}
+.addr .num{color:var(--text);font-size:12px}
+.mini{font-size:12px;color:var(--muted)}
+.mini .row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--hair)}
+.mini .row .num{color:var(--text)}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.acts .btn{height:36px;font-size:14px}
+.acts .btn.rej{color:var(--danger);border-color:var(--danger-bd)}
+textarea{width:100%;height:44px;border:1px solid var(--border);border-radius:var(--r);padding:6px 9px;font-family:var(--sans);font-size:12px;color:var(--subtle);resize:none;background:var(--s1)}
+.emg{height:34px;border-radius:var(--r);border:1px dashed var(--danger-bd);background:var(--danger-bg);color:var(--danger);display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px}
+.foot{font-size:11.5px;color:var(--subtle);display:flex;align-items:center;gap:5px}
+
+.ctrl{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:12px}
+.sw{display:flex;align-items:center;gap:12px;padding:12px 16px}
+.sw .t b{font-size:14px;display:block}
+.sw .t small{font-size:12px;color:var(--subtle)}
+.tg{margin-left:0;width:44px;height:24px;border-radius:12px;position:relative;flex:none}
+.tg:after{content:"";position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tg.off{background:#cbd5e1}.tg.off:after{left:3px}
+.tg.on{background:var(--primary-deep)}.tg.on:after{right:3px}
+.st2{font-size:12.5px;font-weight:700;margin-left:auto}
+.hi{color:var(--danger);font-size:11px;border:1px solid var(--danger-bd);background:var(--danger-bg);border-radius:4px;padding:0 5px;font-weight:600;margin-left:6px}
+.tot{padding:12px 16px}
+.tot .k{font-size:12.5px;color:var(--muted);display:flex;justify-content:space-between}
+.tot .v{font-size:22px;font-family:var(--mono);font-weight:700;margin:2px 0 6px}
+.tot .v small{font-size:13px;color:var(--subtle);font-weight:400}
+.bar{height:8px;border-radius:4px;background:rgba(15,23,42,.08);overflow:hidden;position:relative}
+.bar i{display:block;height:100%;border-radius:4px}
+.mbar{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.mbar .bar{width:90px;height:6px}
+.mbar span{font-family:var(--mono);font-size:12px;width:40px;text-align:right}
+td{padding:6px 10px}
+tr.alert td{background:rgba(220,38,38,.05)}
+tr.alert td:first-child{box-shadow:inset 3px 0 0 var(--short)}
+.tag.norm{color:#166534;background:#dcfce7}
+.tag.auto{color:#991b1b;background:#fee2e2}
+.tag.man{color:#9a3412;background:#ffedd5}
+.tag.near{color:#92400e;background:#fef3c7}
+.op{font-size:12.5px;padding:3px 10px;border-radius:5px;border:1px solid var(--border);color:var(--text);background:var(--s1)}
+.op.pause{color:var(--danger);border-color:var(--danger-bd)}
+.op.resume{color:#fff;background:var(--primary-deep);border-color:var(--primary-deep)}
+.sym b{font-family:var(--mono);font-size:13px}.sym small{color:var(--subtle);font-size:11.5px;margin-left:6px}
+.ev{padding:10px 14px}
+.ev h3{font-size:14px;margin-bottom:6px;display:flex;justify-content:space-between}
+.ev h3 a{font-size:12.5px;color:var(--primary-deep);font-weight:400}
+.ev .it{display:grid;grid-template-columns:96px 74px 1fr;gap:10px;font-size:12.5px;padding:4px 0;border-top:1px dashed var(--hair);align-items:center}
+.ev .it .num{color:var(--muted)}
+.who3{font-size:11.5px;font-weight:600;border-radius:4px;padding:1px 6px;text-align:center}
+.who3.sys{color:#6d28d9;background:#ede9fe}.who3.man{color:#0e7490;background:rgba(8,145,178,.1)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo"><svg width="28" height="17" viewBox="0 0 160 96"><path d="M80 39 10 8l28 45-24 35 66-28 66 28-24-35 28-45-70 31Z" fill="#0e7490"/><path d="M80 52 66 75h28L80 52Z" fill="#0e7490" opacity=".88"/></svg>FalconX<small>管理后台</small></div>
+  <div class="crumb">风控 / <b>风控看板</b></div>
+  <div class="tr">
+    <span class="mock-tag">效果图 · 非真实数据</span>
+    <span class="bell"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"/></svg><i></i></span>
+    <span class="who"><span>王</span>王五 · 风控</span>
+  </div>
+</header>
+
+<nav class="side">
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>仪表盘</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 21c1-4 4-6 7-6s6 2 7 6M17 4a4 4 0 0 1 0 8M22 21c-.5-3-2-5-4-5.5"/></svg>客户</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="M14 10h4M14 14h4"/></svg>KYC 审核<span class="badge">4</span></a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12m-5-5 5 5 5-5M5 20h14"/></svg>入金记录</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V8m-5 5 5-5 5 5M5 4h14"/></svg>出金审核<span class="badge">12</span></a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h10M4 17h7M17 15l2 2 3-4"/></svg>对账</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 4v16M17 4v16M5 8h4v8H5zM15 6h4v6h-4z"/></svg>订单与持仓</a>
+  <a class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg>风控</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/></svg>品种与行情</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>交易参数</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"/></svg>通知</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>系统与权限</a>
+  <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7"/></svg>审计日志</a>
+</nav>
+
+<main class="content">
+  <div class="ph"><h1>风控看板</h1><span>净敞口统一换算为 USD · 每 5 秒刷新 · 更新于 16:20:35</span></div>
+  <section class="ctrl">
+    <div class="card sw"><div class="t"><b>全局暂停<span class="hi">高危</span></b><small>开启后禁止全部新开仓</small></div><span class="st2" style="color:var(--muted)">关</span><span class="tg off"></span></div>
+    <div class="card sw"><div class="t"><b>自动强平<span class="hi">高危</span></b><small>关闭后不再自动强平</small></div><span class="st2" style="color:var(--primary-deep)">开</span><span class="tg on"></span></div>
+    <div class="card tot"><div class="k"><span>平台总净敞口</span><span>阈值 <b class="num" style="color:var(--text)">500,000</b> USD</span></div>
+      <div class="v">182,300 <small>USD · 36.5%</small></div><div class="bar"><i style="width:36.5%;background:var(--primary)"></i></div></div>
+  </section>
+  <section class="card" style="overflow:hidden">
+    <table>
+      <thead><tr><th>品种</th><th class="r">多头 USD</th><th class="r">空头 USD</th><th class="r">净敞口 USD</th><th class="r">阈值 USD</th><th class="r">使用率</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>
+<tr><td class="sym"><b>XAUUSD</b><small>黄金</small></td><td class="r num">320,000</td><td class="r num">90,000</td><td class="r num up"><b>+230,000</b></td><td class="r num">250,000</td><td class="r"><div class="mbar"><div class="bar"><i style="width:92%;background:#d97706"></i></div><span style="color:#b45309">92%</span></div></td><td><span class="tag near">接近阈值</span></td><td><span class="op pause">暂停</span></td></tr>
+<tr class="alert"><td class="sym"><b>BTCUSD</b><small>比特币</small></td><td class="r num">150,000</td><td class="r num">40,000</td><td class="r num up"><b>+110,000</b></td><td class="r num">100,000</td><td class="r"><div class="mbar"><div class="bar"><i style="width:100%;background:#dc2626"></i></div><span style="color:#b91c1c">110%</span></div></td><td><span class="tag auto">自动禁开</span></td><td><span class="op resume">恢复</span></td></tr>
+<tr><td class="sym"><b>EURUSD</b><small>欧元/美元</small></td><td class="r num">80,000</td><td class="r num">120,000</td><td class="r num down"><b>-40,000</b></td><td class="r num">300,000</td><td class="r"><div class="mbar"><div class="bar"><i style="width:13%;background:#0891b2"></i></div><span style="color:#475569">13%</span></div></td><td><span class="tag norm">正常</span></td><td><span class="op pause">暂停</span></td></tr>
+<tr><td class="sym"><b>USDJPY</b><small>美元/日元</small></td><td class="r num">54,600</td><td class="r num">120,000</td><td class="r num down"><b>-65,400</b></td><td class="r num">300,000</td><td class="r"><div class="mbar"><div class="bar"><i style="width:22%;background:#0891b2"></i></div><span style="color:#475569">22%</span></div></td><td><span class="tag norm">正常</span></td><td><span class="op pause">暂停</span></td></tr>
+<tr><td class="sym"><b>NAS100</b><small>纳指 100</small></td><td class="r num">96,200</td><td class="r num">58,000</td><td class="r num up"><b>+38,200</b></td><td class="r num">200,000</td><td class="r"><div class="mbar"><div class="bar"><i style="width:19%;background:#0891b2"></i></div><span style="color:#475569">19%</span></div></td><td><span class="tag norm">正常</span></td><td><span class="op pause">暂停</span></td></tr>
+<tr><td class="sym"><b>GBPUSD</b><small>英镑/美元</small></td><td class="r num">41,200</td><td class="r num">94,000</td><td class="r num down"><b>-52,800</b></td><td class="r num">250,000</td><td class="r"><div class="mbar"><div class="bar"><i style="width:21%;background:#0891b2"></i></div><span style="color:#475569">21%</span></div></td><td><span class="tag norm">正常</span></td><td><span class="op pause">暂停</span></td></tr>
+<tr><td class="sym"><b>ETHUSD</b><small>以太坊</small></td><td class="r num">61,500</td><td class="r num">34,000</td><td class="r num up"><b>+27,500</b></td><td class="r num">80,000</td><td class="r"><div class="mbar"><div class="bar"><i style="width:34%;background:#0891b2"></i></div><span style="color:#475569">34%</span></div></td><td><span class="tag norm">正常</span></td><td><span class="op pause">暂停</span></td></tr>
+<tr><td class="sym"><b>XAGUSD</b><small>白银</small></td><td class="r num">12,400</td><td class="r num">31,000</td><td class="r num down"><b>-18,600</b></td><td class="r num">60,000</td><td class="r"><div class="mbar"><div class="bar"><i style="width:31%;background:#0891b2"></i></div><span style="color:#475569">31%</span></div></td><td><span class="tag man">手动暂停</span></td><td><span class="op resume">恢复</span></td></tr>
+<tr><td class="sym"><b>US30</b><small>道琼斯 30</small></td><td class="r num">22,400</td><td class="r num">69,000</td><td class="r num down"><b>-46,600</b></td><td class="r num">200,000</td><td class="r"><div class="mbar"><div class="bar"><i style="width:23%;background:#0891b2"></i></div><span style="color:#475569">23%</span></div></td><td><span class="tag norm">正常</span></td><td><span class="op pause">暂停</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="card ev">
+    <h3>最近风控事件 <a>查看全部（审计日志）</a></h3>
+    <div class="it"><span class="num">10-14 16:02</span><span class="who3 sys">系统</span><span>BTCUSD 净敞口 110,000 超过阈值 100,000，自动禁止新开仓，已通知风控（站内信 · 邮件 · 推送）</span></div>
+    <div class="it"><span class="num">10-14 14:47</span><span class="who3 man">风控 李娜</span><span>手动暂停 XAGUSD 新开仓（原因：流动性不足），已二次确认</span></div>
+    <div class="it"><span class="num">10-14 09:30</span><span class="who3 man">风控 王五</span><span>手动恢复 XAUUSD 新开仓</span></div>
+    <div class="it"><span class="num">10-13 22:15</span><span class="who3 sys">系统</span><span>XAUUSD 净敞口 256,400 超过阈值 250,000，自动禁止新开仓，已通知风控</span></div>
+  </section>
+</main>
+</body>
+</html>
