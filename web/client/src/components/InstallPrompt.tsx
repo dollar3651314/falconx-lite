@@ -1,0 +1,99 @@
+/**
+ * 首次进入时的提示卡片："添加到主屏幕，接收提醒" + "允许通知"。
+ * 原型里只调用浏览器的通知权限请求，不接后端推送服务。
+ */
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useToast } from '../app/contexts';
+import { notificationPermission, requestNotificationPermission } from '../lib/notify';
+import { Icon } from './Icon';
+
+const KEY = 'fx.installPrompt.dismissed';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+function isStandalone(): boolean {
+  return typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
+}
+
+function readInstallDismissed(): boolean {
+  try {
+    return localStorage.getItem(KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function InstallPrompt() {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const [visible, setVisible] = useState(() => !readInstallDismissed() && !isStandalone());
+  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
+  const [perm, setPerm] = useState(notificationPermission());
+
+  useEffect(() => {
+    const onBip = (e: Event) => {
+      e.preventDefault();
+      setDeferred(e as BeforeInstallPromptEvent);
+    };
+    const onReset = () => setVisible(true);
+    window.addEventListener('beforeinstallprompt', onBip);
+    window.addEventListener('fx:show-install', onReset);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBip);
+      window.removeEventListener('fx:show-install', onReset);
+    };
+  }, []);
+
+  const dismiss = () => {
+    setVisible(false);
+    try {
+      localStorage.setItem(KEY, '1');
+    } catch {
+      /* 忽略 */
+    }
+  };
+
+  const allow = async () => {
+    const r = await requestNotificationPermission();
+    setPerm(r);
+    if (r === 'granted') toast.show({ tone: 'success', title: t('install.permGranted') });
+    else if (r === 'denied') toast.show({ tone: 'warn', title: t('install.permDenied') });
+    else if (r === 'unsupported') toast.show({ tone: 'warn', title: t('install.permUnsupported') });
+  };
+
+  const install = async () => {
+    if (!deferred) return;
+    await deferred.prompt();
+    setDeferred(null);
+  };
+
+  if (!visible) return null;
+  return (
+    <aside className="install-card" aria-labelledby="install-title">
+      <div className="install-icon">
+        <Icon name="phone" size={22} />
+      </div>
+      <div className="install-text">
+        <b id="install-title">{t('install.title')}</b>
+        <p>{deferred ? t('install.bodyInstallable') : t('install.bodyIos')}</p>
+        <div className="btn-row">
+          {deferred && (
+            <button type="button" className="btn btn-primary btn-sm" onClick={install}>
+              {t('install.add')}
+            </button>
+          )}
+          <button type="button" className="btn btn-primary btn-sm" onClick={allow} disabled={perm === 'granted'}>
+            {perm === 'granted' ? t('install.allowed') : t('install.allow')}
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={dismiss}>
+            {t('install.later')}
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+}

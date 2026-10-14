@@ -1,0 +1,77 @@
+/**
+ * 全局上下文和对应的 hook。Provider 组件放在各自的 .tsx 文件里。
+ */
+import { createContext, useContext } from 'react';
+import type { Account, PendingOrder, Position, Session, SymbolInfo } from '../api/types';
+import type { Dec } from '../lib/decimal';
+
+// ---------- 登录状态 ----------
+export interface AuthValue {
+  session: Session | null;
+  setSession: (s: Session | null) => void;
+  logout: () => Promise<void>;
+}
+export const AuthContext = createContext<AuthValue | null>(null);
+export function useAuth(): AuthValue {
+  const v = useContext(AuthContext);
+  if (!v) throw new Error('useAuth 必须在 AuthProvider 内使用');
+  return v;
+}
+
+// ---------- 提示 ----------
+export type ToastTone = 'info' | 'success' | 'warn' | 'error';
+export interface ToastItem {
+  id: number;
+  tone: ToastTone;
+  title: string;
+  body?: string;
+}
+export interface ToastValue {
+  show: (t: Omit<ToastItem, 'id'>) => void;
+}
+export const ToastContext = createContext<ToastValue>({ show: () => undefined });
+export const useToast = (): ToastValue => useContext(ToastContext);
+
+// ---------- 品种 ----------
+export interface SymbolsValue {
+  list: SymbolInfo[];
+  map: Record<string, SymbolInfo>;
+  loading: boolean;
+  error: unknown;
+  reload: () => void;
+}
+export const SymbolsContext = createContext<SymbolsValue>({ list: [], map: {}, loading: true, error: undefined, reload: () => undefined });
+export const useSymbols = (): SymbolsValue => useContext(SymbolsContext);
+
+// ---------- 账户（实时计算） ----------
+export interface AccountMetrics {
+  balance: Dec;
+  equity: Dec;
+  usedMargin: Dec;
+  available: Dec;
+  floatingPnl: Dec;
+  /** 保证金水平（百分数）；没有持仓时为 null */
+  marginLevel: Dec | null;
+  withdrawFrozen: Dec;
+  orderFrozen: Dec;
+}
+export interface AccountValue {
+  loading: boolean;
+  error: unknown;
+  account?: Account;
+  positions: Position[];
+  orders: PendingOrder[];
+  metrics?: AccountMetrics;
+  reload: () => void;
+}
+export const AccountContext = createContext<AccountValue>({ loading: true, error: undefined, positions: [], orders: [], reload: () => undefined });
+export const useAccount = (): AccountValue => useContext(AccountContext);
+
+// ---------- 主题 ----------
+export type Theme = 'light' | 'dark';
+export interface ThemeValue {
+  theme: Theme;
+  setTheme: (t: Theme) => void;
+}
+export const ThemeContext = createContext<ThemeValue>({ theme: 'light', setTheme: () => undefined });
+export const useTheme = (): ThemeValue => useContext(ThemeContext);

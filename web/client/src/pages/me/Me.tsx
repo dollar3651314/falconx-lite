@@ -1,0 +1,130 @@
+/** 我的：资料、身份认证、通知、安全、语言、主题、退出登录。 */
+import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Link, useNavigate } from 'react-router-dom';
+import { getKyc, getProfile } from '../../api/user';
+import { useAuth, useTheme } from '../../app/contexts';
+import { ErrorState, Loading } from '../../components/AsyncView';
+import { Segmented } from '../../components/Form';
+import { Icon, type IconName } from '../../components/Icon';
+import { PageHeader } from '../../components/Layout';
+import { ConfirmDialog } from '../../components/Modal';
+import { currentLang, setLanguage } from '../../i18n';
+import { useAsync } from '../../hooks/useAsync';
+import { useUnread } from '../../hooks/useUnread';
+import { displayName } from '../../lib/profile';
+
+function MenuItem({ to, icon, label, extra }: { to: string; icon: IconName; label: string; extra?: ReactNode }) {
+  return (
+    <li>
+      <Link to={to} className="menu-item">
+        <Icon name={icon} size={20} />
+        <span className="menu-label">{label}</span>
+        {extra}
+        <Icon name="chevronRight" size={16} className="chev" />
+      </Link>
+    </li>
+  );
+}
+
+export default function Me() {
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  const { theme, setTheme } = useTheme();
+  const unread = useUnread();
+  const profile = useAsync(getProfile, 'profile');
+  const kyc = useAsync(() => getKyc(currentLang()), `kyc|${i18n.language}`);
+  const [confirmOut, setConfirmOut] = useState(false);
+
+  return (
+    <div className="page page-me">
+      <PageHeader title={t('nav.me')} />
+      <section className="card me-card">
+        {profile.error && !profile.data ? (
+          <ErrorState error={profile.error} onRetry={profile.reload} compact />
+        ) : !profile.data ? (
+          <Loading rows={2} />
+        ) : (
+          <>
+            <div className="me-avatar" aria-hidden="true">
+              {(profile.data.lastName || profile.data.firstName).slice(0, 1).toUpperCase()}
+            </div>
+            <div className="me-info">
+              <b>{displayName(profile.data, i18n.language)}</b>
+              <span className="break">{profile.data.email}</span>
+              <small>
+                UID <span className="num">{profile.data.userId}</span>
+              </small>
+            </div>
+            {kyc.data && <span className={`kyc-tag k-${kyc.data.status}`}>{t(`kyc.status.${kyc.data.status}`)}</span>}
+          </>
+        )}
+      </section>
+
+      <section className="card flush">
+        <h2 className="menu-title">{t('me.account')}</h2>
+        <ul className="menu">
+          <MenuItem to="/me/profile" icon="user" label={t('me.profile')} />
+          <MenuItem to="/me/kyc" icon="shield" label={t('me.kyc')} extra={kyc.data && <span className={`kyc-tag k-${kyc.data.status}`}>{t(`kyc.status.${kyc.data.status}`)}</span>} />
+          <MenuItem to="/me/notifications" icon="bell" label={t('me.notifications')} extra={unread > 0 ? <span className="count-badge">{unread}</span> : undefined} />
+          <MenuItem to="/me/notify-prefs" icon="bell" label={t('me.notifyPrefs')} />
+          <MenuItem to="/me/password" icon="lock" label={t('me.changePassword')} />
+        </ul>
+      </section>
+
+      <section className="card">
+        <h2 className="menu-title">{t('me.settings')}</h2>
+        <div className="setting-row">
+          <span>
+            <Icon name="globe" size={20} />
+            {t('me.language')}
+          </span>
+          <Segmented
+            label={t('me.language')}
+            value={i18n.language === 'en' ? 'en' : 'zh-CN'}
+            onChange={(v) => void setLanguage(v)}
+            options={[
+              { value: 'zh-CN', label: '中文' },
+              { value: 'en', label: 'English' },
+            ]}
+          />
+        </div>
+        <div className="setting-row">
+          <span>
+            <Icon name="moon" size={20} />
+            {t('me.theme')}
+          </span>
+          <Segmented
+            label={t('me.theme')}
+            value={theme}
+            onChange={setTheme}
+            options={[
+              { value: 'light', label: t('me.themeLight') },
+              { value: 'dark', label: t('me.themeDark') },
+            ]}
+          />
+        </div>
+      </section>
+
+      <button type="button" className="btn btn-danger-outline btn-lg btn-block logout" onClick={() => setConfirmOut(true)}>
+        <Icon name="logout" size={18} />
+        {t('me.logout')}
+      </button>
+      <p className="footnote">{t('me.version')}</p>
+      <ConfirmDialog
+        open={confirmOut}
+        title={t('me.logoutTitle')}
+        confirmText={t('me.logout')}
+        tone="danger"
+        onClose={() => setConfirmOut(false)}
+        onConfirm={async () => {
+          await logout();
+          navigate('/login', { replace: true });
+        }}
+      >
+        <p>{t('me.logoutBody')}</p>
+      </ConfirmDialog>
+    </div>
+  );
+}
