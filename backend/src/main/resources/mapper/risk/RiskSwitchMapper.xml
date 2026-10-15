@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 风控开关。只有 risk 模块使用。 -->
+<mapper namespace="com.falconx.lite.risk.switches.RiskSwitchMapper">
+
+  <select id="globalOpenPaused" resultType="boolean">
+    SELECT global_open_paused = 1 FROM risk_switch WHERE id = 1
+  </select>
+</mapper>

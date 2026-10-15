@@ -9,6 +9,7 @@ import com.falconx.lite.trading.api.LedgerCommand;
 import com.falconx.lite.trading.api.LedgerResult;
 import java.math.BigDecimal;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** {@link LedgerApi} 的实现：先锁账户行，再查幂等、改金额、写账本，全部在一个事务里。 */
@@ -62,6 +63,14 @@ class LedgerService implements LedgerApi {
   @Transactional(readOnly = true)
   public AccountSnapshot snapshot(long userId) {
     AccountRow a = mapper.findAccount(userId);
+    if (a == null) throw new BizException("ACCOUNT_NOT_FOUND", "交易账户不存在：" + userId);
+    return new AccountSnapshot(a.userId(), a.balance(), a.withdrawFrozen(), a.orderFrozen());
+  }
+
+  @Override
+  @Transactional(propagation = Propagation.MANDATORY)
+  public AccountSnapshot lock(long userId) {
+    AccountRow a = mapper.lockAccount(userId);
     if (a == null) throw new BizException("ACCOUNT_NOT_FOUND", "交易账户不存在：" + userId);
     return new AccountSnapshot(a.userId(), a.balance(), a.withdrawFrozen(), a.orderFrozen());
   }

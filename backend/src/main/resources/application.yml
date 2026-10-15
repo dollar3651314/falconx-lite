@@ -26,6 +26,9 @@ falconx:
     # 没有对应外汇品种的币种：港币按联系汇率（1 USD = 7.78 HKD）
     fixed-usd-rates:
       HKD: 0.12853470
+  trading:
+    # 单个用户的持仓上限（USD 名义价值，含挂单），沿用原型的 3,000,000；S16 改为后台可配置
+    position-limit-usd: 3000000
   # 对象存储（证件照片）。现在是本地目录，正式环境在 S20 换成对象存储服务
   storage:
     local-dir: ${FX_STORAGE_DIR:./data/storage}
