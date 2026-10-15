@@ -1,6 +1,8 @@
 package com.falconx.lite.wallet.deposit;
 
+import com.falconx.lite.risk.api.RiskApi;
 import com.falconx.lite.trading.api.Bucket;
+import com.falconx.lite.trading.api.FundsApi;
 import com.falconx.lite.trading.api.LedgerApi;
 import com.falconx.lite.trading.api.LedgerCommand;
 import com.falconx.lite.trading.api.LedgerEntryType;
@@ -9,6 +11,7 @@ import com.falconx.lite.wallet.WalletProperties;
 import com.falconx.lite.wallet.address.AddressService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <ol>
  *   <li>扫块：从上次扫到的区块往后，查配置好的 USDT 合约的转账，收款地址是我们的就记一条充值（待确认 / 低于最小充值金额）</li>
  *   <li>确认：确认数够了，再核对一次区块哈希没变（没被回滚），入账；变了就作废</li>
+ *   <li>复查：入账后的 2 倍确认数内区块哈希变了 → 冲正，余额不够扣的挂账并通知风控（F4）</li>
  * </ol>
  * 只认配置好的 USDT 合约（修复 F3）：没有配置合约的链不扫块；客户端返回的事件合约不对也不记，打日志（AC-08）。
  */
@@ -36,14 +40,19 @@ public class DepositService {
   private final LedgerApi ledger;
   private final WalletProperties props;
   private final TransactionTemplate tx;
+  private final FundsApi funds;
+  private final RiskApi risk;
 
-  DepositService(DepositMapper mapper, ChainClients clients, AddressService addresses, LedgerApi ledger, WalletProperties props, TransactionTemplate tx) {
+  DepositService(DepositMapper mapper, ChainClients clients, AddressService addresses, LedgerApi ledger, WalletProperties props, TransactionTemplate tx,
+      FundsApi funds, RiskApi risk) {
     this.mapper = mapper;
     this.clients = clients;
     this.addresses = addresses;
     this.ledger = ledger;
     this.props = props;
     this.tx = tx;
+    this.funds = funds;
+    this.risk = risk;
   }
 
   /** 每 15 秒：每条链先扫块再确认 */
@@ -66,6 +75,53 @@ public class DepositService {
     long head = client.get().headBlock();
     scan(chain, cfg, client.get(), head);
     confirm(chain, cfg, client.get(), head);
+    recheck(chain, cfg, client.get(), head);
+  }
+
+  /**
+   * 入账后继续核对 2 倍确认数的区块：区块哈希变了（极少见的深度回滚）就冲正（修复 F4）。
+   */
+  private void recheck(Chain chain, WalletProperties.ChainConfig cfg, ChainClient client, long head) {
+    for (DepositMapper.DepositRow d : mapper.recentCredited(chain.name(), head - 2L * cfg.confirmations())) {
+      Optional<String> hash = client.blockHash(d.blockNumber());
+      if (hash.isPresent() && hash.get().equalsIgnoreCase(d.blockHash())) continue;
+      reverse(d);
+    }
+  }
+
+  /**
+   * 冲正（AC-09）：只扣客户可以自由动用的钱（不动持仓保证金和挂单冻结），余额不会变负；
+   * 没扣到的差额记挂账，通知风控人员。
+   */
+  void reverse(DepositMapper.DepositRow d) {
+    BigDecimal shortfall = tx.execute(st -> {
+      ledger.lock(d.userId());
+      if (mapper.markReversed(d.id()) != 1) return null;
+      BigDecimal free = funds.withdrawable(d.userId()).max(BigDecimal.ZERO).setScale(8, RoundingMode.DOWN);
+      BigDecimal take = d.amount().min(free);
+      if (take.signum() > 0) {
+        ledger.apply(new LedgerCommand(d.userId(), Bucket.BALANCE, take.negate(), LedgerEntryType.DEPOSIT_REVERSAL, BIZ_DEPOSIT,
+            d.chain() + ":" + d.txHash() + ":" + d.logIndex(), "充值被链上回滚，冲正 " + d.chain()));
+      }
+      BigDecimal rest = d.amount().subtract(take);
+      if (rest.signum() > 0) mapper.insertSuspense(d.userId(), d.id(), rest, "冲正时可用余额不足");
+      return rest;
+    });
+    if (shortfall == null) return;
+    log.warn("充值被链上回滚，已冲正 chain={} tx={} user={} amount={} 挂账={}", d.chain(), d.txHash(), d.userId(), d.amount(), shortfall);
+    if (shortfall.signum() > 0) {
+      risk.notifyStaff("DEPOSIT_SUSPENSE", Map.of("chain", d.chain(), "txHash", d.txHash(), "userId", String.valueOf(d.userId()),
+          "amount", d.amount().toPlainString(), "shortfall", shortfall.toPlainString()));
+    }
+  }
+
+  /** 客户看到的一条充值记录 */
+  public record DepositRecord(long id, Chain chain, String txHash, BigDecimal amount, String status, int confirmations, java.time.LocalDateTime createdAt) {}
+
+  /** 客户的充值记录（最近的在前） */
+  public java.util.List<DepositRecord> history(long userId, int limit) {
+    return mapper.byUser(userId, limit).stream()
+        .map(d -> new DepositRecord(d.id(), Chain.valueOf(d.chain()), d.txHash(), d.amount(), d.status(), d.confirmations(), d.createdAt())).toList();
   }
 
   private void scan(Chain chain, WalletProperties.ChainConfig cfg, ChainClient client, long head) {

@@ -3,6 +3,8 @@ package com.falconx.lite.trading.api;
 /** 账本记录的业务类型。新增业务时在这里加，不复用已有含义。 */
 public enum LedgerEntryType {
   DEPOSIT,
+  /** 充值入账后链上回滚的冲正（S12b，F4） */
+  DEPOSIT_REVERSAL,
   WITHDRAW_FREEZE,
   WITHDRAW_UNFREEZE,
   WITHDRAW_PAYOUT,

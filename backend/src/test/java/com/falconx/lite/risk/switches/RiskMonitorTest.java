@@ -44,7 +44,8 @@ class RiskMonitorTest {
   @BeforeEach
   void setUp() {
     processor.process(new RawQuote("AUDUSD", new BigDecimal("0.66000"), new BigDecimal("0.66020"), FixedClockConfig.NOW));
-    monitor = new ExposureMonitor(risk, mapper, alerts, new RiskProperties(false, List.of("risk@example.com")));
+    RiskProperties props = new RiskProperties(false, List.of("risk@example.com"));
+    monitor = new ExposureMonitor(risk, mapper, new RiskAlerts(alerts, props), props);
   }
 
   @AfterEach

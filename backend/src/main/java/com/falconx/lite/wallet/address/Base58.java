@@ -6,21 +6,21 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
 /** Base58Check 编码解码（xpub、TRON 地址用）。 */
-final class Base58 {
+public final class Base58 {
 
   private static final String ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   private static final BigInteger BASE = BigInteger.valueOf(58);
 
   private Base58() {}
 
-  static String encodeChecked(byte[] payload) {
+  public static String encodeChecked(byte[] payload) {
     byte[] sum = Arrays.copyOf(sha256(sha256(payload)), 4);
     byte[] all = Arrays.copyOf(payload, payload.length + 4);
     System.arraycopy(sum, 0, all, payload.length, 4);
     return encode(all);
   }
 
-  static byte[] decodeChecked(String s) {
+  public static byte[] decodeChecked(String s) {
     byte[] all = decode(s);
     if (all.length < 5) throw new IllegalArgumentException("Base58Check 太短");
     byte[] payload = Arrays.copyOf(all, all.length - 4);

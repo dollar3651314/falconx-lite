@@ -48,6 +48,18 @@
     WHERE id = #{id} AND status = 'PENDING'
   </update>
 
+  <select id="recentCredited" resultMap="row">
+    SELECT <include refid="cols"/> FROM wallet_deposit WHERE chain = #{chain} AND status = 'CREDITED' AND block_number &gt;= #{minBlock} ORDER BY id
+  </select>
+
+  <update id="markReversed">
+    UPDATE wallet_deposit SET status = 'REVERSED' WHERE id = #{id} AND status = 'CREDITED'
+  </update>
+
+  <insert id="insertSuspense">
+    INSERT INTO wallet_suspense (user_id, deposit_id, amount, note) VALUES (#{userId}, #{depositId}, #{amount}, #{note})
+  </insert>
+
   <select id="byUser" resultMap="row">
     SELECT <include refid="cols"/> FROM wallet_deposit WHERE user_id = #{userId} ORDER BY id DESC LIMIT #{limit}
   </select>
