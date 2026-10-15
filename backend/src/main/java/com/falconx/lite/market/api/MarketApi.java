@@ -21,5 +21,11 @@ public interface MarketApi {
   /** 1 单位 ccy 折合多少 USD（USDT 视同 USD）；找不到汇率时为空，调用方应拒绝交易 */
   Optional<BigDecimal> toUsdRate(String ccy);
 
+  /**
+   * 可以用来开仓的汇率：来源报价当前可以成交（新鲜、正常、在交易时段内）才返回；固定汇率和 USD、USDT 总是返回。
+   * 返回空表示"汇率失效"，相关品种不能开新仓（需求 4.5-5）。
+   */
+  Optional<BigDecimal> liveUsdRate(String ccy);
+
   void subscribe(QuoteListener listener);
 }

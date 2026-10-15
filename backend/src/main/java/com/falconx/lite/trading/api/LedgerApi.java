@@ -17,4 +17,10 @@ public interface LedgerApi {
   LedgerResult apply(LedgerCommand command);
 
   AccountSnapshot snapshot(long userId);
+
+  /**
+   * 在调用方的事务里锁住账户行并返回当前金额（必须已有事务）。同一账户的下单、记账从这里开始排队，
+   * "检查可用余额 → 写订单 → 记账"之间不会插进别的请求。
+   */
+  AccountSnapshot lock(long userId);
 }

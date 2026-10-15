@@ -64,6 +64,17 @@ class MarketService implements MarketApi {
   }
 
   @Override
+  public Optional<BigDecimal> liveUsdRate(String ccy) {
+    if (ccy == null) return Optional.empty();
+    if ("USD".equals(ccy) || "USDT".equals(ccy)) return Optional.of(BigDecimal.ONE);
+    if (catalog.get(ccy + "USD").isPresent()) return processor.latest(ccy + "USD").filter(MarketQuote::executable).map(MarketQuote::mid);
+    if (catalog.get("USD" + ccy).isPresent()) {
+      return processor.latest("USD" + ccy).filter(MarketQuote::executable).map(q -> BigDecimal.ONE.divide(q.mid(), 12, RoundingMode.HALF_UP));
+    }
+    return Optional.ofNullable(props.fixedUsdRates() == null ? null : props.fixedUsdRates().get(ccy));
+  }
+
+  @Override
   public void subscribe(QuoteListener listener) {
     processor.subscribe(listener);
   }

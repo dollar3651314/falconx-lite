@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 订单和持仓。只有 trading 模块使用。 -->
+<mapper namespace="com.falconx.lite.trading.order.OrderMapper">
+
+  <sql id="orderCols">id, user_id, client_order_id, symbol, order_type, side, lots, leverage, limit_price, take_profit, stop_loss,
+    frozen_amount, notional_usd, status, fill_price, position_id, created_at</sql>
+
+  <sql id="positionCols">id, user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
+    margin, fee, maintenance_margin_rate, liquidation_price, take_profit, stop_loss, status, opened_at</sql>
+
+  <select id="findByClientId" resultType="com.falconx.lite.trading.order.OrderRow">
+    SELECT <include refid="orderCols"/> FROM trading_order WHERE user_id = #{userId} AND client_order_id = #{clientOrderId}
+  </select>
+
+  <select id="lockPending" resultType="com.falconx.lite.trading.order.OrderRow">
+    SELECT <include refid="orderCols"/> FROM trading_order WHERE id = #{id} AND user_id = #{userId} AND status = 'PENDING' FOR UPDATE
+  </select>
+
+  <select id="pendingOrders" resultType="com.falconx.lite.trading.order.OrderRow">
+    SELECT <include refid="orderCols"/> FROM trading_order WHERE user_id = #{userId} AND status = 'PENDING' ORDER BY id DESC
+  </select>
+
+  <select id="openPositions" resultType="com.falconx.lite.trading.order.PositionRow">
+    SELECT <include refid="positionCols"/> FROM trading_position WHERE user_id = #{userId} AND status = 'OPEN' ORDER BY id DESC
+  </select>
+
+  <insert id="insertOrder" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO trading_order (user_id, client_order_id, symbol, order_type, side, lots, leverage, limit_price, take_profit, stop_loss,
+      frozen_amount, notional_usd, status)
+    VALUES (#{userId}, #{clientOrderId}, #{symbol}, #{orderType}, #{side}, #{lots}, #{leverage}, #{limitPrice}, #{takeProfit}, #{stopLoss},
+      #{frozenAmount}, #{notionalUsd}, #{status})
+  </insert>
+
+  <update id="markFilled">
+    UPDATE trading_order SET status = 'FILLED', fill_price = #{fillPrice}, position_id = #{positionId} WHERE id = #{id}
+  </update>
+
+  <update id="markCancelled">
+    UPDATE trading_order SET status = 'CANCELLED' WHERE id = #{id} AND status = 'PENDING'
+  </update>
+
+  <insert id="insertPosition" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO trading_position (user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
+      margin, fee, maintenance_margin_rate, liquidation_price, take_profit, stop_loss, status, opened_at)
+    VALUES (#{userId}, #{orderId}, #{symbol}, #{side}, #{lots}, #{leverage}, #{openPrice}, #{contractSize}, #{quoteCcy}, #{openUsdRate}, #{notionalUsd},
+      #{margin}, #{fee}, #{maintenanceMarginRate}, #{liquidationPrice}, #{takeProfit}, #{stopLoss}, 'OPEN', UTC_TIMESTAMP(3))
+  </insert>
+</mapper>

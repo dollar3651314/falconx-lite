@@ -1,6 +1,7 @@
 package com.falconx.lite.common.web;
 
 import com.falconx.lite.common.error.BizException;
+import com.falconx.lite.common.error.ValidationException;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,11 +26,18 @@ public class GlobalExceptionHandler {
       "USER_FROZEN", HttpStatus.FORBIDDEN,
       "LOGIN_LOCKED", HttpStatus.TOO_MANY_REQUESTS,
       "CODE_TOO_FREQUENT", HttpStatus.TOO_MANY_REQUESTS,
-      "EMAIL_TAKEN", HttpStatus.CONFLICT);
+      "EMAIL_TAKEN", HttpStatus.CONFLICT,
+      "NOT_FOUND", HttpStatus.NOT_FOUND);
 
   @ExceptionHandler(BizException.class)
   public ResponseEntity<ApiError> biz(BizException e) {
     return ResponseEntity.status(STATUS.getOrDefault(e.code(), HttpStatus.BAD_REQUEST)).body(ApiError.of(e.code(), e.getMessage()));
+  }
+
+  @ExceptionHandler(ValidationException.class)
+  public ResponseEntity<ApiError> fields(ValidationException e) {
+    var fields = e.fields().stream().map(f -> new ApiError.FieldError(f.field(), f.code())).toList();
+    return ResponseEntity.badRequest().body(new ApiError("VALIDATION_FAILED", "请求字段不合法", fields));
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
