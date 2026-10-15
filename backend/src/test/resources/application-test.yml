@@ -22,5 +22,8 @@ falconx:
     # 隔夜费不定时跑，测试里直接调用并指定时间
     swap:
       enabled: false
+  # 净敞口不定时检查，测试里直接调用
+  risk:
+    monitor-enabled: false
   storage:
     local-dir: ${java.io.tmpdir}/falconx-test-storage

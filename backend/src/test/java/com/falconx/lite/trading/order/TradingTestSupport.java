@@ -41,6 +41,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import com.falconx.lite.support.FixedClockConfig;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -52,19 +53,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(TradingTestSupport.FixedClock.class)
+@Import(FixedClockConfig.class)
 abstract class TradingTestSupport {
 
-  static final Instant NOW = Instant.parse("2026-10-14T10:00:00Z");
-
-  @TestConfiguration
-  static class FixedClock {
-    @Bean
-    @Primary
-    Clock fixedClock() {
-      return Clock.fixed(NOW, ZoneOffset.UTC);
-    }
-  }
+  static final Instant NOW = FixedClockConfig.NOW;
 
   @Autowired OrderService orders;
   @Autowired QuoteProcessor processor;

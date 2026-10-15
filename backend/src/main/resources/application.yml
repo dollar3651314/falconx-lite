@@ -38,6 +38,11 @@ falconx:
       enabled: true
       rollover-time: "22:00"
       catch-up-days: 3
+  # 风控（S11）：每 5 秒检查净敞口，超过阈值自动禁开。阈值在后台设置（S16），没有设置的不监控
+  risk:
+    monitor-enabled: true
+    # 自动禁开时通知的风控人员邮箱，逗号分隔（Amos 提供，H7）
+    alert-emails: ${FX_RISK_ALERT_EMAILS:}
   # 对象存储（证件照片）。现在是本地目录，正式环境在 S20 换成对象存储服务
   storage:
     local-dir: ${FX_STORAGE_DIR:./data/storage}

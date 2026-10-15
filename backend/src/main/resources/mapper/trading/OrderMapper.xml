@@ -122,4 +122,23 @@
   <update id="applySwap">
     UPDATE trading_position SET margin = #{margin}, liquidation_price = #{liquidationPrice}, swap_total = swap_total + #{amount} WHERE id = #{id}
   </update>
+
+  <resultMap id="symbolLots" type="com.falconx.lite.trading.api.ExposureApi$SymbolLots">
+    <constructor>
+      <arg column="symbol" javaType="string"/>
+      <arg column="long_lots" javaType="java.math.BigDecimal"/>
+      <arg column="short_lots" javaType="java.math.BigDecimal"/>
+      <arg column="long_notional" javaType="java.math.BigDecimal"/>
+      <arg column="short_notional" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+
+  <select id="openLots" resultMap="symbolLots">
+    SELECT symbol,
+      COALESCE(SUM(CASE WHEN side = 'BUY' THEN lots END), 0) AS long_lots,
+      COALESCE(SUM(CASE WHEN side = 'SELL' THEN lots END), 0) AS short_lots,
+      COALESCE(SUM(CASE WHEN side = 'BUY' THEN notional_usd END), 0) AS long_notional,
+      COALESCE(SUM(CASE WHEN side = 'SELL' THEN notional_usd END), 0) AS short_notional
+    FROM trading_position WHERE status = 'OPEN' GROUP BY symbol
+  </select>
 </mapper>

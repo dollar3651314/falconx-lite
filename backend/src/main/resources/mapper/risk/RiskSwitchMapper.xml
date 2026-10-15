@@ -1,9 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- 风控开关。只有 risk 模块使用。 -->
+<!-- 风控开关、阈值和事件。只有 risk 模块使用。 -->
 <mapper namespace="com.falconx.lite.risk.switches.RiskSwitchMapper">
 
-  <select id="globalOpenPaused" resultType="boolean">
-    SELECT global_open_paused = 1 FROM risk_switch WHERE id = 1
+  <resultMap id="platform" type="com.falconx.lite.risk.switches.RiskSwitchMapper$Platform">
+    <constructor>
+      <arg column="global_open_paused" javaType="_boolean"/>
+      <arg column="auto_global_paused" javaType="_boolean"/>
+      <arg column="auto_liquidation" javaType="_boolean"/>
+      <arg column="platform_net_threshold" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+
+  <resultMap id="symbolRow" type="com.falconx.lite.risk.switches.RiskSwitchMapper$SymbolRow">
+    <constructor>
+      <arg column="symbol" javaType="string"/>
+      <arg column="net_threshold" javaType="java.math.BigDecimal"/>
+      <arg column="manual_paused" javaType="_boolean"/>
+      <arg column="auto_paused" javaType="_boolean"/>
+    </constructor>
+  </resultMap>
+
+  <select id="platform" resultMap="platform">
+    SELECT global_open_paused, auto_global_paused, auto_liquidation, platform_net_threshold FROM risk_switch WHERE id = 1
   </select>
+
+  <select id="symbols" resultMap="symbolRow">
+    SELECT symbol, net_threshold, manual_paused, auto_paused FROM risk_symbol ORDER BY symbol
+  </select>
+
+  <select id="symbolPaused" resultType="boolean">
+    SELECT manual_paused = 1 OR auto_paused = 1 FROM risk_symbol WHERE symbol = #{symbol}
+  </select>
+
+  <update id="setGlobal">
+    UPDATE risk_switch SET global_open_paused = #{manual}, auto_global_paused = #{auto} WHERE id = 1
+  </update>
+
+  <update id="autoPauseGlobal">
+    UPDATE risk_switch SET auto_global_paused = 1 WHERE id = 1 AND auto_global_paused = 0
+  </update>
+
+  <update id="setAutoLiquidation">
+    UPDATE risk_switch SET auto_liquidation = #{enabled} WHERE id = 1
+  </update>
+
+  <update id="setPlatformThreshold">
+    UPDATE risk_switch SET platform_net_threshold = #{threshold} WHERE id = 1
+  </update>
+
+  <insert id="upsertSymbol">
+    INSERT IGNORE INTO risk_symbol (symbol) VALUES (#{symbol})
+  </insert>
+
+  <update id="setSymbolPaused">
+    UPDATE risk_symbol SET manual_paused = #{manual}, auto_paused = #{auto} WHERE symbol = #{symbol}
+  </update>
+
+  <update id="autoPauseSymbol">
+    UPDATE risk_symbol SET auto_paused = 1 WHERE symbol = #{symbol} AND auto_paused = 0
+  </update>
+
+  <update id="setSymbolThreshold">
+    UPDATE risk_symbol SET net_threshold = #{threshold} WHERE symbol = #{symbol}
+  </update>
+
+  <insert id="insertEvent">
+    INSERT INTO risk_event (kind, symbol, net_usd, threshold, operator_id) VALUES (#{kind}, #{symbol}, #{netUsd}, #{threshold}, #{operatorId})
+  </insert>
 </mapper>
