@@ -21,5 +21,6 @@ class OrderRow {
   String status;
   BigDecimal fillPrice;
   Long positionId;
+  int revision;
   LocalDateTime createdAt;
 }

@@ -4,7 +4,7 @@
 <mapper namespace="com.falconx.lite.trading.order.OrderMapper">
 
   <sql id="orderCols">id, user_id, client_order_id, symbol, order_type, side, lots, leverage, limit_price, take_profit, stop_loss,
-    frozen_amount, notional_usd, status, fill_price, position_id, created_at</sql>
+    frozen_amount, notional_usd, status, fill_price, position_id, revision, created_at</sql>
 
   <sql id="positionCols">id, user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
     margin, fee, maintenance_margin_rate, liquidation_price, take_profit, stop_loss, status, opened_at</sql>
@@ -37,7 +37,7 @@
   </update>
 
   <update id="markCancelled">
-    UPDATE trading_order SET status = 'CANCELLED' WHERE id = #{id} AND status = 'PENDING'
+    UPDATE trading_order SET status = 'CANCELLED', cancelled_at = UTC_TIMESTAMP(3) WHERE id = #{id} AND status = 'PENDING'
   </update>
 
   <insert id="insertPosition" useGeneratedKeys="true" keyProperty="id">
@@ -46,4 +46,44 @@
     VALUES (#{userId}, #{orderId}, #{symbol}, #{side}, #{lots}, #{leverage}, #{openPrice}, #{contractSize}, #{quoteCcy}, #{openUsdRate}, #{notionalUsd},
       #{margin}, #{fee}, #{maintenanceMarginRate}, #{liquidationPrice}, #{takeProfit}, #{stopLoss}, 'OPEN', UTC_TIMESTAMP(3))
   </insert>
+
+  <update id="updatePending">
+    UPDATE trading_order SET limit_price = #{limitPrice}, lots = #{lots}, take_profit = #{takeProfit}, stop_loss = #{stopLoss},
+      frozen_amount = #{frozenAmount}, notional_usd = #{notionalUsd}, revision = #{revision}
+    WHERE id = #{id} AND status = 'PENDING'
+  </update>
+
+  <select id="lockOpenPosition" resultType="com.falconx.lite.trading.order.PositionRow">
+    SELECT <include refid="positionCols"/> FROM trading_position WHERE id = #{id} AND user_id = #{userId} AND status = 'OPEN' FOR UPDATE
+  </select>
+
+  <update id="closePosition">
+    UPDATE trading_position SET status = 'CLOSED', close_price = #{closePrice}, realized_pnl = #{pnl}, close_reason = #{reason}, closed_at = UTC_TIMESTAMP(3)
+    WHERE id = #{id} AND status = 'OPEN'
+  </update>
+
+  <update id="updateTpSl">
+    UPDATE trading_position SET take_profit = #{takeProfit}, stop_loss = #{stopLoss} WHERE id = #{id} AND status = 'OPEN'
+  </update>
+
+  <update id="updateMargin">
+    UPDATE trading_position SET margin = #{margin}, liquidation_price = #{liquidationPrice} WHERE id = #{id} AND status = 'OPEN'
+  </update>
+
+  <sql id="historyUnion">
+    SELECT CONCAT('P', id) AS id, symbol, side, lots, open_price, close_price, realized_pnl AS pnl, fee, LOWER(close_reason) AS kind, closed_at AS at, id AS seq
+    FROM trading_position WHERE user_id = #{userId} AND status = 'CLOSED'
+    UNION ALL
+    SELECT CONCAT('O', id), symbol, side, lots, limit_price, NULL, NULL, 0, 'cancelled', cancelled_at, id
+    FROM trading_order WHERE user_id = #{userId} AND status = 'CANCELLED'
+  </sql>
+
+  <select id="history" resultType="com.falconx.lite.trading.order.HistoryRow">
+    SELECT id, symbol, side, lots, open_price, close_price, pnl, fee, kind, at FROM (<include refid="historyUnion"/>) h
+    ORDER BY at DESC, seq DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countHistory" resultType="long">
+    SELECT COUNT(*) FROM (<include refid="historyUnion"/>) h
+  </select>
 </mapper>

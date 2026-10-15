@@ -47,73 +47,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-/** 下单（S7），真实 MySQL（C37）。时钟固定在 2026-10-14（周三）10:00 UTC：外汇、指数、黄金、加密在交易时段，美股休市。 */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-class OrderFlowTest {
-
-  static final Instant NOW = Instant.parse("2026-10-14T10:00:00Z");
-
-  @TestConfiguration
-  static class FixedClock {
-    @Bean
-    @Primary
-    Clock fixedClock() {
-      return Clock.fixed(NOW, ZoneOffset.UTC);
-    }
-  }
-
-  @Autowired OrderService orders;
-  @Autowired QuoteProcessor processor;
-  @Autowired SymbolCatalog catalog;
-  @Autowired LedgerApi ledger;
-  @Autowired JdbcTemplate jdbc;
-  @Autowired MockMvc mvc;
-  @MockitoBean MailApi mail;
-
-  void quote(String symbol, String bid, String ask) {
-    processor.process(new RawQuote(symbol, new BigDecimal(bid), new BigDecimal(ask), NOW));
-  }
-
-  @BeforeEach
-  void quotes() {
-    quote("XAUUSD", "4126.35", "4126.75");
-    quote("USDJPY", "151.840", "151.860");
-    quote("EURJPY", "176.400", "176.420");
-  }
-
-  long newUser(String deposit) {
-    long uid = jdbc.queryForObject("SELECT COALESCE(MAX(id), 0) + 1000000 + FLOOR(RAND() * 1000000) FROM account_user", Long.class);
-    jdbc.update("INSERT INTO account_user (id, email, status) VALUES (?, ?, 'ACTIVE')", uid, "o" + uid + "@example.com");
-    ledger.openAccount(uid);
-    if (new BigDecimal(deposit).signum() > 0) {
-      ledger.apply(new LedgerCommand(uid, Bucket.BALANCE, new BigDecimal(deposit), LedgerEntryType.DEPOSIT, "TEST", "dep-" + uid, "测试入金"));
-    }
-    return uid;
-  }
-
-  static PlaceOrder market(String symbol, String side, String lots, int lev) {
-    return new PlaceOrder(symbol, "market", side, lots, lev, null, null, null, UUID.randomUUID().toString());
-  }
-
-  String code(Runnable r) {
-    try {
-      r.run();
-      return "OK";
-    } catch (BizException e) {
-      return e.code();
-    }
-  }
-
-  BigDecimal bucket(long uid, String col) {
-    return jdbc.queryForObject("SELECT " + col + " FROM trading_account WHERE user_id = ?", BigDecimal.class, uid);
-  }
-
-  BigDecimal ledgerSum(long uid, String bucket) {
-    return jdbc.queryForObject("SELECT COALESCE(SUM(l.amount), 0) FROM trading_ledger l JOIN trading_account a ON a.id = l.account_id WHERE a.user_id = ? AND l.bucket = ?",
-        BigDecimal.class, uid, bucket);
-  }
+/** 下单（S7）。公共设置见 {@link TradingTestSupport}。 */
+class OrderFlowTest extends TradingTestSupport {
 
   @Test
   void 市价买入_按ask成交_保证金手续费强平价和手算一致_手续费记账() {
@@ -264,19 +199,6 @@ class OrderFlowTest {
     assertThat(orders.positions(uid)).hasSize(3);
     assertThat(bucket(uid, "balance")).isEqualByComparingTo(new BigDecimal("1300").subtract(new BigDecimal("2.063375").multiply(new BigDecimal(3))));
     assertThat(ledgerSum(uid, "BALANCE")).isEqualByComparingTo(bucket(uid, "balance"));
-  }
-
-  @SuppressWarnings("unchecked")
-  Cookie login() throws Exception {
-    String email = "t" + System.nanoTime() + "@example.com";
-    mvc.perform(post("/api/auth/email-code").contentType(MediaType.APPLICATION_JSON).content("{\"email\":\"" + email + "\",\"purpose\":\"REGISTER\"}"));
-    ArgumentCaptor<Map<String, String>> p = ArgumentCaptor.forClass(Map.class);
-    verify(mail, atLeastOnce()).send(eq(email), eq("EMAIL_CODE"), p.capture());
-    Cookie c = mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("{\"email\":\"" + email + "\",\"code\":\"" + p.getValue().get("code")
-        + "\",\"password\":\"password123\",\"firstName\":\"A\",\"lastName\":\"B\",\"birthDate\":\"1990-05-01\",\"nationality\":\"CN\"}")).andReturn().getResponse().getCookie("fx_session");
-    long uid = jdbc.queryForObject("SELECT id FROM account_user WHERE email = ?", Long.class, email);
-    ledger.apply(new LedgerCommand(uid, Bucket.BALANCE, new BigDecimal("1000"), LedgerEntryType.DEPOSIT, "TEST", "dep-" + uid, "测试入金"));
-    return c;
   }
 
   @Test
