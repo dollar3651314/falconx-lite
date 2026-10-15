@@ -1,0 +1,10 @@
+# 测试用真实的 MySQL 和 Redis（C37）：CI 里是 GitHub 提供的服务容器，本地用 Docker 起同样的容器。
+# 地址有默认值；数据库密码只从环境变量 FX_DB_PASSWORD 读取（CI 里是测试容器的一次性密码）。
+spring:
+  datasource:
+    url: ${FX_DB_URL:jdbc:mysql://localhost:3306/falconx_test}
+    username: ${FX_DB_USERNAME:root}
+    password: ${FX_DB_PASSWORD}
+management:
+  server:
+    port: 0

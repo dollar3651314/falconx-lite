@@ -1,7 +1,8 @@
 # 每个 PR 的自动检查（agents 规则 C54）。模板：agents/模板/ci.yml
 # 仓库为私有、GitHub 免费版时开不了分支保护：合并前人工确认本检查是绿的，并在 PR 或汇报里附运行链接。
 # 原则：不需要任何密钥（外部服务用替身）；用到数据库的，用 GitHub 提供的数据库容器在真实数据库上跑（C37）。
-# v0.2：项目地图和索引检查、密钥扫描；客户端和后台的 lint、单元测试、构建、依赖安全检查。后端代码出现时加上 Maven 单元测试（MySQL、Redis 容器）和端到端测试。
+# v0.2：项目地图和索引检查、密钥扫描；客户端和后台的 lint、单元测试、构建、依赖安全检查。
+# v0.3（S2）：后端 Maven 测试，用 GitHub 的 MySQL、Redis 服务容器（C37）。端到端测试在 S19 加上。
 name: ci
 on:
   pull_request:
@@ -58,3 +59,39 @@ jobs:
         run: npm run build
       - name: 依赖安全检查（高危漏洞不允许）
         run: npm audit --audit-level=high --omit=dev
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          # 一次性测试容器的密码，只在 CI 里用，不是任何环境的密钥
+          MYSQL_ROOT_PASSWORD: ci_only_not_a_secret
+          MYSQL_DATABASE: falconx_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -uroot -pci_only_not_a_secret --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      FX_DB_URL: jdbc:mysql://127.0.0.1:3306/falconx_test
+      FX_DB_USERNAME: root
+      FX_DB_PASSWORD: ci_only_not_a_secret
+      FX_REDIS_HOST: 127.0.0.1
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      - name: 单元测试和模块边界检查
+        run: mvn -B -ntp verify
