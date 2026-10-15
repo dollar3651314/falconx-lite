@@ -8,3 +8,6 @@ spring:
 management:
   server:
     port: 0
+falconx:
+  storage:
+    local-dir: ${java.io.tmpdir}/falconx-test-storage
