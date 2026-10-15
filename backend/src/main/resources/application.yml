@@ -119,6 +119,14 @@ falconx:
       from: ${FX_MAIL_FROM:}
       # STARTTLS（587 端口）或 SSL（465 端口）
       security: ${FX_MAIL_SECURITY:STARTTLS}
+    # Web Push（S15b，通知方案 N2）：VAPID 密钥由 Amos 在自己电脑上生成（例如 npx web-push generate-vapid-keys）后填进服务器；
+    # 私钥只由 Amos 填。测试和生产各用一对，生成后不要换（换了所有客户要重新订阅）。没填时不发推送
+    push:
+      vapid-public-key: ${FX_PUSH_VAPID_PUBLIC_KEY:}
+      vapid-private-key: ${FX_PUSH_VAPID_PRIVATE_KEY:}
+      vapid-subject: ${FX_PUSH_VAPID_SUBJECT:}
+      ttl: 24h
+      max-devices: 10
   # 对象存储（证件照片）。现在是本地目录，正式环境在 S20 换成对象存储服务
   storage:
     local-dir: ${FX_STORAGE_DIR:./data/storage}

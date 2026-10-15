@@ -54,5 +54,11 @@ falconx:
       port: 3025
       from: noreply@falconx.test
       security: NONE
+    # 推送：测试用的 VAPID 私钥就是数字 1（公钥是 P-256 的基点 G），明显不是真实密钥；推送服务用本机的 HTTP 替身
+    push:
+      vapid-public-key: BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU
+      vapid-private-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE
+      vapid-subject: mailto:ops@falconx.test
+      allow-localhost: true
   storage:
     local-dir: ${java.io.tmpdir}/falconx-test-storage

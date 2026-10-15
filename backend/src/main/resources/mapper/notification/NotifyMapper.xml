@@ -66,4 +66,31 @@
     SELECT id, user_id, recipient, source, template_code, channel, title, status, error, operator_id, created_at
     FROM notify_record WHERE id = #{id}
   </select>
+
+  <insert id="upsertPushSub">
+    INSERT INTO notify_push_sub (user_id, endpoint, endpoint_hash, p256dh, auth, created_at)
+    VALUES (#{userId}, #{endpoint}, #{hash}, #{p256dh}, #{auth}, #{now})
+    ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), p256dh = VALUES(p256dh), auth = VALUES(auth), created_at = VALUES(created_at)
+  </insert>
+
+  <select id="pushSubs" resultType="com.falconx.lite.notification.service.Rows$PushSubRow">
+    SELECT id, user_id, endpoint, p256dh, auth FROM notify_push_sub WHERE user_id = #{userId} ORDER BY id
+  </select>
+
+  <select id="pushSub" resultType="com.falconx.lite.notification.service.Rows$PushSubRow">
+    SELECT id, user_id, endpoint, p256dh, auth FROM notify_push_sub WHERE id = #{id}
+  </select>
+
+  <delete id="deletePushSub">
+    DELETE FROM notify_push_sub WHERE id = #{id}
+  </delete>
+
+  <delete id="deletePushSubByEndpoint">
+    DELETE FROM notify_push_sub WHERE user_id = #{userId} AND endpoint_hash = #{hash}
+  </delete>
+
+  <delete id="trimPushSubs">
+    DELETE FROM notify_push_sub WHERE user_id = #{userId} AND id NOT IN (
+      SELECT id FROM (SELECT id FROM notify_push_sub WHERE user_id = #{userId} ORDER BY created_at DESC, id DESC LIMIT #{max}) keep)
+  </delete>
 </mapper>

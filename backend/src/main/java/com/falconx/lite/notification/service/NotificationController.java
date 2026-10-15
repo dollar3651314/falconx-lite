@@ -20,6 +20,13 @@ class NotificationController {
 
   record LangBody(String lang) {}
 
+  /** 浏览器 PushSubscription.toJSON() 的格式 */
+  record SubscriptionBody(String endpoint, Keys keys) {
+    record Keys(String p256dh, String auth) {}
+  }
+
+  record EndpointBody(String endpoint) {}
+
   private final NotifyService service;
 
   NotificationController(NotifyService service) {
@@ -65,5 +72,27 @@ class NotificationController {
   @PutMapping("/api/me/notify-lang")
   void setLang(@RequestBody LangBody body) {
     service.setLang(CurrentUser.id(), body == null ? null : body.lang());
+  }
+
+  /** Web Push 公钥（客户端订阅时的 applicationServerKey）；服务器没有配置推送时为 null */
+  @GetMapping("/api/notifications/push/key")
+  Map<String, String> pushKey() {
+    Map<String, String> m = new java.util.HashMap<>();
+    m.put("publicKey", service.pushPublicKey());
+    return m;
+  }
+
+  /** 保存这台设备的推送订阅（同一个地址重复提交只保留一条） */
+  @PostMapping("/api/notifications/push/subscriptions")
+  void subscribe(@RequestBody SubscriptionBody body) {
+    SubscriptionBody b = body == null ? new SubscriptionBody(null, null) : body;
+    SubscriptionBody.Keys k = b.keys() == null ? new SubscriptionBody.Keys(null, null) : b.keys();
+    service.subscribe(CurrentUser.id(), b.endpoint(), k.p256dh(), k.auth());
+  }
+
+  /** 取消这台设备的推送订阅（退出登录、关闭授权时调用） */
+  @PostMapping("/api/notifications/push/unsubscribe")
+  void unsubscribe(@RequestBody EndpointBody body) {
+    service.unsubscribe(CurrentUser.id(), body == null ? null : body.endpoint());
   }
 }
