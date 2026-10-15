@@ -19,10 +19,12 @@ class PositionRow {
   BigDecimal notionalUsd;
   BigDecimal margin;
   BigDecimal fee;
+  BigDecimal swapTotal;
   BigDecimal maintenanceMarginRate;
   BigDecimal liquidationPrice;
   BigDecimal takeProfit;
   BigDecimal stopLoss;
   String status;
   LocalDateTime openedAt;
+  LocalDateTime closedAt;
 }

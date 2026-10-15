@@ -30,7 +30,7 @@ class TradingController {
       String usedMargin, String available) {}
 
   record PositionView(String id, String symbol, String side, String lots, int leverage, String openPrice, String margin,
-      String maintenanceMarginRate, String liquidationPrice, String takeProfit, String stopLoss, String openedAt) {}
+      String maintenanceMarginRate, String liquidationPrice, String takeProfit, String stopLoss, String openedAt, String swap) {}
 
   record PendingOrderView(String id, String symbol, String side, String lots, int leverage, String limitPrice, String takeProfit,
       String stopLoss, String frozenMargin, String createdAt) {}
@@ -89,7 +89,8 @@ class TradingController {
   private PositionView view(PositionRow p) {
     int d = digits(p.symbol);
     return new PositionView(String.valueOf(p.id), p.symbol, p.side.toLowerCase(), lots(p.lots), p.leverage, price(p.openPrice, d), money(p.margin),
-        plain(p.maintenanceMarginRate), price(p.liquidationPrice, d), price(p.takeProfit, d), price(p.stopLoss, d), iso(p.openedAt));
+        plain(p.maintenanceMarginRate), price(p.liquidationPrice, d), price(p.takeProfit, d), price(p.stopLoss, d), iso(p.openedAt),
+        money(p.swapTotal == null ? BigDecimal.ZERO : p.swapTotal));
   }
 
   /** 全额平仓 */
