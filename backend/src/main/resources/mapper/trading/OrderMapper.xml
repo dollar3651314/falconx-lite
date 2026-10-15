@@ -86,4 +86,19 @@
   <select id="countHistory" resultType="long">
     SELECT COUNT(*) FROM (<include refid="historyUnion"/>) h
   </select>
+
+  <select id="triggeredOrders" resultType="com.falconx.lite.trading.order.OrderRow">
+    SELECT <include refid="orderCols"/> FROM trading_order
+    WHERE symbol = #{symbol} AND status = 'PENDING'
+      AND ((side = 'BUY' AND limit_price &gt;= #{ask}) OR (side = 'SELL' AND limit_price &lt;= #{bid}))
+    ORDER BY id
+  </select>
+
+  <select id="triggeredPositions" resultType="com.falconx.lite.trading.order.PositionRow">
+    SELECT <include refid="positionCols"/> FROM trading_position
+    WHERE symbol = #{symbol} AND status = 'OPEN'
+      AND ((side = 'BUY' AND (liquidation_price &gt;= #{bid} OR take_profit &lt;= #{bid} OR stop_loss &gt;= #{bid}))
+        OR (side = 'SELL' AND (liquidation_price &lt;= #{ask} OR take_profit &gt;= #{ask} OR stop_loss &lt;= #{ask})))
+    ORDER BY id
+  </select>
 </mapper>

@@ -5,6 +5,10 @@ spring:
     url: ${FX_DB_URL:jdbc:mysql://localhost:3306/falconx_test}
     username: ${FX_DB_USERNAME:root}
     password: ${FX_DB_PASSWORD}
+    # 测试会缓存多个 Spring 上下文，每个都有连接池；限小一些，避免超过 MySQL 默认的 151 个连接
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
 management:
   server:
     port: 0
@@ -12,5 +16,8 @@ falconx:
   # 测试里不启动模拟行情源，由测试直接喂报价
   market:
     source: none
+  # 撮合引擎默认关：其他测试手动平仓时不会被引擎抢先强平；撮合测试里单独打开
+  trading:
+    engine-enabled: false
   storage:
     local-dir: ${java.io.tmpdir}/falconx-test-storage
