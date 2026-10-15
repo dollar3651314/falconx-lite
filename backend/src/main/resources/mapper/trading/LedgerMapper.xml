@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 交易账户和账本。只有 trading 模块使用（表名以 trading_ 开头）。 -->
+<mapper namespace="com.falconx.lite.trading.ledger.LedgerMapper">
+
+  <insert id="insertAccountIfAbsent">
+    INSERT IGNORE INTO trading_account (user_id) VALUES (#{userId})
+  </insert>
+
+  <select id="lockAccount" resultType="com.falconx.lite.trading.ledger.AccountRow">
+    SELECT id, user_id, balance, withdraw_frozen, order_frozen FROM trading_account WHERE user_id = #{userId} FOR UPDATE
+  </select>
+
+  <select id="findAccount" resultType="com.falconx.lite.trading.ledger.AccountRow">
+    SELECT id, user_id, balance, withdraw_frozen, order_frozen FROM trading_account WHERE user_id = #{userId}
+  </select>
+
+  <!-- column 只会是 LedgerService.column() 给出的三个固定列名之一 -->
+  <update id="updateBucket">
+    UPDATE trading_account SET ${column} = #{value} WHERE id = #{accountId}
+  </update>
+
+  <select id="findEntry" resultType="com.falconx.lite.trading.ledger.LedgerRow">
+    SELECT id, value_after FROM trading_ledger
+    WHERE biz_type = #{bizType} AND biz_id = #{bizId} AND entry_type = #{entryType} AND bucket = #{bucket}
+  </select>
+
+  <insert id="insertEntry" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO trading_ledger (account_id, bucket, entry_type, amount, value_after, biz_type, biz_id, remark)
+    VALUES (#{accountId}, #{bucket}, #{entryType}, #{amount}, #{valueAfter}, #{bizType}, #{bizId}, #{remark})
+  </insert>
+</mapper>

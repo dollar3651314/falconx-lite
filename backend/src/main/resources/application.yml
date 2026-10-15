@@ -12,11 +12,22 @@ spring:
     url: ${FX_DB_URL}
     username: ${FX_DB_USERNAME}
     password: ${FX_DB_PASSWORD}
+    hikari:
+      # 每个连接都用 UTC，数据库默认时间和 UTC_TIMESTAMP() 一致
+      connection-init-sql: SET time_zone = '+00:00'
   data:
     redis:
       host: ${FX_REDIS_HOST:localhost}
       port: ${FX_REDIS_PORT:6379}
       password: ${FX_REDIS_PASSWORD:}
+  # 表结构只通过 Flyway 迁移脚本修改（src/main/resources/db/migration），表结构说明见 技术方案/v1-数据库设计.md
+  flyway:
+    locations: classpath:db/migration
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
 
 # 应用管理端点只在内网端口监听，Nginx 不转发（修复 fxsystem S3）
 management:
