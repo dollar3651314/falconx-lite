@@ -7,7 +7,7 @@
     frozen_amount, notional_usd, status, fill_price, position_id, revision, created_at</sql>
 
   <sql id="positionCols">id, user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
-    margin, fee, maintenance_margin_rate, liquidation_price, take_profit, stop_loss, status, opened_at</sql>
+    margin, fee, swap_total, maintenance_margin_rate, liquidation_price, take_profit, stop_loss, status, opened_at, closed_at</sql>
 
   <select id="findByClientId" resultType="com.falconx.lite.trading.order.OrderRow">
     SELECT <include refid="orderCols"/> FROM trading_order WHERE user_id = #{userId} AND client_order_id = #{clientOrderId}
@@ -101,4 +101,25 @@
         OR (side = 'SELL' AND (liquidation_price &lt;= #{ask} OR take_profit &gt;= #{ask} OR stop_loss &lt;= #{ask})))
     ORDER BY id
   </select>
+
+  <select id="swapDue" resultType="com.falconx.lite.trading.order.PositionRow">
+    SELECT <include refid="positionCols"/> FROM trading_position p
+    WHERE p.opened_at &lt; #{at} AND (p.status = 'OPEN' OR p.closed_at &gt; #{at})
+      AND p.symbol IN <foreach collection="symbols" item="s" open="(" separator="," close=")">#{s}</foreach>
+      AND NOT EXISTS (SELECT 1 FROM trading_swap s WHERE s.position_id = p.id AND s.rollover_date = #{date})
+    ORDER BY p.id
+  </select>
+
+  <select id="lockPosition" resultType="com.falconx.lite.trading.order.PositionRow">
+    SELECT <include refid="positionCols"/> FROM trading_position WHERE id = #{id} FOR UPDATE
+  </select>
+
+  <insert id="insertSwap">
+    INSERT IGNORE INTO trading_swap (position_id, user_id, symbol, rollover_date, rollover_at, rate, price, usd_rate, amount)
+    VALUES (#{positionId}, #{userId}, #{symbol}, #{date}, #{at}, #{rate}, #{price}, #{usdRate}, #{amount})
+  </insert>
+
+  <update id="applySwap">
+    UPDATE trading_position SET margin = #{margin}, liquidation_price = #{liquidationPrice}, swap_total = swap_total + #{amount} WHERE id = #{id}
+  </update>
 </mapper>

@@ -53,6 +53,11 @@ class MarketService implements MarketApi {
   }
 
   @Override
+  public boolean isTradingDay(String code, java.time.LocalDate date) {
+    return catalog.isTradingDay(code, date);
+  }
+
+  @Override
   public Optional<BigDecimal> toUsdRate(String ccy) {
     if (ccy == null) return Optional.empty();
     if ("USD".equals(ccy) || "USDT".equals(ccy)) return Optional.of(BigDecimal.ONE);

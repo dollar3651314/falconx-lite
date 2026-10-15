@@ -59,6 +59,13 @@ public class SymbolCatalog {
     return Optional.ofNullable(symbols.get(code));
   }
 
+  /** UTC 日期 d 是不是这个品种的交易日：这一天（星期几）有交易时段，并且不是休市日。隔夜费按交易日结算 */
+  public boolean isTradingDay(String code, LocalDate d) {
+    if (holidays.contains("*|" + d) || holidays.contains(code + "|" + d)) return false;
+    List<int[]>[] week = sessions.get(code);
+    return week != null && week[d.getDayOfWeek().getValue()] != null && !week[d.getDayOfWeek().getValue()].isEmpty();
+  }
+
   public boolean isOpen(String code, Instant at) {
     ZonedDateTime t = at.atZone(ZoneOffset.UTC);
     LocalDate d = t.toLocalDate();

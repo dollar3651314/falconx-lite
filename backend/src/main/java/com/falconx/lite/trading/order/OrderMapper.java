@@ -42,6 +42,21 @@ interface OrderMapper {
 
   long countHistory(@Param("userId") long userId);
 
+  /** 结算日 date（时点 at）还没结算隔夜费的持仓：at 之前开仓，at 时还持有（现在仍持有或 at 之后才平仓），品种在 symbols 里 */
+  List<PositionRow> swapDue(@Param("date") java.time.LocalDate date, @Param("at") java.time.LocalDateTime at, @Param("symbols") List<String> symbols);
+
+  /** 锁住持仓（不管是否已平仓），结算隔夜费用 */
+  PositionRow lockPosition(@Param("id") long id);
+
+  /** 写结算记录；同一持仓同一结算日已经有了就不写，返回 0 */
+  int insertSwap(@Param("positionId") long positionId, @Param("userId") long userId, @Param("symbol") String symbol, @Param("date") java.time.LocalDate date,
+      @Param("at") java.time.LocalDateTime at, @Param("rate") java.math.BigDecimal rate, @Param("price") java.math.BigDecimal price,
+      @Param("usdRate") java.math.BigDecimal usdRate, @Param("amount") java.math.BigDecimal amount);
+
+  /** 隔夜费入账后更新持仓：保证金、强平价（扣费时）和累计隔夜费 */
+  int applySwap(@Param("id") long id, @Param("margin") java.math.BigDecimal margin, @Param("liquidationPrice") java.math.BigDecimal liquidationPrice,
+      @Param("amount") java.math.BigDecimal amount);
+
   /** 这个价格下会成交的挂单：买单 限价 ≥ ask，卖单 限价 ≤ bid */
   List<OrderRow> triggeredOrders(@Param("symbol") String symbol, @Param("bid") java.math.BigDecimal bid, @Param("ask") java.math.BigDecimal ask);
 

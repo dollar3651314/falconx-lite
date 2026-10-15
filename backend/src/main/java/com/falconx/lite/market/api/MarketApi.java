@@ -18,6 +18,9 @@ public interface MarketApi {
   /** 该时刻是否在交易时段内（每周时段 + 休市日） */
   boolean isTradingOpen(String code, Instant at);
 
+  /** UTC 日期这一天是不是这个品种的交易日（有交易时段、不是休市日）。 */
+  boolean isTradingDay(String code, java.time.LocalDate date);
+
   /** 1 单位 ccy 折合多少 USD（USDT 视同 USD）；找不到汇率时为空，调用方应拒绝交易 */
   Optional<BigDecimal> toUsdRate(String ccy);
 

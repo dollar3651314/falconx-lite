@@ -33,6 +33,11 @@ falconx:
     engine-enabled: true
     engine-threads: 8
     engine-workers: 8
+    # 隔夜费（S10）：每天 UTC 22:00 结算（沿用现有系统），费率在品种配置里（swap_long / swap_short，待 Amos 提供，现在都是 0）
+    swap:
+      enabled: true
+      rollover-time: "22:00"
+      catch-up-days: 3
   # 对象存储（证件照片）。现在是本地目录，正式环境在 S20 换成对象存储服务
   storage:
     local-dir: ${FX_STORAGE_DIR:./data/storage}
