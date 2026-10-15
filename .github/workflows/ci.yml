@@ -1,7 +1,7 @@
 # 每个 PR 的自动检查（agents 规则 C54）。模板：agents/模板/ci.yml
 # 仓库为私有、GitHub 免费版时开不了分支保护：合并前人工确认本检查是绿的，并在 PR 或汇报里附运行链接。
 # 原则：不需要任何密钥（外部服务用替身）；用到数据库的，用 GitHub 提供的数据库容器在真实数据库上跑（C37）。
-# v0.1：还没有代码，只跑项目地图和索引检查、密钥扫描。代码目录建立的同一个 PR 里，加上 Maven 单元测试（MySQL、Redis 容器）、前端测试/lint/构建、端到端测试。
+# v0.2：项目地图和索引检查、密钥扫描；客户端和后台的 lint、单元测试、构建、依赖安全检查。后端代码出现时加上 Maven 单元测试（MySQL、Redis 容器）和端到端测试。
 name: ci
 on:
   pull_request:
@@ -32,3 +32,29 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [client, admin]
+    defaults:
+      run:
+        working-directory: web/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/${{ matrix.app }}/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: lint
+        run: npm run lint
+      - name: 单元测试
+        run: npm test
+      - name: 构建
+        run: npm run build
+      - name: 依赖安全检查（高危漏洞不允许）
+        run: npm audit --audit-level=high --omit=dev
