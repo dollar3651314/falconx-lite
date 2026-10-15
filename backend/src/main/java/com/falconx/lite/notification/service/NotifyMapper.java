@@ -37,4 +37,19 @@ interface NotifyMapper {
   List<Rows.RecordRow> recordsOf(@Param("userId") long userId, @Param("limit") int limit);
 
   Rows.RecordRow record(@Param("id") long id);
+
+  /** 同一个推送地址已经有了就改成这个客户、更新密钥 */
+  void upsertPushSub(@Param("userId") long userId, @Param("endpoint") String endpoint, @Param("hash") String hash, @Param("p256dh") String p256dh,
+      @Param("auth") String auth, @Param("now") LocalDateTime now);
+
+  List<Rows.PushSubRow> pushSubs(@Param("userId") long userId);
+
+  Rows.PushSubRow pushSub(@Param("id") long id);
+
+  int deletePushSub(@Param("id") long id);
+
+  int deletePushSubByEndpoint(@Param("userId") long userId, @Param("hash") String hash);
+
+  /** 超过 max 台设备时删掉最早的 */
+  int trimPushSubs(@Param("userId") long userId, @Param("max") int max);
 }

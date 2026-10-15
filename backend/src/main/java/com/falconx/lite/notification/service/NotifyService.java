@@ -27,7 +27,7 @@ import tools.jackson.databind.ObjectMapper;
  * 通知（技术方案/v1-通知方案.md）：
  * <ul>
  *   <li>站内信始终发送；存模板编号和变量，打开时按客户当前界面语言生成（切换语言后旧消息也跟着变）。</li>
- *   <li>推送和邮件按客户的开关（X-05），关闭的渠道记为已跳过（AC-25）。推送在 S15b 接上，现在记"没有订阅推送的设备"。</li>
+ *   <li>推送和邮件按客户的开关（X-05），关闭的渠道记为已跳过（AC-25）。推送每台设备一条记录、一个 {@code PUSH_SEND} 任务（S15b）。</li>
  *   <li>邮件写成 {@code MAIL_SEND} 任务，和业务同一事务；业务提交后由 {@link NotifyWorker} 发出。</li>
  *   <li>每个渠道一条通知记录（后台"通知记录"页面）。</li>
  * </ul>
@@ -41,6 +41,9 @@ class NotifyService implements NotifyApi, NotifyAdminApi {
   static final String SKIP_PUSH_OFF = "客户关闭了推送";
   static final String SKIP_EMAIL_OFF = "客户关闭了邮件";
   static final String SKIP_NO_DEVICE = "没有订阅推送的设备";
+  static final String SKIP_PUSH_NOT_CONFIGURED = "推送未配置";
+  static final String PUSH_TASK = "PUSH_SEND";
+  static final int PUSH_ATTEMPTS = 5;
 
   private static final Logger log = LoggerFactory.getLogger(NotifyService.class);
   private static final TypeReference<Map<String, String>> PARAMS = new TypeReference<>() {};
@@ -57,13 +60,17 @@ class NotifyService implements NotifyApi, NotifyAdminApi {
   private final ObjectMapper json;
   private final UserEventsApi events;
   private final Clock clock;
+  private final WebPush webPush;
+  private final NotifyProperties.Push pushProps;
 
-  NotifyService(NotifyMapper mapper, TaskService tasks, ObjectMapper json, UserEventsApi events, Clock clock) {
+  NotifyService(NotifyMapper mapper, TaskService tasks, ObjectMapper json, UserEventsApi events, Clock clock, WebPush webPush, NotifyProperties props) {
     this.mapper = mapper;
     this.tasks = tasks;
     this.json = json;
     this.events = events;
     this.clock = clock;
+    this.webPush = webPush;
+    this.pushProps = props.push();
   }
 
   private LocalDateTime now() {
@@ -84,6 +91,7 @@ class NotifyService implements NotifyApi, NotifyAdminApi {
     Rows.PrefRow pref = prefRow(userId);
     String title = Render.render(t, params, Render.ZH).title();
     String paramsJson = json.writeValueAsString(params == null ? Map.of() : params);
+    Long messageId = null;
     if (t.has("INBOX")) {
       Rows.MessageRow m = new Rows.MessageRow();
       m.userId = userId;
@@ -93,10 +101,18 @@ class NotifyService implements NotifyApi, NotifyAdminApi {
       m.createdAt = now();
       mapper.insertMessage(m);
       record(userId, null, "TEMPLATE", t.code, "INBOX", title, "SENT", null, null);
+      messageId = m.id;
       afterCommit(() -> pushItem(userId, view(m, t, pref.lang)));
     }
     if (t.has("PUSH")) {
-      record(userId, null, "TEMPLATE", t.code, "PUSH", title, "SKIPPED", pref.pushEnabled ? SKIP_NO_DEVICE : SKIP_PUSH_OFF, null);
+      Map<String, Object> p = new LinkedHashMap<>();
+      p.put("userId", userId);
+      p.put("template", t.code);
+      p.put("params", params == null ? Map.of() : params);
+      p.put("lang", pref.lang);
+      p.put("kind", t.kind);
+      p.put("messageId", messageId);
+      push(userId, pref, "TEMPLATE", t.code, title, p, null);
     }
     if (t.has("EMAIL")) {
       if (!pref.emailEnabled) {
@@ -142,6 +158,7 @@ class NotifyService implements NotifyApi, NotifyAdminApi {
     String tt = title.trim();
     String bb = body.trim();
     Rows.PrefRow pref = prefRow(userId);
+    Long messageId = null;
     if (channels.contains(NotifyChannel.INBOX)) {
       Rows.MessageRow m = new Rows.MessageRow();
       m.userId = userId;
@@ -151,10 +168,17 @@ class NotifyService implements NotifyApi, NotifyAdminApi {
       m.createdAt = now();
       mapper.insertMessage(m);
       record(userId, null, "MANUAL", null, "INBOX", tt, "SENT", null, operatorId);
+      messageId = m.id;
       afterCommit(() -> pushItem(userId, view(m, null, pref.lang)));
     }
     if (channels.contains(NotifyChannel.PUSH)) {
-      record(userId, null, "MANUAL", null, "PUSH", tt, "SKIPPED", pref.pushEnabled ? SKIP_NO_DEVICE : SKIP_PUSH_OFF, operatorId);
+      Map<String, Object> p = new LinkedHashMap<>();
+      p.put("userId", userId);
+      p.put("subject", tt);
+      p.put("body", bb);
+      p.put("kind", "system");
+      p.put("messageId", messageId);
+      push(userId, pref, "MANUAL", null, tt, p, operatorId);
     }
     if (channels.contains(NotifyChannel.EMAIL)) {
       if (!pref.emailEnabled) {
@@ -168,6 +192,32 @@ class NotifyService implements NotifyApi, NotifyAdminApi {
         p.put("body", bb);
         enqueueMail(p);
       }
+    }
+  }
+
+  /**
+   * 推送：客户关了、没有配置、没有设备都记"已跳过"；否则每台设备一条记录、一个任务（某台设备失败重试时不会重复推给别的设备）。
+   */
+  private void push(long userId, Rows.PrefRow pref, String source, String template, String title, Map<String, Object> base, Long operatorId) {
+    if (!pref.pushEnabled) {
+      record(userId, null, source, template, "PUSH", title, "SKIPPED", SKIP_PUSH_OFF, operatorId);
+      return;
+    }
+    if (!webPush.enabled()) {
+      record(userId, null, source, template, "PUSH", title, "SKIPPED", SKIP_PUSH_NOT_CONFIGURED, operatorId);
+      return;
+    }
+    List<Rows.PushSubRow> subs = mapper.pushSubs(userId);
+    if (subs.isEmpty()) {
+      record(userId, null, source, template, "PUSH", title, "SKIPPED", SKIP_NO_DEVICE, operatorId);
+      return;
+    }
+    for (Rows.PushSubRow sub : subs) {
+      long rid = record(userId, null, source, template, "PUSH", title, "PENDING", null, operatorId);
+      Map<String, Object> p = new LinkedHashMap<>(base);
+      p.put("recordId", rid);
+      p.put("subId", sub.id);
+      tasks.enqueue(PUSH_TASK, json.writeValueAsString(p), 0, PUSH_ATTEMPTS);
     }
   }
 
@@ -257,6 +307,50 @@ class NotifyService implements NotifyApi, NotifyAdminApi {
   void setLang(long userId, String lang) {
     if (!Render.ZH.equals(lang) && !Render.EN.equals(lang)) throw new ValidationException(List.of(new ValidationException.Field("lang", "invalid")));
     mapper.upsertLang(userId, lang);
+  }
+
+  /** Web Push 的公钥（客户端订阅时用）；没有配置时为空 */
+  String pushPublicKey() {
+    return webPush.publicKey();
+  }
+
+  /** 保存订阅（浏览器 PushSubscription.toJSON() 的 endpoint、keys.p256dh、keys.auth）；超过设备上限时删掉最早的 */
+  @Transactional
+  void subscribe(long userId, String endpoint, String p256dh, String auth) {
+    ValidationException.Collector c = new ValidationException.Collector();
+    if (endpoint == null || endpoint.isBlank()) c.add("endpoint", "required");
+    else if (endpoint.length() > 1000 || !webPush.allowedEndpoint(endpoint)) c.add("endpoint", "invalid");
+    if (!validKey(p256dh, 65)) c.add("p256dh", "invalid");
+    if (!validKey(auth, 16)) c.add("auth", "invalid");
+    c.throwIfAny();
+    mapper.upsertPushSub(userId, endpoint, sha256(endpoint), p256dh.strip(), auth.strip(), now());
+    mapper.trimPushSubs(userId, pushProps.maxDevices());
+  }
+
+  @Transactional
+  void unsubscribe(long userId, String endpoint) {
+    if (endpoint == null || endpoint.isBlank()) throw new ValidationException(List.of(new ValidationException.Field("endpoint", "required")));
+    mapper.deletePushSubByEndpoint(userId, sha256(endpoint));
+  }
+
+  private static boolean validKey(String v, int len) {
+    if (v == null || v.isBlank() || v.length() > 120) return false;
+    try {
+      byte[] b = WebPushCrypto.b64(v);
+      if (b.length != len) return false;
+      if (len == 65) WebPushCrypto.publicKey(b);
+      return true;
+    } catch (IllegalArgumentException | java.security.GeneralSecurityException e) {
+      return false;
+    }
+  }
+
+  static String sha256(String s) {
+    try {
+      return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   private Rows.PrefRow prefRow(long userId) {

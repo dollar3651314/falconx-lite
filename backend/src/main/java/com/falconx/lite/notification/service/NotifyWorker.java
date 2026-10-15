@@ -12,7 +12,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 发送邮件任务（{@code MAIL_SEND}）。失败按任务表的规则退避重试，最多 5 次，仍失败把通知记录标为失败。
+ * 发送邮件任务（{@code MAIL_SEND}）和推送任务（{@code PUSH_SEND}，S15b）。失败按任务表的规则退避重试，最多 5 次，仍失败把通知记录标为失败。
  * 发给客户的邮件在发送时才查邮箱（客户改了邮箱也发到新邮箱）。日志不打印邮件内容（可能有验证码）。
  */
 @Component
@@ -27,20 +27,26 @@ class NotifyWorker {
   private final MailTransport transport;
   private final AccountApi accounts;
   private final ObjectMapper json;
+  private final WebPush webPush;
 
-  NotifyWorker(TaskService tasks, NotifyMapper mapper, MailTransport transport, AccountApi accounts, ObjectMapper json) {
+  NotifyWorker(TaskService tasks, NotifyMapper mapper, MailTransport transport, AccountApi accounts, ObjectMapper json, WebPush webPush) {
     this.tasks = tasks;
     this.mapper = mapper;
     this.transport = transport;
     this.accounts = accounts;
     this.json = json;
+    this.webPush = webPush;
   }
 
-  /** 把到期的邮件任务全部发完，返回处理的数量 */
+  /** 把到期的邮件和推送任务全部发完，返回处理的数量 */
   int drain() {
+    return drain(NotifyService.MAIL_TASK) + drain(NotifyService.PUSH_TASK);
+  }
+
+  private int drain(String type) {
     int n = 0;
     while (true) {
-      var batch = tasks.claim(NotifyService.MAIL_TASK, "notify", 20);
+      var batch = tasks.claim(type, "notify", 20);
       if (batch.isEmpty()) return n;
       for (Task t : batch) {
         handle(t);
@@ -50,6 +56,11 @@ class NotifyWorker {
   }
 
   void handle(Task t) {
+    if (NotifyService.PUSH_TASK.equals(t.taskType())) handlePush(t);
+    else handleMail(t);
+  }
+
+  private void handleMail(Task t) {
     Long recordId = null;
     try {
       Map<String, Object> p = json.readValue(t.payload(), MAP);
@@ -82,6 +93,85 @@ class NotifyWorker {
         boolean dead = after != null && after.status() == TaskStatus.FAILED;
         mapper.updateRecord(recordId, dead ? "FAILED" : "PENDING", msg.length() > 500 ? msg.substring(0, 500) : msg);
       }
+    }
+  }
+
+  /** 推送内容：标题、正文、类型、站内信编号（客户端点开后跳到这条站内信）；超长时截短正文 */
+  private void handlePush(Task t) {
+    Long recordId = null;
+    try {
+      Map<String, Object> p = json.readValue(t.payload(), MAP);
+      recordId = p.get("recordId") instanceof Number num ? num.longValue() : null;
+      long subId = ((Number) p.get("subId")).longValue();
+      long userId = ((Number) p.get("userId")).longValue();
+      Rows.PushSubRow sub = mapper.pushSub(subId);
+      if (sub == null || sub.userId != userId) {
+        tasks.succeed(t.id());
+        if (recordId != null) mapper.updateRecord(recordId, "SKIPPED", "订阅已删除");
+        return;
+      }
+      Render.Text text;
+      boolean urgent = false;
+      if (p.get("template") instanceof String code) {
+        Rows.TemplateRow tpl = mapper.template(code);
+        if (tpl == null) throw new IllegalStateException("模板不存在：" + code);
+        text = Render.render(tpl, json.convertValue(p.getOrDefault("params", Map.of()), PARAMS), String.valueOf(p.get("lang")));
+        urgent = "MARGIN_CALL".equals(code) || "LIQUIDATED".equals(code);
+      } else {
+        text = new Render.Text(String.valueOf(p.get("subject")), String.valueOf(p.get("body")));
+      }
+      byte[] plaintext = pushPayload(text, p.get("kind"), p.get("messageId"));
+      WebPush.Result r = webPush.send(sub.endpoint, WebPushCrypto.b64(sub.p256dh), WebPushCrypto.b64(sub.auth), plaintext, urgent);
+      switch (r) {
+        case WebPush.Delivered d -> {
+          tasks.succeed(t.id());
+          if (recordId != null) mapper.updateRecord(recordId, "SENT", null);
+        }
+        case WebPush.Gone g -> {
+          mapper.deletePushSub(subId);
+          tasks.succeed(t.id());
+          if (recordId != null) mapper.updateRecord(recordId, "FAILED", "订阅已失效（" + g.status() + "），已删除");
+        }
+        case WebPush.Rejected rej -> {
+          log.warn("推送被拒绝 task={} {}", t.id(), rej.reason());
+          tasks.succeed(t.id());
+          if (recordId != null) mapper.updateRecord(recordId, "FAILED", cut(rej.reason()));
+        }
+        case WebPush.Retry retry -> retry(t, recordId, retry.reason());
+      }
+    } catch (RuntimeException e) {
+      retry(t, recordId, e.getClass().getSimpleName() + ": " + e.getMessage());
+    }
+  }
+
+  private void retry(Task t, Long recordId, String msg) {
+    log.warn("推送失败 task={} 第 {} 次：{}", t.id(), t.attempts(), msg);
+    tasks.fail(t.id(), msg);
+    if (recordId != null) {
+      Task after = tasks.find(t.id());
+      boolean dead = after != null && after.status() == TaskStatus.FAILED;
+      mapper.updateRecord(recordId, dead ? "FAILED" : "PENDING", cut(msg));
+    }
+  }
+
+  private static String cut(String s) {
+    return s == null || s.length() <= 500 ? s : s.substring(0, 500);
+  }
+
+  /** JSON：{"title","body","kind","id"}；加密前不超过 RFC 8291 一条记录能放的长度，超长截短正文 */
+  byte[] pushPayload(Render.Text text, Object kind, Object messageId) {
+    String body = text.body();
+    while (true) {
+      Map<String, Object> m = new java.util.LinkedHashMap<>();
+      m.put("title", text.title());
+      m.put("body", body);
+      m.put("kind", kind);
+      if (messageId != null) m.put("id", String.valueOf(messageId));
+      byte[] b = json.writeValueAsBytes(m);
+      if (b.length <= WebPushCrypto.MAX_PLAINTEXT || body.isEmpty()) return b;
+      // 中文一个字最多 3 字节：每次至少去掉超出部分对应的字数，最后加省略号
+      int drop = Math.max(20, (b.length - WebPushCrypto.MAX_PLAINTEXT) / 3 + 2);
+      body = body.length() <= drop ? "" : body.substring(0, body.length() - drop) + "…";
     }
   }
 }

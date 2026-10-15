@@ -67,4 +67,13 @@ final class Rows {
     Long operatorId;
     LocalDateTime createdAt;
   }
+
+  /** notify_push_sub 的一行 */
+  static class PushSubRow {
+    Long id;
+    long userId;
+    String endpoint;
+    String p256dh;
+    String auth;
+  }
 }
