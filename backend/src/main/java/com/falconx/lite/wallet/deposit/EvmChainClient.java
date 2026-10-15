@@ -1,15 +1,11 @@
 package com.falconx.lite.wallet.deposit;
 
 import java.math.BigInteger;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import com.falconx.lite.wallet.chain.JsonRpc;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -22,13 +18,10 @@ class EvmChainClient implements ChainClient {
   /** ERC20 Transfer(address,address,uint256) 事件的签名哈希 */
   static final String TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
-  private final String rpcUrl;
-  private final ObjectMapper json;
-  private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+  private final JsonRpc rpc;
 
   EvmChainClient(String rpcUrl, ObjectMapper json) {
-    this.rpcUrl = rpcUrl;
-    this.json = json;
+    this.rpc = new JsonRpc(rpcUrl, json);
   }
 
   @Override
@@ -64,27 +57,14 @@ class EvmChainClient implements ChainClient {
   }
 
   static long hex(String v) {
-    return Long.parseLong(v.startsWith("0x") ? v.substring(2) : v, 16);
+    return JsonRpc.hex(v);
   }
 
   static String toHex(long v) {
-    return "0x" + Long.toHexString(v);
+    return JsonRpc.toHex(v);
   }
 
   private JsonNode call(String method, List<Object> params) {
-    try {
-      String body = json.writeValueAsString(Map.of("jsonrpc", "2.0", "id", 1, "method", method, "params", params));
-      HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(rpcUrl)).timeout(Duration.ofSeconds(20)).header("Content-Type", "application/json")
-          .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
-      if (r.statusCode() != 200) throw new IllegalStateException("节点返回 HTTP " + r.statusCode() + "（" + method + "）");
-      JsonNode n = json.readTree(r.body());
-      if (n.has("error")) throw new IllegalStateException("节点返回错误（" + method + "）：" + n.path("error").path("message").asString());
-      return n.path("result");
-    } catch (java.io.IOException e) {
-      throw new IllegalStateException("连接节点失败（" + method + "）", e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new IllegalStateException("连接节点被中断", e);
-    }
+    return rpc.call(method, params);
   }
 }

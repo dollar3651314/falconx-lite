@@ -64,6 +64,19 @@ falconx:
         ERC20: 5
         TRC20: 1
         BSC: 0.5
+    # 热钱包（S13b，提现方案 W1）：私钥由 Amos 填进服务器环境变量，启动时和地址核对，不出现在日志里
+    hot:
+      eth-private-key: ${FX_WALLET_ETH_HOT_KEY:}
+      eth-address: ${FX_WALLET_ETH_HOT_ADDRESS:}
+      tron-private-key: ${FX_WALLET_TRON_HOT_KEY:}
+      tron-address: ${FX_WALLET_TRON_HOT_ADDRESS:}
+      # chainId：ERC20 主网 1 / Sepolia 11155111；BSC 主网 56 / 测试网 97
+      erc20-chain-id: ${FX_WALLET_ERC20_CHAIN_ID:}
+      bsc-chain-id: ${FX_WALLET_BSC_CHAIN_ID:}
+      gas-limit: 100000
+      tron-fee-limit-sun: 30000000
+      stuck-after: 30m
+      max-replacements: 3
     chains:
       ERC20:
         rpc-url: ${FX_WALLET_ETH_RPC_URL:}

@@ -66,6 +66,12 @@
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-crypto</artifactId>
     </dependency>
+    <!-- 钱包：提现签名（以太坊体系交易签名、secp256k1 签名，S13b，提现方案 W2）。只用签名部分，不用它连节点 -->
+    <dependency>
+      <groupId>org.web3j</groupId>
+      <artifactId>crypto</artifactId>
+      <version>4.12.3</version>
+    </dependency>
     <!-- 钱包：secp256k1 椭圆曲线和 Keccak 哈希（从 xpub 派生充值地址，S12） -->
     <dependency>
       <groupId>org.bouncycastle</groupId>
