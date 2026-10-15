@@ -160,7 +160,7 @@ class MatchingEngine {
       boolean hit = side == Side.BUY ? q.ask().compareTo(o.limitPrice) <= 0 : q.bid().compareTo(o.limitPrice) >= 0;
       if (!hit) return null;
       Optional<SymbolSpec> spec = market.symbol(o.symbol);
-      if (spec.isEmpty() || spec.get().openPaused() || risk.globalOpenPaused()) return null;
+      if (spec.isEmpty() || spec.get().openPaused() || risk.symbolOpenPaused(o.symbol) || risk.globalOpenPaused()) return null;
       Optional<BigDecimal> rate = market.liveUsdRate(spec.get().quoteCcy());
       if (rate.isEmpty()) return null;
       BigDecimal price = side == Side.BUY ? q.ask().min(o.limitPrice) : q.bid().max(o.limitPrice);
@@ -185,7 +185,7 @@ class MatchingEngine {
   }
 
   /**
-   * 持仓触发：强平优先，其次止损、止盈。都按当前市价平仓（多单 bid、空单 ask）；
+   * 持仓触发：强平优先（风控的自动强平开关打开时），其次止损、止盈。都按当前市价平仓（多单 bid、空单 ask）；
    * 价格跳空越过强平价时亏损封顶为保证金，余额不会变负（AC-14）。
    */
   void trigger(long userId, long positionId, MarketQuote q, long receivedNanos) {
@@ -198,7 +198,9 @@ class MatchingEngine {
       BigDecimal px = side.closePrice(q);
       boolean buy = side == Side.BUY;
       PositionService.CloseReason reason = null;
-      if (buy ? px.compareTo(p.liquidationPrice) <= 0 : px.compareTo(p.liquidationPrice) >= 0) reason = PositionService.CloseReason.LIQUIDATED;
+      boolean liqHit = buy ? px.compareTo(p.liquidationPrice) <= 0 : px.compareTo(p.liquidationPrice) >= 0;
+      // 风控关闭自动强平时，触及强平价也不平（止盈止损照常）
+      if (liqHit && risk.autoLiquidationEnabled()) reason = PositionService.CloseReason.LIQUIDATED;
       else if (p.stopLoss != null && (buy ? px.compareTo(p.stopLoss) <= 0 : px.compareTo(p.stopLoss) >= 0)) reason = PositionService.CloseReason.SL;
       else if (p.takeProfit != null && (buy ? px.compareTo(p.takeProfit) >= 0 : px.compareTo(p.takeProfit) <= 0)) reason = PositionService.CloseReason.TP;
       if (reason == null) return null;

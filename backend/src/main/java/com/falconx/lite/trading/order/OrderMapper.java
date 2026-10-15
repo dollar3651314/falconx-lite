@@ -57,6 +57,9 @@ interface OrderMapper {
   int applySwap(@Param("id") long id, @Param("margin") java.math.BigDecimal margin, @Param("liquidationPrice") java.math.BigDecimal liquidationPrice,
       @Param("amount") java.math.BigDecimal amount);
 
+  /** 按品种汇总持仓（风控算敞口） */
+  List<com.falconx.lite.trading.api.ExposureApi.SymbolLots> openLots();
+
   /** 这个价格下会成交的挂单：买单 限价 ≥ ask，卖单 限价 ≤ bid */
   List<OrderRow> triggeredOrders(@Param("symbol") String symbol, @Param("bid") java.math.BigDecimal bid, @Param("ask") java.math.BigDecimal ask);
 
