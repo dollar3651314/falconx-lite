@@ -50,6 +50,20 @@ falconx:
     tron-xpub: ${FX_WALLET_TRON_XPUB:}
     # 最小充值 1 USDT（Amos 确认，充值方案 D4）
     min-deposit: 1
+    # 提现（S13，技术方案/v1-提现方案.md）：限额沿用现有系统（N-08），手续费 Amos 确认（W3），从提现金额里扣
+    withdraw:
+      min-amount: 10
+      max-per-tx: 10000
+      daily-limit: 30000
+      large-amount: 3000
+      large-delay: 6h
+      cooling: 2h
+      whitelist-delay: 24h
+      max-whitelist: 10
+      fees:
+        ERC20: 5
+        TRC20: 1
+        BSC: 0.5
     chains:
       ERC20:
         rpc-url: ${FX_WALLET_ETH_RPC_URL:}
