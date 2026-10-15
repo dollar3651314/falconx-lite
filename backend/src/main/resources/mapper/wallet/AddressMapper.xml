@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 充值地址。只有 wallet 模块使用。 -->
+<mapper namespace="com.falconx.lite.wallet.address.AddressMapper">
+
+  <resultMap id="row" type="com.falconx.lite.wallet.address.AddressMapper$AddressRow">
+    <constructor>
+      <arg column="user_id" javaType="_long"/>
+      <arg column="family" javaType="string"/>
+      <arg column="address_index" javaType="_int"/>
+      <arg column="address" javaType="string"/>
+    </constructor>
+  </resultMap>
+
+  <select id="byUser" resultMap="row">
+    SELECT user_id, family, address_index, address FROM wallet_address WHERE user_id = #{userId} ORDER BY family
+  </select>
+
+  <insert id="insertIgnore">
+    INSERT IGNORE INTO wallet_address (user_id, family, address_index, address, address_key) VALUES (#{userId}, #{family}, #{index}, #{address}, #{key})
+  </insert>
+
+  <select id="userOf" resultType="long">
+    SELECT user_id FROM wallet_address WHERE family = #{family} AND address_key = #{key}
+  </select>
+</mapper>

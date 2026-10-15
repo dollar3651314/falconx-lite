@@ -7,6 +7,7 @@ import com.falconx.lite.account.auth.Rows.Profile;
 import com.falconx.lite.account.auth.Rows.UserRow;
 import com.falconx.lite.common.error.BizException;
 import com.falconx.lite.trading.api.LedgerApi;
+import com.falconx.lite.wallet.api.WalletApi;
 import java.util.Locale;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -22,14 +23,16 @@ class AuthService {
   private final SessionService sessions;
   private final LoginLimiter limiter;
   private final LedgerApi ledger;
+  private final WalletApi wallet;
   private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
 
-  AuthService(AuthMapper mapper, EmailCodeService codes, SessionService sessions, LoginLimiter limiter, LedgerApi ledger) {
+  AuthService(AuthMapper mapper, EmailCodeService codes, SessionService sessions, LoginLimiter limiter, LedgerApi ledger, WalletApi wallet) {
     this.mapper = mapper;
     this.codes = codes;
     this.sessions = sessions;
     this.limiter = limiter;
     this.ledger = ledger;
+    this.wallet = wallet;
   }
 
   static String normalizeEmail(String email) {
@@ -59,6 +62,8 @@ class AuthService {
     }
     mapper.insertProfile(new Profile(u.id, r.firstName().trim(), r.middleName() == null ? "" : r.middleName().trim(), r.lastName().trim(), r.birthDate(), r.nationality()));
     ledger.openAccount(u.id);
+    // 注册时同步分配充值地址（需求 4.4-1）；服务器还没配置 xpub 时跳过，打开资产页时补分配
+    wallet.allocateAddresses(u.id);
     return u.id;
   }
 
