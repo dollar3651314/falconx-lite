@@ -44,8 +44,11 @@ class OrderService {
   private final TransactionTemplate tx;
   private final Clock clock;
   private final Funds funds;
+  private final PositionService positionService;
+  private final TradingEvents events;
 
-  OrderService(OrderMapper mapper, LedgerApi ledger, MarketApi market, RiskApi risk, TradingProperties props, TransactionTemplate tx, Clock clock, Funds funds) {
+  OrderService(OrderMapper mapper, LedgerApi ledger, MarketApi market, RiskApi risk, TradingProperties props, TransactionTemplate tx, Clock clock, Funds funds,
+      PositionService positions, TradingEvents events) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.market = market;
@@ -54,6 +57,8 @@ class OrderService {
     this.tx = tx;
     this.clock = clock;
     this.funds = funds;
+    this.positionService = positions;
+    this.events = events;
   }
 
   /** 校验通过后的请求 */
@@ -84,7 +89,7 @@ class OrderService {
     BigDecimal margin = OrderCalc.margin(notional, c.leverage());
     BigDecimal fee = OrderCalc.fee(notional, spec.feeRate());
 
-    return tx.execute(st -> {
+    PlaceOrder.Result result = tx.execute(st -> {
       AccountSnapshot acc = ledger.lock(userId);
       // 加锁后再查一次：同一个 clientOrderId 并发提交时，第二个在这里拿到第一个的结果
       OrderRow again = mapper.findByClientId(userId, req.clientOrderId());
@@ -123,29 +128,16 @@ class OrderService {
       o.frozenAmount = BigDecimal.ZERO;
       o.status = "FILLED";
       mapper.insertOrder(o);
-      PositionRow p = new PositionRow();
-      p.userId = userId;
-      p.orderId = o.id;
-      p.symbol = spec.code();
-      p.side = c.side().name();
-      p.lots = c.lots();
-      p.leverage = c.leverage();
-      p.openPrice = price;
-      p.contractSize = spec.contractSize();
-      p.quoteCcy = spec.quoteCcy();
-      p.openUsdRate = rate;
-      p.notionalUsd = notional;
-      p.margin = margin;
-      p.fee = fee;
-      p.maintenanceMarginRate = spec.maintenanceMarginRate();
-      p.liquidationPrice = OrderCalc.liquidationPrice(c.side(), price, c.lots(), spec.contractSize(), rate, margin, spec.maintenanceMarginRate(), spec.digits());
-      p.takeProfit = c.tp();
-      p.stopLoss = c.sl();
-      mapper.insertPosition(p);
-      mapper.markFilled(o.id, price, p.id);
-      post(userId, Bucket.BALANCE, fee.negate(), LedgerEntryType.TRADE_FEE, o.id, "开仓手续费 " + spec.code());
+      positionService.openLocked(o, spec, price, rate);
       return new PlaceOrder.Result("filled", String.valueOf(o.id), price.setScale(spec.digits()).toPlainString());
     });
+    if ("filled".equals(result.kind())) {
+      events.changed(userId, "positions", "account");
+      events.trade(userId, "fill", spec.code(), null, result.price());
+    } else {
+      events.changed(userId, "orders", "account");
+    }
+    return result;
   }
 
   /** 改单请求：限价、手数、止盈止损（空表示不设）。杠杆和方向不能改。 */
@@ -195,6 +187,7 @@ class OrderService {
         post(userId, Bucket.ORDER_FROZEN, delta, type, BIZ_ORDER_MODIFY, o.id + ":" + revision, "改单调整冻结 " + o.symbol);
       }
     });
+    events.changed(userId, "orders", "account");
   }
 
   /** 撤销挂单，释放冻结金额。 */
@@ -206,6 +199,7 @@ class OrderService {
       mapper.markCancelled(o.id);
       post(userId, Bucket.ORDER_FROZEN, o.frozenAmount.negate(), LedgerEntryType.ORDER_UNFREEZE, o.id, "撤单解冻 " + o.symbol);
     });
+    events.changed(userId, "orders", "account");
   }
 
   List<PositionRow> positions(long userId) {

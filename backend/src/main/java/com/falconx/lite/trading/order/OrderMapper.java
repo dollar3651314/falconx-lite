@@ -41,4 +41,10 @@ interface OrderMapper {
   List<HistoryRow> history(@Param("userId") long userId, @Param("offset") int offset, @Param("limit") int limit);
 
   long countHistory(@Param("userId") long userId);
+
+  /** 这个价格下会成交的挂单：买单 限价 ≥ ask，卖单 限价 ≤ bid */
+  List<OrderRow> triggeredOrders(@Param("symbol") String symbol, @Param("bid") java.math.BigDecimal bid, @Param("ask") java.math.BigDecimal ask);
+
+  /** 这个价格下触及强平价、止损或止盈的持仓：多单看 bid，空单看 ask */
+  List<PositionRow> triggeredPositions(@Param("symbol") String symbol, @Param("bid") java.math.BigDecimal bid, @Param("ask") java.math.BigDecimal ask);
 }

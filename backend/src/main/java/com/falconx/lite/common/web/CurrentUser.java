@@ -18,6 +18,11 @@ public final class CurrentUser {
     request.setAttribute(ATTR, userId);
   }
 
+  /** 指定请求上的用户 ID（WebSocket 握手时用）；没有登录时为空。 */
+  public static java.util.Optional<Long> of(HttpServletRequest request) {
+    return request.getAttribute(ATTR) instanceof Long id ? java.util.Optional.of(id) : java.util.Optional.empty();
+  }
+
   /** 当前请求的用户 ID；没有登录时抛 UNAUTHORIZED（过滤器已拦截，正常不会走到这里）。 */
   public static long id() {
     RequestAttributes attrs = RequestContextHolder.getRequestAttributes();

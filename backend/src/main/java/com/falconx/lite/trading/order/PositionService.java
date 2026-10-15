@@ -17,7 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 持仓操作（S8）：全额平仓、修改止盈止损、追加保证金。每个操作都先锁账户行、再锁持仓行。
- * 平仓的核心 {@link #closeLocked} 也给 S9 的止盈止损和强平用。
+ * 开仓的核心 {@link #openLocked}（市价单、限价单成交）和平仓的核心 {@link #closeLocked}（客户平仓、止盈止损、强平）都在这里。
  */
 @Service
 class PositionService {
@@ -36,19 +36,62 @@ class PositionService {
   private final Funds funds;
   private final TransactionTemplate tx;
   private final Clock clock;
+  private final TradingEvents events;
 
-  PositionService(OrderMapper mapper, LedgerApi ledger, MarketApi market, Funds funds, TransactionTemplate tx, Clock clock) {
+  PositionService(OrderMapper mapper, LedgerApi ledger, MarketApi market, Funds funds, TransactionTemplate tx, Clock clock, TradingEvents events) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.market = market;
     this.funds = funds;
     this.tx = tx;
     this.clock = clock;
+    this.events = events;
+  }
+
+  /**
+   * 按成交价开仓（调用方负责事务和账户锁）：市价单下单时、限价单撮合时都走这里。
+   * 按成交价重算名义价值、保证金、手续费和强平价，写持仓，订单标为已成交，记手续费。
+   */
+  PositionRow openLocked(OrderRow o, SymbolSpec spec, BigDecimal price, BigDecimal rate) {
+    Side side = Side.valueOf(o.side);
+    BigDecimal notional = OrderCalc.notionalUsd(price, o.lots, spec.contractSize(), rate);
+    BigDecimal margin = OrderCalc.margin(notional, o.leverage);
+    BigDecimal fee = OrderCalc.fee(notional, spec.feeRate());
+    PositionRow p = new PositionRow();
+    p.userId = o.userId;
+    p.orderId = o.id;
+    p.symbol = spec.code();
+    p.side = side.name();
+    p.lots = o.lots;
+    p.leverage = o.leverage;
+    p.openPrice = price;
+    p.contractSize = spec.contractSize();
+    p.quoteCcy = spec.quoteCcy();
+    p.openUsdRate = rate;
+    p.notionalUsd = notional;
+    p.margin = margin;
+    p.fee = fee;
+    p.maintenanceMarginRate = spec.maintenanceMarginRate();
+    p.liquidationPrice = OrderCalc.liquidationPrice(side, price, o.lots, spec.contractSize(), rate, margin, spec.maintenanceMarginRate(), spec.digits());
+    p.takeProfit = o.takeProfit;
+    p.stopLoss = o.stopLoss;
+    mapper.insertPosition(p);
+    mapper.markFilled(o.id, price, p.id);
+    if (fee.signum() != 0) {
+      try {
+        ledger.apply(new LedgerCommand(o.userId, Bucket.BALANCE, fee.negate(), LedgerEntryType.TRADE_FEE, OrderService.BIZ_ORDER, String.valueOf(o.id),
+            "开仓手续费 " + spec.code()));
+      } catch (BizException e) {
+        if ("INSUFFICIENT_FUNDS".equals(e.code())) throw new BizException("INSUFFICIENT_BALANCE", "余额不足");
+        throw e;
+      }
+    }
+    return p;
   }
 
   /** 客户全额平仓：多单按 bid、空单按 ask，需要在交易时段内、报价可成交。 */
   Closed close(long userId, long positionId) {
-    return tx.execute(st -> {
+    Closed c = tx.execute(st -> {
       ledger.lock(userId);
       PositionRow p = lockOpen(userId, positionId);
       if (!market.isTradingOpen(p.symbol, clock.instant())) throw new BizException("TRADING_CLOSED", "不在交易时段");
@@ -56,6 +99,8 @@ class PositionService {
           .orElseThrow(() -> new BizException("QUOTE_UNAVAILABLE", "报价暂不可用"));
       return closeLocked(p, Side.valueOf(p.side).closePrice(q), CloseReason.CLOSED);
     });
+    events.changed(userId, "positions", "account");
+    return c;
   }
 
   /**
@@ -93,6 +138,7 @@ class PositionService {
       errs.throwIfAny();
       mapper.updateTpSl(p.id, tp, sl);
     });
+    events.changed(userId, "positions");
   }
 
   /**
@@ -100,7 +146,7 @@ class PositionService {
    * 保证金只是余额里被占用的部分，追加不改变余额，所以不记账；持仓的 margin 增加，可用减少。
    */
   PositionRow addMargin(long userId, long positionId, String amount) {
-    return tx.execute(st -> {
+    PositionRow updated = tx.execute(st -> {
       AccountSnapshot acc = ledger.lock(userId);
       PositionRow p = lockOpen(userId, positionId);
       ValidationException.Collector errs = new ValidationException.Collector();
@@ -115,6 +161,8 @@ class PositionService {
       mapper.updateMargin(p.id, p.margin, p.liquidationPrice);
       return p;
     });
+    events.changed(userId, "positions", "account");
+    return updated;
   }
 
   private PositionRow lockOpen(long userId, long positionId) {
