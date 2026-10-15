@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- K 线。只有 market 模块使用。 -->
+<mapper namespace="com.falconx.lite.market.kline.KlineMapper">
+
+  <insert id="upsert">
+    INSERT INTO market_kline (symbol, timeframe, open_time, open, high, low, close, ticks)
+    VALUES (#{symbol}, #{tf.code}, #{time}, #{open}, #{high}, #{low}, #{close}, #{ticks})
+    ON DUPLICATE KEY UPDATE high = VALUES(high), low = VALUES(low), close = VALUES(close), ticks = VALUES(ticks)
+  </insert>
+
+  <resultMap id="bar" type="com.falconx.lite.market.kline.Bar">
+    <constructor>
+      <arg column="symbol" javaType="string"/>
+      <arg column="timeframe" javaType="com.falconx.lite.market.kline.Timeframe" typeHandler="com.falconx.lite.market.kline.TimeframeTypeHandler"/>
+      <arg column="open_time" javaType="_long"/>
+      <arg column="open" javaType="java.math.BigDecimal"/>
+      <arg column="high" javaType="java.math.BigDecimal"/>
+      <arg column="low" javaType="java.math.BigDecimal"/>
+      <arg column="close" javaType="java.math.BigDecimal"/>
+      <arg column="ticks" javaType="_int"/>
+    </constructor>
+  </resultMap>
+
+  <select id="recent" resultMap="bar">
+    SELECT symbol, timeframe, open_time, open, high, low, close, ticks FROM market_kline
+    WHERE symbol = #{symbol} AND timeframe = #{tf} ORDER BY open_time DESC LIMIT #{limit}
+  </select>
+</mapper>

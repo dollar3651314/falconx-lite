@@ -11,6 +11,21 @@ falconx:
     code-max-attempts: 5
     cookie-name: fx_session
     cookie-secure: ${FX_COOKIE_SECURE:true}
+  # 行情（技术方案/v1-数据库设计.md 第 8 节）。质量守卫阈值沿用现有系统（功能地图 M-05、M-06）
+  market:
+    # 默认不启动报价源；开发和测试环境设 FX_MARKET_SOURCE=simulated，正式环境接 LP（S20）。防止生产忘了配置时用上模拟价格
+    source: ${FX_MARKET_SOURCE:none}
+    simulated-interval: 500ms
+    stale-after: 5s
+    unchanged-max-age: 1m
+    max-spread-rate: 0.05
+    max-tick-jump-rate: 0.10
+    max-volatility-rate: 0.05
+    volatility-window: 60s
+    push-interval: 250ms
+    # 没有对应外汇品种的币种：港币按联系汇率（1 USD = 7.78 HKD）
+    fixed-usd-rates:
+      HKD: 0.12853470
   # 对象存储（证件照片）。现在是本地目录，正式环境在 S20 换成对象存储服务
   storage:
     local-dir: ${FX_STORAGE_DIR:./data/storage}

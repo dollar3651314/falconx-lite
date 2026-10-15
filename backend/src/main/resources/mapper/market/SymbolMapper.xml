@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 品种配置。只有 market 模块使用。 -->
+<mapper namespace="com.falconx.lite.market.config.SymbolMapper">
+
+  <select id="enabledSymbols" resultType="com.falconx.lite.market.api.SymbolSpec">
+    SELECT code, name_zh, name_en, category, digits, contract_size, unit, base_ccy, quote_ccy, max_leverage, min_lots, max_lots, lot_step,
+      fee_rate, maintenance_margin_rate, markup, swap_long, swap_short, hot = 1 AS hot, open_paused = 1 AS open_paused, sort_order
+    FROM market_symbol WHERE enabled = 1 ORDER BY sort_order, code
+  </select>
+
+  <select id="sessions" resultType="com.falconx.lite.market.config.SymbolMapper$SessionRow">
+    SELECT symbol, day_of_week, open_minute, close_minute FROM market_session
+  </select>
+
+  <select id="holidays" resultType="com.falconx.lite.market.config.SymbolMapper$HolidayRow">
+    SELECT symbol, trade_date FROM market_holiday WHERE trade_date &gt;= DATE_SUB(UTC_DATE(), INTERVAL 1 DAY)
+  </select>
+</mapper>
