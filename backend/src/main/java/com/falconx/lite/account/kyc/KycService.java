@@ -1,0 +1,140 @@
+package com.falconx.lite.account.kyc;
+
+import com.falconx.lite.account.api.KycStatus;
+import com.falconx.lite.common.error.BizException;
+import com.falconx.lite.common.storage.ObjectStorage;
+import com.falconx.lite.notification.api.MailApi;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * KYC：提交、查询、审核。规则见 技术方案/v1-数据库设计.md 第 7 节。
+ * 和现有系统的不同：服务端校验图片大小和格式（现有系统只在前端限制）；同一证件不能被两个账户同时使用。
+ */
+@Service
+class KycService {
+
+  static final int MAX_BYTES = 2 * 1024 * 1024;
+
+  /** 一张图：字段名、内容、原文件类型由文件头判断，不信任浏览器报的类型 */
+  record Image(String field, byte[] bytes) {}
+
+  enum DocType { ID_CARD, PASSPORT }
+
+  private final KycMapper mapper;
+  private final ObjectStorage storage;
+  private final MailApi mail;
+
+  KycService(KycMapper mapper, ObjectStorage storage, MailApi mail) {
+    this.mapper = mapper;
+    this.storage = storage;
+    this.mail = mail;
+  }
+
+  KycRow latest(long userId) {
+    return mapper.latest(userId);
+  }
+
+  KycStatus status(long userId) {
+    KycRow r = mapper.latest(userId);
+    return r == null ? KycStatus.NONE : KycStatus.valueOf(r.status());
+  }
+
+  /** JPG 以 FF D8 FF 开头，PNG 以 89 50 4E 47 0D 0A 1A 0A 开头；其他一律拒绝 */
+  static String imageExt(byte[] b) {
+    if (b == null) return null;
+    if (b.length >= 3 && (b[0] & 0xff) == 0xFF && (b[1] & 0xff) == 0xD8 && (b[2] & 0xff) == 0xFF) return "jpg";
+    byte[] png = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
+    if (b.length >= 8) {
+      for (int i = 0; i < 8; i++) if (b[i] != png[i]) return null;
+      return "png";
+    }
+    return null;
+  }
+
+  @Transactional
+  void submit(long userId, String docTypeRaw, String docNumberRaw, List<Image> images) {
+    // 所有字段的问题一次报出（C56）
+    List<String> errors = new ArrayList<>();
+    DocType docType = parseDocType(docTypeRaw);
+    if (docType == null) errors.add("docType:DOC_TYPE_INVALID");
+    String docNumber = docNumberRaw == null ? "" : docNumberRaw.trim().toUpperCase();
+    if (docNumber.isEmpty()) errors.add("docNumber:REQUIRED");
+    else if (docNumber.length() > 64 || !docNumber.matches("[A-Z0-9-]+")) errors.add("docNumber:DOC_NUMBER_INVALID");
+    Map<String, String> ext = new LinkedHashMap<>();
+    for (Image img : images) {
+      if (img.bytes() == null || img.bytes().length == 0) errors.add(img.field() + ":REQUIRED");
+      else if (img.bytes().length > MAX_BYTES) errors.add(img.field() + ":FILE_TOO_LARGE");
+      else if (imageExt(img.bytes()) == null) errors.add(img.field() + ":FILE_TYPE_INVALID");
+      else ext.put(img.field(), imageExt(img.bytes()));
+    }
+    if (!errors.isEmpty()) throw new KycValidationException(errors);
+
+    KycRow last = mapper.latest(userId);
+    if (last != null && "PENDING".equals(last.status())) throw new BizException("KYC_PENDING", "已提交，正在审核");
+    if (last != null && "APPROVED".equals(last.status())) throw new BizException("KYC_APPROVED", "已通过认证");
+    if (mapper.countDocUsedByOthers(userId, docType.name(), docNumber) > 0) throw new BizException("DOC_NUMBER_USED", "该证件已被其他账户使用");
+
+    KycMapper.KycInsert row = new KycMapper.KycInsert(userId, docType.name(), docNumber);
+    mapper.insert(row);
+    Map<String, String> keys = new LinkedHashMap<>();
+    for (Image img : images) {
+      String key = "kyc/" + userId + "/" + row.id + "-" + img.field().toLowerCase() + "." + ext.get(img.field());
+      storage.put(key, img.bytes(), "jpg".equals(ext.get(img.field())) ? "image/jpeg" : "image/png");
+      keys.put(img.field(), key);
+    }
+    mapper.updateKeys(row.id, keys.get("front"), keys.get("back"), keys.get("selfie"));
+  }
+
+  @Transactional
+  void approve(long applicationId, long reviewerId, String email) {
+    review(applicationId, reviewerId, "APPROVED", null, email);
+  }
+
+  @Transactional
+  void reject(long applicationId, long reviewerId, String reason, String email) {
+    if (reason == null || reason.isBlank()) throw new BizException("REJECT_REASON_REQUIRED", "驳回必须填写原因");
+    if (reason.length() > 500) throw new BizException("REJECT_REASON_TOO_LONG", "驳回原因最多 500 字");
+    review(applicationId, reviewerId, "REJECTED", reason.trim(), email);
+  }
+
+  private void review(long id, long reviewerId, String status, String reason, String email) {
+    KycRow r = mapper.lockById(id);
+    if (r == null) throw new BizException("KYC_NOT_FOUND", "申请不存在");
+    if (!"PENDING".equals(r.status())) throw new BizException("KYC_NOT_PENDING", "只能审核待审核的申请");
+    mapper.review(id, status, reviewerId, reason);
+    Map<String, String> params = new LinkedHashMap<>();
+    params.put("result", status);
+    if (reason != null) params.put("reason", reason);
+    mail.send(email, "KYC_RESULT", params);
+  }
+
+  long userOf(long applicationId) {
+    KycRow r = mapper.lockById(applicationId);
+    if (r == null) throw new BizException("KYC_NOT_FOUND", "申请不存在");
+    return r.userId();
+  }
+
+  private static DocType parseDocType(String raw) {
+    if (raw == null) return null;
+    return switch (raw) {
+      case "idCard", "ID_CARD" -> DocType.ID_CARD;
+      case "passport", "PASSPORT" -> DocType.PASSPORT;
+      default -> null;
+    };
+  }
+
+  /** 字段校验失败：errors 的每一项是"字段:错误码" */
+  static final class KycValidationException extends RuntimeException {
+    final List<String> errors;
+
+    KycValidationException(List<String> errors) {
+      super("KYC 字段不合法");
+      this.errors = errors;
+    }
+  }
+}

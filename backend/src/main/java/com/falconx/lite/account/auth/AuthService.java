@@ -1,6 +1,5 @@
 package com.falconx.lite.account.auth;
 
-import com.falconx.lite.account.api.AccountApi;
 import com.falconx.lite.account.api.UserStatus;
 import com.falconx.lite.account.auth.AuthMapper.UserInsert;
 import com.falconx.lite.account.auth.AuthRequests.Register;
@@ -16,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** 注册、登录、密码和冻结。会话见 {@link SessionService}，失败计数见 {@link LoginLimiter}。 */
 @Service
-class AuthService implements AccountApi {
+class AuthService {
 
   private final AuthMapper mapper;
   private final EmailCodeService codes;
@@ -103,23 +102,20 @@ class AuthService implements AccountApi {
     return u;
   }
 
-  @Override
   @Transactional
-  public void freeze(long userId) {
+  void freeze(long userId) {
     user(userId);
     mapper.updateStatus(userId, UserStatus.FROZEN.name());
     sessions.revokeAll(userId, null);
   }
 
-  @Override
   @Transactional
-  public void unfreeze(long userId) {
+  void unfreeze(long userId) {
     user(userId);
     mapper.updateStatus(userId, UserStatus.ACTIVE.name());
   }
 
-  @Override
-  public UserStatus status(long userId) {
+  UserStatus status(long userId) {
     return UserStatus.valueOf(user(userId).status());
   }
 }

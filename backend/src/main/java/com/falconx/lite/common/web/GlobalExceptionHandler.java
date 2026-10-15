@@ -60,7 +60,7 @@ public class GlobalExceptionHandler {
 
   private static ResponseEntity<ApiError> frameworkError(ErrorResponse e) {
     int status = e.getStatusCode().value();
-    String code = status == 404 ? "NOT_FOUND" : status == 405 ? "METHOD_NOT_ALLOWED" : "BAD_REQUEST";
+    String code = status == 404 ? "NOT_FOUND" : status == 405 ? "METHOD_NOT_ALLOWED" : status == 413 ? "FILE_TOO_LARGE" : "BAD_REQUEST";
     return ResponseEntity.status(e.getStatusCode()).body(ApiError.of(code, "请求无法处理"));
   }
 }

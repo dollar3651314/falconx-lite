@@ -1,9 +1,9 @@
 package com.falconx.lite.account.api;
 
-/** account 模块对其他模块（主要是后台）开放的操作。 */
+/** account 模块对其他模块开放的操作（后台 S16、提现 S13 使用）。 */
 public interface AccountApi {
 
-  /** 冻结：状态改为 FROZEN，立即作废该用户的所有登录（AC-04）。已经冻结时什么也不做。 */
+  /** 冻结：状态改为 FROZEN，立即作废该用户的所有登录（AC-04）。 */
   void freeze(long userId);
 
   /** 解冻：状态改回 ACTIVE；之前的登录不会恢复，需要重新登录。 */
@@ -11,4 +11,13 @@ public interface AccountApi {
 
   /** 用户状态；用户不存在时抛 {@code BizException("USER_NOT_FOUND")}。 */
   UserStatus status(long userId);
+
+  /** 当前 KYC 状态。只在提现前要求 APPROVED（需求 4.1-6）。 */
+  KycStatus kycStatus(long userId);
+
+  /** 审核通过：只能审核"审核中"的申请；通过后个人资料锁定，并通知客户。 */
+  void approveKyc(long applicationId, long reviewerId);
+
+  /** 驳回：必须填原因（AC-05），客户可以重新提交。 */
+  void rejectKyc(long applicationId, long reviewerId, String reason);
 }
