@@ -14,14 +14,12 @@ import com.falconx.lite.trading.api.LedgerEntryType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.List;
-import java.util.Optional;
-import java.util.regex.Pattern;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 下单和撤单（S7）。顺序：
+ * 下单、撤单（S7）和改单（S8）。下单顺序：
  * <ol>
  *   <li>同一个 clientOrderId 已经下过单 → 直接返回第一次的结果（幂等）</li>
  *   <li>字段格式，全部错误一次返回（C56）</li>
@@ -29,14 +27,14 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>止盈止损方向（以成交参考价或限价为基准）</li>
  *   <li>事务里锁账户行 → 持仓上限 → 可用余额 → 写订单、持仓、账本</li>
  * </ol>
- * 可用 = 余额 + 浮动盈亏 − 已用保证金 − 挂单冻结（和原型一致）。
+ * 可用余额的口径见 {@link Funds}。
  */
 @Service
 @EnableConfigurationProperties(TradingProperties.class)
 class OrderService {
 
   static final String BIZ_ORDER = "ORDER";
-  private static final Pattern DECIMAL = Pattern.compile("\\d{1,16}(\\.\\d{1,8})?");
+  static final String BIZ_ORDER_MODIFY = "ORDER_MODIFY";
 
   private final OrderMapper mapper;
   private final LedgerApi ledger;
@@ -45,8 +43,9 @@ class OrderService {
   private final TradingProperties props;
   private final TransactionTemplate tx;
   private final Clock clock;
+  private final Funds funds;
 
-  OrderService(OrderMapper mapper, LedgerApi ledger, MarketApi market, RiskApi risk, TradingProperties props, TransactionTemplate tx, Clock clock) {
+  OrderService(OrderMapper mapper, LedgerApi ledger, MarketApi market, RiskApi risk, TradingProperties props, TransactionTemplate tx, Clock clock, Funds funds) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.market = market;
@@ -54,6 +53,7 @@ class OrderService {
     this.props = props;
     this.tx = tx;
     this.clock = clock;
+    this.funds = funds;
   }
 
   /** 校验通过后的请求 */
@@ -76,7 +76,9 @@ class OrderService {
     if (c.leverage() > spec.maxLeverage()) throw reject("LEVERAGE_EXCEEDED", "超过杠杆上限");
 
     BigDecimal price = c.limit() ? c.limitPrice() : c.side().openPrice(q);
-    checkTpSl(c, price);
+    ValidationException.Collector dir = new ValidationException.Collector();
+    Checks.tpSl(dir, c.side(), c.tp(), c.sl(), price);
+    dir.throwIfAny();
 
     BigDecimal notional = OrderCalc.notionalUsd(price, c.lots(), spec.contractSize(), rate);
     BigDecimal margin = OrderCalc.margin(notional, c.leverage());
@@ -96,7 +98,7 @@ class OrderService {
       if (total.compareTo(props.positionLimitUsd()) > 0) throw reject("POSITION_LIMIT", "超过持仓上限");
 
       BigDecimal need = margin.add(fee);
-      if (need.compareTo(available(acc, positions)) > 0) throw reject("INSUFFICIENT_BALANCE", "可用余额不足");
+      if (need.compareTo(funds.available(acc, positions)) > 0) throw reject("INSUFFICIENT_BALANCE", "可用余额不足");
 
       OrderRow o = new OrderRow();
       o.userId = userId;
@@ -146,6 +148,55 @@ class OrderService {
     });
   }
 
+  /** 改单请求：限价、手数、止盈止损（空表示不设）。杠杆和方向不能改。 */
+  record ModifyOrder(String limitPrice, String lots, String takeProfit, String stopLoss) {}
+
+  /**
+   * 修改挂单：按新的限价和手数重算冻结金额，多退少补（AC-11）。持仓上限和可用余额的检查同下单。
+   * 每次修改订单的 revision 加 1，冻结差额的账本幂等键用"订单号:revision"。
+   */
+  void modify(long userId, long orderId, ModifyOrder req) {
+    tx.executeWithoutResult(st -> {
+      AccountSnapshot acc = ledger.lock(userId);
+      OrderRow o = mapper.lockPending(userId, orderId);
+      if (o == null) throw new BizException("NOT_FOUND", "挂单不存在或已成交、已撤销");
+      SymbolSpec spec = market.symbol(o.symbol).orElseThrow(() -> new BizException("NOT_FOUND", "品种不存在"));
+      Side side = Side.valueOf(o.side);
+
+      ValidationException.Collector errs = new ValidationException.Collector();
+      BigDecimal price = Checks.decimal(errs, "limitPrice", req.limitPrice(), true);
+      Checks.digits(errs, spec, "limitPrice", price);
+      BigDecimal lots = Checks.decimal(errs, "lots", req.lots(), true);
+      Checks.lots(errs, spec, lots);
+      BigDecimal tp = Checks.decimal(errs, "takeProfit", req.takeProfit(), false);
+      BigDecimal sl = Checks.decimal(errs, "stopLoss", req.stopLoss(), false);
+      Checks.digits(errs, spec, "takeProfit", tp);
+      Checks.digits(errs, spec, "stopLoss", sl);
+      if (price != null) Checks.tpSl(errs, side, tp, sl, price);
+      errs.throwIfAny();
+
+      BigDecimal rate = market.liveUsdRate(spec.quoteCcy()).orElseThrow(() -> reject("RATE_STALE", "汇率失效"));
+      BigDecimal notional = OrderCalc.notionalUsd(price, lots, spec.contractSize(), rate);
+      BigDecimal frozen = OrderCalc.margin(notional, o.leverage).add(OrderCalc.fee(notional, spec.feeRate()));
+
+      List<PositionRow> positions = mapper.openPositions(userId);
+      BigDecimal total = notional;
+      for (PositionRow p : positions) total = total.add(p.notionalUsd);
+      for (OrderRow other : mapper.pendingOrders(userId)) if (!other.id.equals(o.id)) total = total.add(other.notionalUsd);
+      if (total.compareTo(props.positionLimitUsd()) > 0) throw reject("POSITION_LIMIT", "超过持仓上限");
+
+      BigDecimal delta = frozen.subtract(o.frozenAmount);
+      if (delta.signum() > 0 && delta.compareTo(funds.available(acc, positions)) > 0) throw reject("INSUFFICIENT_BALANCE", "可用余额不足");
+
+      int revision = o.revision + 1;
+      mapper.updatePending(o.id, price, lots, tp, sl, frozen, notional, revision);
+      if (delta.signum() != 0) {
+        LedgerEntryType type = delta.signum() > 0 ? LedgerEntryType.ORDER_FREEZE : LedgerEntryType.ORDER_UNFREEZE;
+        post(userId, Bucket.ORDER_FROZEN, delta, type, BIZ_ORDER_MODIFY, o.id + ":" + revision, "改单调整冻结 " + o.symbol);
+      }
+    });
+  }
+
   /** 撤销挂单，释放冻结金额。 */
   void cancel(long userId, long orderId) {
     tx.executeWithoutResult(st -> {
@@ -157,25 +208,16 @@ class OrderService {
     });
   }
 
-  /** 可用 = 余额 + 浮动盈亏 − 已用保证金 − 挂单冻结。浮动盈亏用最新报价和当前汇率；没有报价的持仓按 0 计。 */
-  BigDecimal available(AccountSnapshot acc, List<PositionRow> positions) {
-    BigDecimal v = acc.balance().subtract(acc.orderFrozen());
-    for (PositionRow p : positions) {
-      v = v.subtract(p.margin).add(floatingPnl(p).orElse(BigDecimal.ZERO));
-    }
-    return v;
-  }
-
-  Optional<BigDecimal> floatingPnl(PositionRow p) {
-    Side side = Side.valueOf(p.side);
-    Optional<MarketQuote> q = market.quote(p.symbol);
-    Optional<BigDecimal> rate = market.toUsdRate(p.quoteCcy);
-    if (q.isEmpty() || rate.isEmpty()) return Optional.empty();
-    return Optional.of(OrderCalc.pnl(side, p.openPrice, side.closePrice(q.get()), p.lots, p.contractSize, rate.get()));
-  }
-
   List<PositionRow> positions(long userId) {
     return mapper.openPositions(userId);
+  }
+
+  List<HistoryRow> history(long userId, int offset, int limit) {
+    return mapper.history(userId, offset, limit);
+  }
+
+  long countHistory(long userId) {
+    return mapper.countHistory(userId);
   }
 
   List<OrderRow> pendingOrders(long userId) {
@@ -183,9 +225,13 @@ class OrderService {
   }
 
   private void post(long userId, Bucket bucket, BigDecimal amount, LedgerEntryType type, long orderId, String remark) {
+    post(userId, bucket, amount, type, BIZ_ORDER, String.valueOf(orderId), remark);
+  }
+
+  private void post(long userId, Bucket bucket, BigDecimal amount, LedgerEntryType type, String bizType, String bizId, String remark) {
     if (amount.signum() == 0) return;
     try {
-      ledger.apply(new LedgerCommand(userId, bucket, amount, type, BIZ_ORDER, String.valueOf(orderId), remark));
+      ledger.apply(new LedgerCommand(userId, bucket, amount, type, bizType, bizId, remark));
     } catch (BizException e) {
       // 可用余额够但现金余额付不起手续费（浮动盈利还没有实现）时会走到这里
       if ("INSUFFICIENT_FUNDS".equals(e.code())) throw reject("INSUFFICIENT_BALANCE", "余额不足");
@@ -218,12 +264,8 @@ class OrderService {
     Side side = "buy".equals(r.side()) ? Side.BUY : "sell".equals(r.side()) ? Side.SELL : null;
     if (side == null) errs.add("side", "invalid");
 
-    BigDecimal lots = decimal(errs, "lots", r.lots(), true);
-    if (lots != null && spec != null) {
-      if (lots.compareTo(spec.minLots()) < 0) errs.add("lots", "lotsMin");
-      if (lots.compareTo(spec.maxLots()) > 0) errs.add("lots", "lotsMax");
-      if (lots.remainder(spec.lotStep()).signum() != 0) errs.add("lots", "lotsStep");
-    }
+    BigDecimal lots = Checks.decimal(errs, "lots", r.lots(), true);
+    Checks.lots(errs, spec, lots);
 
     // 超过品种上限不在这里报，按拒单原因 LEVERAGE_EXCEEDED 返回（AC-12）
     if (r.leverage() == null) errs.add("leverage", "required");
@@ -231,44 +273,14 @@ class OrderService {
 
     BigDecimal limitPrice = null;
     if (limit) {
-      limitPrice = decimal(errs, "limitPrice", r.limitPrice(), true);
-      if (limitPrice != null && spec != null && limitPrice.scale() > spec.digits()) errs.add("limitPrice", "priceDigits");
+      limitPrice = Checks.decimal(errs, "limitPrice", r.limitPrice(), true);
+      Checks.digits(errs, spec, "limitPrice", limitPrice);
     }
-    BigDecimal tp = decimal(errs, "takeProfit", r.takeProfit(), false);
-    BigDecimal sl = decimal(errs, "stopLoss", r.stopLoss(), false);
-    if (spec != null) {
-      if (tp != null && tp.scale() > spec.digits()) errs.add("takeProfit", "priceDigits");
-      if (sl != null && sl.scale() > spec.digits()) errs.add("stopLoss", "priceDigits");
-    }
+    BigDecimal tp = Checks.decimal(errs, "takeProfit", r.takeProfit(), false);
+    BigDecimal sl = Checks.decimal(errs, "stopLoss", r.stopLoss(), false);
+    Checks.digits(errs, spec, "takeProfit", tp);
+    Checks.digits(errs, spec, "stopLoss", sl);
     errs.throwIfAny();
     return new Checked(spec, limit, side, lots, r.leverage(), limitPrice, tp, sl);
-  }
-
-  /** 止盈止损方向：多单 止盈 &gt; 基准 &gt; 止损，空单相反；基准是市价单的成交价或限价单的限价 */
-  private static void checkTpSl(Checked c, BigDecimal base) {
-    ValidationException.Collector errs = new ValidationException.Collector();
-    boolean buy = c.side() == Side.BUY;
-    if (c.tp() != null && (buy ? c.tp().compareTo(base) <= 0 : c.tp().compareTo(base) >= 0)) errs.add("takeProfit", buy ? "tpBuy" : "tpSell");
-    if (c.sl() != null && (buy ? c.sl().compareTo(base) >= 0 : c.sl().compareTo(base) <= 0)) errs.add("stopLoss", buy ? "slBuy" : "slSell");
-    errs.throwIfAny();
-  }
-
-  /** 正数，最多 8 位小数。required=false 时空值返回 null */
-  private static BigDecimal decimal(ValidationException.Collector errs, String field, String raw, boolean required) {
-    if (raw == null || raw.isBlank()) {
-      if (required) errs.add(field, "required");
-      return null;
-    }
-    String s = raw.trim();
-    if (!DECIMAL.matcher(s).matches()) {
-      errs.add(field, "positiveNumber");
-      return null;
-    }
-    BigDecimal v = new BigDecimal(s);
-    if (v.signum() <= 0) {
-      errs.add(field, "positiveNumber");
-      return null;
-    }
-    return v;
   }
 }
