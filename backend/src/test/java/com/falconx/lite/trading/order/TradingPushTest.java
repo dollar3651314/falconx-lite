@@ -136,6 +136,9 @@ class TradingPushTest {
 
       processor.process(new RawQuote("XAUUSD", new BigDecimal("4135.50"), new BigDecimal("4135.90"), NOW));
       assertThat(mine.next("\"kind\":\"tp\"")).contains("\"pnl\":\"87.5\"").contains("\"price\":\"4135.50\"");
+      // 站内信实时推送（{"type":"notification","item":{…}}，和客户端 ServerEvent 一致），按客户的语言（默认中文）
+      // 站内信在平仓事务提交时推出，比 trade 事件早
+      assertThat(mine.seen).filteredOn(m -> m.contains("\"type\":\"notification\"")).singleElement().asString().contains("\"kind\":\"tpsl\"").contains("\"title\":\"止盈止损已触发\"").contains("\"read\":false");
       assertThat(theirs.msgs.poll(300, TimeUnit.MILLISECONDS)).as("别人收不到").isNull();
       ws1.sendClose(WebSocket.NORMAL_CLOSURE, "").get(5, TimeUnit.SECONDS);
       ws2.sendClose(WebSocket.NORMAL_CLOSURE, "").get(5, TimeUnit.SECONDS);

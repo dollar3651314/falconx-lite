@@ -1,5 +1,6 @@
 package com.falconx.lite.trading.order;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -65,4 +66,15 @@ interface OrderMapper {
 
   /** 这个价格下触及强平价、止损或止盈的持仓：多单看 bid，空单看 ask */
   List<PositionRow> triggeredPositions(@Param("symbol") String symbol, @Param("bid") java.math.BigDecimal bid, @Param("ask") java.math.BigDecimal ask);
+
+  /** 有持仓的客户（追保检查用） */
+  List<Long> usersWithOpenPositions();
+
+  MarginCallMonitor.State marginCallState(@Param("userId") long userId);
+
+  void saveMarginCallState(@Param("userId") long userId, @Param("below") boolean below, @Param("notified") boolean notified,
+      @Param("lastNotifiedAt") LocalDateTime lastNotifiedAt, @Param("now") LocalDateTime now);
+
+  /** 没有持仓的客户恢复为"在线上" */
+  int clearMarginCallWithoutPositions(@Param("now") LocalDateTime now);
 }

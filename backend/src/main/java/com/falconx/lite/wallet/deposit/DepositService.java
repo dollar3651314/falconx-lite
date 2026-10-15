@@ -1,5 +1,6 @@
 package com.falconx.lite.wallet.deposit;
 
+import com.falconx.lite.notification.api.NotifyApi;
 import com.falconx.lite.risk.api.RiskApi;
 import com.falconx.lite.trading.api.Bucket;
 import com.falconx.lite.trading.api.FundsApi;
@@ -42,9 +43,10 @@ public class DepositService {
   private final TransactionTemplate tx;
   private final FundsApi funds;
   private final RiskApi risk;
+  private final NotifyApi notify;
 
   DepositService(DepositMapper mapper, ChainClients clients, AddressService addresses, LedgerApi ledger, WalletProperties props, TransactionTemplate tx,
-      FundsApi funds, RiskApi risk) {
+      FundsApi funds, RiskApi risk, NotifyApi notify) {
     this.mapper = mapper;
     this.clients = clients;
     this.addresses = addresses;
@@ -53,6 +55,7 @@ public class DepositService {
     this.tx = tx;
     this.funds = funds;
     this.risk = risk;
+    this.notify = notify;
   }
 
   /** 每 15 秒：每条链先扫块再确认 */
@@ -168,6 +171,8 @@ public class DepositService {
       if (mapper.finish(d.id(), "CREDITED", conf) != 1) return;
       ledger.apply(new LedgerCommand(d.userId(), Bucket.BALANCE, d.amount(), LedgerEntryType.DEPOSIT, BIZ_DEPOSIT,
           d.chain() + ":" + d.txHash() + ":" + d.logIndex(), "充值 " + d.chain()));
+      // 到账通知（AC-07），和入账同一事务
+      notify.toUser(d.userId(), "DEPOSIT_CREDITED", Map.of("amount", d.amount().stripTrailingZeros().toPlainString(), "chain", d.chain()));
     });
     log.info("充值入账 chain={} tx={} user={} amount={}", d.chain(), d.txHash(), d.userId(), d.amount());
   }

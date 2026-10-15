@@ -38,6 +38,11 @@ falconx:
       enabled: true
       rollover-time: "22:00"
       catch-up-days: 3
+    # 追保预警（S15a，通知方案 N4）：每 10 秒检查，保证金水平低于追保线通知一次；同一客户两次至少隔 5 分钟（沿用现有系统）
+    margin-call:
+      enabled: true
+      line: 1.00
+      min-interval: 5m
   # 风控（S11）：每 5 秒检查净敞口，超过阈值自动禁开。阈值在后台设置（S16），没有设置的不监控
   risk:
     monitor-enabled: true
@@ -102,6 +107,18 @@ falconx:
         block-seconds: 3
         # TRON 按区块逐个查，每个区块 2 次请求
         scan-batch: 10
+  # 通知（S15a，技术方案/v1-通知方案.md）。邮件用 SMTP（N1），服务商待定（N-05）；没有配置 FX_MAIL_HOST 时邮件只记录、不发送。
+  # 密码只由 Amos 填进服务器环境变量
+  notify:
+    worker-enabled: true
+    mail:
+      host: ${FX_MAIL_HOST:}
+      port: ${FX_MAIL_PORT:587}
+      username: ${FX_MAIL_USERNAME:}
+      password: ${FX_MAIL_PASSWORD:}
+      from: ${FX_MAIL_FROM:}
+      # STARTTLS（587 端口）或 SSL（465 端口）
+      security: ${FX_MAIL_SECURITY:STARTTLS}
   # 对象存储（证件照片）。现在是本地目录，正式环境在 S20 换成对象存储服务
   storage:
     local-dir: ${FX_STORAGE_DIR:./data/storage}

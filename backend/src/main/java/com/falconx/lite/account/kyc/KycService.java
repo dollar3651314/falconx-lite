@@ -3,7 +3,7 @@ package com.falconx.lite.account.kyc;
 import com.falconx.lite.account.api.KycStatus;
 import com.falconx.lite.common.error.BizException;
 import com.falconx.lite.common.storage.ObjectStorage;
-import com.falconx.lite.notification.api.MailApi;
+import com.falconx.lite.notification.api.NotifyApi;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,12 +27,12 @@ class KycService {
 
   private final KycMapper mapper;
   private final ObjectStorage storage;
-  private final MailApi mail;
+  private final NotifyApi notify;
 
-  KycService(KycMapper mapper, ObjectStorage storage, MailApi mail) {
+  KycService(KycMapper mapper, ObjectStorage storage, NotifyApi notify) {
     this.mapper = mapper;
     this.storage = storage;
-    this.mail = mail;
+    this.notify = notify;
   }
 
   KycRow latest(long userId) {
@@ -91,18 +91,18 @@ class KycService {
   }
 
   @Transactional
-  void approve(long applicationId, long reviewerId, String email) {
-    review(applicationId, reviewerId, "APPROVED", null, email);
+  void approve(long applicationId, long reviewerId) {
+    review(applicationId, reviewerId, "APPROVED", null);
   }
 
   @Transactional
-  void reject(long applicationId, long reviewerId, String reason, String email) {
+  void reject(long applicationId, long reviewerId, String reason) {
     if (reason == null || reason.isBlank()) throw new BizException("REJECT_REASON_REQUIRED", "驳回必须填写原因");
     if (reason.length() > 500) throw new BizException("REJECT_REASON_TOO_LONG", "驳回原因最多 500 字");
-    review(applicationId, reviewerId, "REJECTED", reason.trim(), email);
+    review(applicationId, reviewerId, "REJECTED", reason.trim());
   }
 
-  private void review(long id, long reviewerId, String status, String reason, String email) {
+  private void review(long id, long reviewerId, String status, String reason) {
     KycRow r = mapper.lockById(id);
     if (r == null) throw new BizException("KYC_NOT_FOUND", "申请不存在");
     if (!"PENDING".equals(r.status())) throw new BizException("KYC_NOT_PENDING", "只能审核待审核的申请");
@@ -110,13 +110,8 @@ class KycService {
     Map<String, String> params = new LinkedHashMap<>();
     params.put("result", status);
     if (reason != null) params.put("reason", reason);
-    mail.send(email, "KYC_RESULT", params);
-  }
-
-  long userOf(long applicationId) {
-    KycRow r = mapper.lockById(applicationId);
-    if (r == null) throw new BizException("KYC_NOT_FOUND", "申请不存在");
-    return r.userId();
+    // 站内信、推送、邮件（AC-05），和审核同一事务
+    notify.toUser(r.userId(), "KYC_RESULT", params);
   }
 
   private static DocType parseDocType(String raw) {

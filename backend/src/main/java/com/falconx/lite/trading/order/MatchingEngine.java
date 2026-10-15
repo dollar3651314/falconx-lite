@@ -3,6 +3,7 @@ package com.falconx.lite.trading.order;
 import com.falconx.lite.market.api.MarketApi;
 import com.falconx.lite.market.api.MarketQuote;
 import com.falconx.lite.market.api.SymbolSpec;
+import com.falconx.lite.notification.api.NotifyApi;
 import com.falconx.lite.risk.api.RiskApi;
 import com.falconx.lite.trading.api.AccountSnapshot;
 import com.falconx.lite.trading.api.Bucket;
@@ -59,6 +60,7 @@ class MatchingEngine {
   private final RiskApi risk;
   private final TransactionTemplate tx;
   private final TradingEvents events;
+  private final NotifyApi notify;
   private final Map<String, SymbolState> states = new ConcurrentHashMap<>();
   private final AtomicInteger threadNo = new AtomicInteger();
   private final ExecutorService pool;
@@ -66,7 +68,7 @@ class MatchingEngine {
   private final AtomicBoolean enabled;
 
   MatchingEngine(OrderMapper mapper, PositionService positions, Funds funds, LedgerApi ledger, MarketApi market, RiskApi risk,
-      TransactionTemplate tx, TradingEvents events, TradingProperties props) {
+      TransactionTemplate tx, TradingEvents events, NotifyApi notify, TradingProperties props) {
     this.mapper = mapper;
     this.positions = positions;
     this.funds = funds;
@@ -75,6 +77,7 @@ class MatchingEngine {
     this.risk = risk;
     this.tx = tx;
     this.events = events;
+    this.notify = notify;
     this.enabled = new AtomicBoolean(props.engineEnabled());
     this.pool = Executors.newFixedThreadPool(props.engineThreads(), r -> new Thread(r, "match-" + threadNo.incrementAndGet()));
     this.workers = Executors.newFixedThreadPool(props.engineWorkers(), r -> new Thread(r, "match-exec-" + threadNo.incrementAndGet()));
@@ -176,7 +179,10 @@ class MatchingEngine {
         return new Outcome("cancelled", o.symbol, null);
       }
       positions.openLocked(o, spec.get(), price, rate.get());
-      return new Outcome("fill", o.symbol, price.setScale(spec.get().digits()).toPlainString());
+      String filled = price.setScale(spec.get().digits()).toPlainString();
+      // 挂单成交通知（X-04），和成交同一事务
+      notify.toUser(userId, "ORDER_FILLED", Map.of("symbol", o.symbol, "side", o.side, "lots", o.lots.stripTrailingZeros().toPlainString(), "price", filled));
+      return new Outcome("fill", o.symbol, filled);
     });
     if (out == null) return;
     logLatency("挂单成交", orderId, receivedNanos);
@@ -205,7 +211,16 @@ class MatchingEngine {
       else if (p.takeProfit != null && (buy ? px.compareTo(p.takeProfit) >= 0 : px.compareTo(p.takeProfit) <= 0)) reason = PositionService.CloseReason.TP;
       if (reason == null) return null;
       int digits = market.symbol(p.symbol).map(SymbolSpec::digits).orElse(8);
-      return new Outcome(reason, p.symbol, positions.closeLocked(p, px, reason), digits);
+      PositionService.Closed closed = positions.closeLocked(p, px, reason);
+      // 止盈止损、强平通知（X-04），和平仓同一事务
+      String price = closed.price().setScale(digits, java.math.RoundingMode.HALF_UP).toPlainString();
+      String pnl = TradingController.money(closed.pnl());
+      if (reason == PositionService.CloseReason.LIQUIDATED) {
+        notify.toUser(userId, "LIQUIDATED", Map.of("symbol", p.symbol, "price", price, "pnl", pnl));
+      } else {
+        notify.toUser(userId, "TP_SL_TRIGGERED", Map.of("symbol", p.symbol, "trigger", reason.name(), "price", price, "pnl", pnl));
+      }
+      return new Outcome(reason, p.symbol, closed, digits);
     });
     if (out == null) return;
     logLatency(out.reason().name(), positionId, receivedNanos);

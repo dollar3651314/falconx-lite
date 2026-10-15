@@ -141,4 +141,23 @@
       COALESCE(SUM(CASE WHEN side = 'SELL' THEN notional_usd END), 0) AS short_notional
     FROM trading_position WHERE status = 'OPEN' GROUP BY symbol
   </select>
+  <select id="usersWithOpenPositions" resultType="long">
+    SELECT DISTINCT user_id FROM trading_position WHERE status = 'OPEN'
+  </select>
+
+  <select id="marginCallState" resultType="com.falconx.lite.trading.order.MarginCallMonitor$State">
+    SELECT below, notified, last_notified_at FROM trading_margin_call WHERE user_id = #{userId}
+  </select>
+
+  <insert id="saveMarginCallState">
+    INSERT INTO trading_margin_call (user_id, below, notified, last_notified_at, updated_at)
+    VALUES (#{userId}, #{below}, #{notified}, #{lastNotifiedAt}, #{now})
+    ON DUPLICATE KEY UPDATE below = VALUES(below), notified = VALUES(notified), last_notified_at = VALUES(last_notified_at), updated_at = VALUES(updated_at)
+  </insert>
+
+  <update id="clearMarginCallWithoutPositions">
+    UPDATE trading_margin_call m SET below = 0, notified = 0, updated_at = #{now}
+    WHERE m.below = 1 AND NOT EXISTS (SELECT 1 FROM trading_position p WHERE p.user_id = m.user_id AND p.status = 'OPEN')
+  </update>
+
 </mapper>
