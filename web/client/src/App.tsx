@@ -16,9 +16,9 @@ import { startEngine } from './api/trading';
 const Login = lazy(() => import('./pages/auth/Login'));
 const Register = lazy(() => import('./pages/auth/Register'));
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
-const Home = lazy(() => import('./pages/Home'));
 const Markets = lazy(() => import('./pages/Markets'));
 const Trade = lazy(() => import('./pages/Trade'));
+const Positions = lazy(() => import('./pages/Positions'));
 const Assets = lazy(() => import('./pages/assets/Assets'));
 const Ledger = lazy(() => import('./pages/assets/Ledger'));
 const Withdraw = lazy(() => import('./pages/assets/Withdraw'));
@@ -64,10 +64,11 @@ export function AppRoutes() {
             </RequireAuth>
           }
         >
-          <Route index element={<Home />} />
+          <Route index element={<Navigate to="/markets" replace />} />
           <Route path="markets" element={<Markets />} />
           <Route path="trade" element={<Trade />} />
           <Route path="trade/:symbol" element={<Trade />} />
+          <Route path="positions" element={<Positions />} />
           <Route path="assets" element={<Assets />} />
           <Route path="assets/ledger" element={<Ledger />} />
           <Route path="assets/withdraw" element={<Withdraw />} />

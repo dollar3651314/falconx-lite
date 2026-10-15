@@ -239,3 +239,10 @@ export function subscribeKline(code: string, tf: Timeframe, l: BarListener): () 
     barListeners.get(k)?.delete(l);
   };
 }
+
+/** 每个品种今日走势（最近 24 根 1 小时 K 线的收盘价），桌面行情表的迷你走势图用 */
+export function sparklines(): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const s of symbols()) out[s.code] = klines(s.code, '1h').slice(-24).map((k) => k.close);
+  return out;
+}

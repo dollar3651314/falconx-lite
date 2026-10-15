@@ -1,5 +1,6 @@
 /**
- * 登录后的整体布局：顶部原型横幅；手机为底部 5 个导航，桌面（≥1024）为顶部导航。
+ * 登录后的整体布局：顶部原型横幅；手机为底部 5 个导航（行情 / 交易 / 持仓 / 资产 / 我的，U4），
+ * 桌面（≥1024）为顶部导航（持仓在交易页里，不单列）。
  */
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
@@ -12,12 +13,12 @@ import { Icon, Logo, type IconName } from './Icon';
 import { ProtoPanel } from './ProtoPanel';
 import { PushListener } from './PushListener';
 
-const NAV: Array<{ to: string; key: string; icon: IconName; end?: boolean }> = [
-  { to: '/', key: 'nav.home', icon: 'home', end: true },
-  { to: '/markets', key: 'nav.markets', icon: 'markets' },
-  { to: '/trade', key: 'nav.trade', icon: 'trade' },
-  { to: '/assets', key: 'nav.assets', icon: 'assets' },
-  { to: '/me', key: 'nav.me', icon: 'me' },
+const NAV: Array<{ to: string; key: string; icon: IconName; desktop: boolean }> = [
+  { to: '/markets', key: 'nav.markets', icon: 'markets', desktop: true },
+  { to: '/trade', key: 'nav.trade', icon: 'trade', desktop: true },
+  { to: '/positions', key: 'nav.positions', icon: 'positions', desktop: false },
+  { to: '/assets', key: 'nav.assets', icon: 'assets', desktop: true },
+  { to: '/me', key: 'nav.me', icon: 'me', desktop: true },
 ];
 
 export function ProtoBanner() {
@@ -61,13 +62,13 @@ export function Layout() {
     <div className="app">
       <ProtoBanner />
       <header className="topnav">
-        <NavLink to="/" className="brand" aria-label="FalconX">
+        <NavLink to="/markets" className="brand" aria-label="FalconX">
           <Logo />
           FalconX<small>Lite</small>
         </NavLink>
         <nav className="topnav-menu" aria-label={t('nav.main')}>
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => (isActive ? 'on' : '')}>
+          {NAV.filter((n) => n.desktop).map((n) => (
+            <NavLink key={n.to} to={n.to} className={({ isActive }) => (isActive ? 'on' : '')}>
               {t(n.key)}
             </NavLink>
           ))}
@@ -89,7 +90,7 @@ export function Layout() {
       </main>
       <nav className="bottomnav" aria-label={t('nav.main')}>
         {NAV.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => (isActive ? 'on' : '')}>
+          <NavLink key={n.to} to={n.to} className={({ isActive }) => (isActive ? 'on' : '')}>
             <span className="bn-icon">
               <Icon name={n.icon} size={22} />
               {n.to === '/me' && unread > 0 && <span className="badge dot" aria-label={t('notifications.unreadCount', { count: unread })} />}

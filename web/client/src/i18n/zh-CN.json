@@ -25,12 +25,12 @@
     "viewAll": "全部"
   },
   "nav": {
-    "home": "首页",
     "markets": "行情",
     "trade": "交易",
     "assets": "资产",
     "me": "我的",
-    "main": "主导航"
+    "main": "主导航",
+    "positions": "持仓"
   },
   "proto": {
     "banner": "原型 · 数据为模拟，操作不会真正生效",
@@ -126,13 +126,6 @@
     "saved": "资料已保存",
     "kycNote": "身份认证通过后，姓名和出生日期需与证件一致。"
   },
-  "home": {
-    "hot": "热门品种",
-    "noHot": "暂无热门品种",
-    "myPositions": "我的持仓",
-    "goTrade": "去交易",
-    "recentNotifications": "最近通知"
-  },
   "market": {
     "search": "搜索品种代码或名称",
     "categories": "品种分类",
@@ -156,7 +149,18 @@
     "emptySearch": "没有找到匹配的品种",
     "emptySearchHint": "换个关键词或分类试试",
     "count": "显示 {{shown}} / {{total}} 个品种",
-    "footnote": "报价为模拟数据，每秒随机跳动。\"暂停开仓\"的品种只能平仓。"
+    "footnote": "报价为模拟数据，每秒随机跳动。\"暂停开仓\"的品种只能平仓。",
+    "spread": "点差",
+    "high": "最高",
+    "low": "最低",
+    "trend": "今日走势",
+    "trade": "交易",
+    "favorites": "自选",
+    "addFav": "加入自选",
+    "removeFav": "取消自选",
+    "emptyFav": "还没有自选品种",
+    "emptyFavHint": "在行情列表点星标加入自选",
+    "bidAsk": "卖价 / 买价"
   },
   "trade": {
     "change": "涨跌",
@@ -166,7 +170,9 @@
     "timeframe": "K 线周期",
     "spread": "点差",
     "pickSymbol": "切换品种",
-    "symbolNotFound": "找不到品种 {{code}}"
+    "symbolNotFound": "找不到品种 {{code}}",
+    "myPositionHere": "我的持仓 · {{code}}",
+    "viewAll": "全部持仓"
   },
   "chart": {
     "open": "开",
@@ -224,7 +230,11 @@
     "confirmMarketNote": "市价单按成交时的最新价格成交，可能与参考价略有差异。",
     "pendingPlaced": "挂单已提交",
     "noticeClosed": "该品种当前不在交易时段，下单会被拒绝",
-    "noticePaused": "该品种暂停开仓，只能平仓"
+    "noticePaused": "该品种暂停开仓，只能平仓",
+    "isolated": "逐仓",
+    "switchTo": "切换为{{side}}",
+    "tpsl": "止盈 / 止损",
+    "detail": "明细"
   },
   "units": {
     "baseCcy": "{{n}} {{ccy}}/手",
@@ -269,7 +279,8 @@
     "liqNow": "当前强平价",
     "liqAfter": "追加后强平价",
     "addMarginNote": "追加后按开仓时的维持保证金率重新计算强平价。",
-    "marginAdded": "保证金已追加"
+    "marginAdded": "保证金已追加",
+    "pageTitle": "持仓"
   },
   "orders": {
     "tab": "挂单",
@@ -481,7 +492,10 @@
     "logout": "退出登录",
     "logoutTitle": "退出登录",
     "logoutBody": "确定退出当前账号吗？",
-    "version": "FalconX Lite · 原型 v0.1"
+    "version": "FalconX Lite · 原型 v0.1",
+    "upDown": "涨跌颜色",
+    "upDownGreen": "绿涨红跌",
+    "upDownRed": "红涨绿跌"
   },
   "kyc": {
     "intro": "只在提现前需要身份认证；注册、充值和交易不受影响。",

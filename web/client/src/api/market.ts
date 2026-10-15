@@ -7,6 +7,9 @@ import type { Kline, Quote, SymbolInfo, Timeframe } from './types';
 
 export const listSymbols = (): Promise<SymbolInfo[]> => respond(() => mock.symbols(), () => []);
 
+/** 全部品种的今日走势（收盘价序列），一次请求取回；正式环境为 GET /api/market/sparklines */
+export const getSparklines = (): Promise<Record<string, string[]>> => respond(() => mock.sparklines(), () => ({}));
+
 export const getKlines = (symbol: string, tf: Timeframe): Promise<Kline[]> => respond(() => mock.klines(symbol, tf), () => []);
 
 /** 订阅报价：先回调一次全量快照，之后每次有变化回调变化的部分 */

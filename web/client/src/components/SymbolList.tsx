@@ -1,20 +1,19 @@
 /**
- * 品种列表：分类 + 搜索 + 实时报价。行情页、桌面交易页左栏、手机品种切换面板共用。
+ * 品种列表（UI 风格 C）。
+ * - variant="mobile"：手机行情页、手机切换品种面板。每行：品种 | 卖价 / 买价上下两行 | 涨跌色块。
+ * - variant="side"：桌面交易页左栏。每行：品种 | 卖价 | 买价 | 涨跌。
+ * 桌面行情页是宽表格，见 pages/Markets.tsx，分类和搜索用这里导出的 useSymbolFilter / FilterBar。
  */
-import { memo, useMemo, useState } from 'react';
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Quote, SymbolCategory, SymbolInfo } from '../api/types';
-import { useSymbols } from '../app/contexts';
+import type { Quote, SymbolInfo } from '../api/types';
+import { CATEGORIES, useChange, useSymbolFilter, type Category, type SymbolFilter } from '../hooks/useSymbolFilter';
 import { quoteDirection, useQuotes } from '../hooks/useQuotes';
-import { cmp, ZERO } from '../lib/decimal';
 import { formatPercent, formatPrice } from '../lib/format';
 import { symbolName } from '../lib/symbol';
-import { changePercent } from '../lib/trading';
 import { EmptyState, ErrorState, Loading } from './AsyncView';
 import { Icon } from './Icon';
 
-export type Category = 'all' | 'hot' | SymbolCategory;
-const CATS: Category[] = ['all', 'hot', 'fx', 'metal', 'index', 'energy', 'crypto', 'stock'];
 
 export function StatusTags({ s }: { s: SymbolInfo }) {
   const { t } = useTranslation();
@@ -26,10 +25,47 @@ export function StatusTags({ s }: { s: SymbolInfo }) {
   );
 }
 
-const Row = memo(function Row({ s, q, selected, onSelect, lang, showAsk }: { s: SymbolInfo; q?: Quote; selected: boolean; onSelect: (c: string) => void; lang: string; showAsk?: boolean }) {
-  const chg = q ? changePercent(q.open, q.bid) : null;
+export function SearchBox({ f, autoFocus }: { f: SymbolFilter; autoFocus?: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <div className="search">
+      <Icon name="search" size={15} />
+      <input type="search" value={f.q} onChange={(e) => f.setQ(e.target.value)} placeholder={t('market.search')} aria-label={t('market.search')} autoFocus={autoFocus} />
+    </div>
+  );
+}
+
+export function CatTabs({ f, pills }: { f: SymbolFilter; pills?: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <div className={`cats${pills ? ' pills' : ''}`} role="tablist" aria-label={t('market.categories')}>
+      {CATEGORIES.map((c) => (
+        <button key={c} type="button" role="tab" aria-selected={f.cat === c} className={f.cat === c ? 'on' : ''} onClick={() => f.setCat(c)}>
+          {c === 'fav' && <Icon name="star" size={13} strokeWidth={2.2} />}
+          {c === 'fav' ? t('market.favorites') : t(`market.cat.${c}`)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** 列表状态：出错 / 加载中 / 空 */
+export function ListState({ f }: { f: SymbolFilter }) {
+  const { t } = useTranslation();
+  if (f.error && f.list.length === 0) return <ErrorState error={f.error} onRetry={f.reload} compact />;
+  if (f.loading && f.list.length === 0) return <Loading rows={5} />;
+  if (f.filtered.length === 0) {
+    if (f.list.length === 0) return <EmptyState compact title={t('market.emptyAll')} />;
+    if (f.cat === 'fav' && !f.q) return <EmptyState compact title={t('market.emptyFav')} hint={t('market.emptyFavHint')} />;
+    return <EmptyState compact title={t('market.emptySearch')} hint={t('market.emptySearchHint')} />;
+  }
+  return null;
+}
+
+const Row = memo(function Row({ s, q, selected, onSelect, lang, variant }: { s: SymbolInfo; q?: Quote; selected: boolean; onSelect: (c: string) => void; lang: string; variant: 'mobile' | 'side' }) {
+  const { chg, up } = useChange(q);
   const dir = quoteDirection(s.code);
-  const up = chg !== null && cmp(chg, ZERO) >= 0;
+  const flash = dir === 'up' ? 'flash-up' : dir === 'down' ? 'flash-down' : '';
   return (
     <li>
       <button type="button" className={`sym-row${selected ? ' on' : ''}`} onClick={() => onSelect(s.code)} aria-current={selected || undefined}>
@@ -40,74 +76,57 @@ const Row = memo(function Row({ s, q, selected, onSelect, lang, showAsk }: { s: 
             <StatusTags s={s} />
           </small>
         </span>
-        <span key={q?.bid} className={`sym-price num ${dir === 'up' ? 'flash-up' : dir === 'down' ? 'flash-down' : ''}`}>
-          {q ? formatPrice(q.bid, s.digits) : '—'}
-        </span>
-        {showAsk && <span className="sym-price num ask">{q ? formatPrice(q.ask, s.digits) : '—'}</span>}
+        {variant === 'mobile' ? (
+          <span key={q?.bid} className={`sym-ba num ${flash}`}>
+            <span className="down">{q ? formatPrice(q.bid, s.digits) : '—'}</span>
+            <span className="up">{q ? formatPrice(q.ask, s.digits) : '—'}</span>
+          </span>
+        ) : (
+          <>
+            <span key={q?.bid} className={`sym-price num down ${flash}`}>
+              {q ? formatPrice(q.bid, s.digits) : '—'}
+            </span>
+            <span className="sym-price num up">{q ? formatPrice(q.ask, s.digits) : '—'}</span>
+          </>
+        )}
         <span className="sym-chg num">
-          <span className={up ? 'up bg-up' : 'down bg-down'}>{chg !== null ? formatPercent(chg, { sign: true }) : '—'}</span>
+          <span className={variant === 'mobile' ? (up ? 'pill-up' : 'pill-down') : up ? 'up' : 'down'}>{chg !== null ? formatPercent(chg, { sign: true }) : '—'}</span>
         </span>
       </button>
     </li>
   );
 });
 
-export function SymbolList({ selected, onSelect, showAsk, autoFocus, initialCategory = 'all' }: { selected?: string; onSelect: (code: string) => void; showAsk?: boolean; autoFocus?: boolean; initialCategory?: Category }) {
+export function SymbolList({ selected, onSelect, autoFocus, initialCategory = 'all', variant = 'mobile' }: { selected?: string; onSelect: (code: string) => void; autoFocus?: boolean; initialCategory?: Category; variant?: 'mobile' | 'side' }) {
   const { t, i18n } = useTranslation();
-  const { list, loading, error, reload } = useSymbols();
   const quotes = useQuotes();
-  const [q, setQ] = useState('');
-  const [cat, setCat] = useState<Category>(initialCategory);
-
-  const filtered = useMemo(() => {
-    const k = q.trim().toLowerCase();
-    return list.filter(
-      (s) =>
-        (cat === 'all' || (cat === 'hot' ? s.hot : s.category === cat)) &&
-        (!k || s.code.toLowerCase().includes(k) || s.nameZh.toLowerCase().includes(k) || s.nameEn.toLowerCase().includes(k)),
-    );
-  }, [list, q, cat]);
-
+  const f = useSymbolFilter(initialCategory);
   return (
-    <div className="sym-list">
-      <div className="search">
-        <Icon name="search" size={15} />
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t('market.search')}
-          aria-label={t('market.search')}
-          autoFocus={autoFocus}
-        />
-      </div>
-      <div className="cats" role="tablist" aria-label={t('market.categories')}>
-        {CATS.map((c) => (
-          <button key={c} type="button" role="tab" aria-selected={cat === c} className={cat === c ? 'on' : ''} onClick={() => setCat(c)}>
-            {t(`market.cat.${c}`)}
-          </button>
-        ))}
-      </div>
-      <div className={`sym-head${showAsk ? ' with-ask' : ''}`} aria-hidden="true">
+    <div className={`sym-list v-${variant}`}>
+      <SearchBox f={f} autoFocus={autoFocus} />
+      <CatTabs f={f} />
+      <div className="sym-head" aria-hidden="true">
         <span>{t('market.symbol')}</span>
-        <span>{t('market.bid')}</span>
-        {showAsk && <span>{t('market.ask')}</span>}
+        {variant === 'mobile' ? (
+          <span>{t('market.bidAsk')}</span>
+        ) : (
+          <>
+            <span>{t('market.bid')}</span>
+            <span>{t('market.ask')}</span>
+          </>
+        )}
         <span>{t('market.change')}</span>
       </div>
-      {error && list.length === 0 ? (
-        <ErrorState error={error} onRetry={reload} compact />
-      ) : loading && list.length === 0 ? (
-        <Loading rows={5} />
-      ) : filtered.length === 0 ? (
-        <EmptyState compact title={list.length === 0 ? t('market.emptyAll') : t('market.emptySearch')} hint={list.length === 0 ? undefined : t('market.emptySearchHint')} />
+      {f.filtered.length === 0 ? (
+        <ListState f={f} />
       ) : (
-        <ul className={`sym-rows${showAsk ? ' with-ask' : ''}`}>
-          {filtered.map((s) => (
-            <Row key={s.code} s={s} q={quotes[s.code]} selected={s.code === selected} onSelect={onSelect} lang={i18n.language} showAsk={showAsk} />
+        <ul className="sym-rows">
+          {f.filtered.map((s) => (
+            <Row key={s.code} s={s} q={quotes[s.code]} selected={s.code === selected} onSelect={onSelect} lang={i18n.language} variant={variant} />
           ))}
         </ul>
       )}
-      {list.length > 0 && <div className="sym-count">{t('market.count', { shown: filtered.length, total: list.length })}</div>}
+      {f.list.length > 0 && <div className="sym-count">{t('market.count', { shown: f.filtered.length, total: f.list.length })}</div>}
     </div>
   );
 }

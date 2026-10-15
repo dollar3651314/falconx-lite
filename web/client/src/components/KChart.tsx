@@ -50,7 +50,7 @@ function maSeries(bars: Kline[], n: number) {
 
 export function KChart({ symbol, timeframe, digits, positionLines }: Props) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
+  const { theme, upDown } = useTheme();
   const version = useScenarioVersion();
   const boxRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -129,7 +129,7 @@ export function KChart({ symbol, timeframe, digits, positionLines }: Props) {
       chartRef.current = null;
       candleRef.current = null;
     };
-  }, [symbol, timeframe, digits, theme, version, nonce]);
+  }, [symbol, timeframe, digits, theme, upDown, version, nonce]);
 
   // 持仓开仓价虚线
   useEffect(() => {

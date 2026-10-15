@@ -25,12 +25,12 @@
     "viewAll": "View all"
   },
   "nav": {
-    "home": "Home",
     "markets": "Markets",
     "trade": "Trade",
     "assets": "Assets",
     "me": "Me",
-    "main": "Main navigation"
+    "main": "Main navigation",
+    "positions": "Positions"
   },
   "proto": {
     "banner": "Prototype · Simulated data, actions have no real effect",
@@ -126,13 +126,6 @@
     "saved": "Profile saved",
     "kycNote": "After verification, your name and date of birth must match your ID."
   },
-  "home": {
-    "hot": "Popular",
-    "noHot": "No popular symbols",
-    "myPositions": "My positions",
-    "goTrade": "Trade",
-    "recentNotifications": "Recent notifications"
-  },
   "market": {
     "search": "Search symbol or name",
     "categories": "Categories",
@@ -156,7 +149,18 @@
     "emptySearch": "No matching symbols",
     "emptySearchHint": "Try another keyword or category",
     "count": "{{shown}} of {{total}} symbols",
-    "footnote": "Quotes are simulated and update every second. Symbols marked \"Opening paused\" can only be closed."
+    "footnote": "Quotes are simulated and update every second. Symbols marked \"Opening paused\" can only be closed.",
+    "spread": "Spread",
+    "high": "High",
+    "low": "Low",
+    "trend": "Today",
+    "trade": "Trade",
+    "favorites": "Favorites",
+    "addFav": "Add to favorites",
+    "removeFav": "Remove from favorites",
+    "emptyFav": "No favorites yet",
+    "emptyFavHint": "Tap the star in the list to add one",
+    "bidAsk": "Bid / Ask"
   },
   "trade": {
     "change": "Change",
@@ -166,7 +170,9 @@
     "timeframe": "Timeframe",
     "spread": "Spread",
     "pickSymbol": "Choose symbol",
-    "symbolNotFound": "Symbol {{code}} not found"
+    "symbolNotFound": "Symbol {{code}} not found",
+    "myPositionHere": "My positions · {{code}}",
+    "viewAll": "All positions"
   },
   "chart": {
     "open": "O",
@@ -224,7 +230,11 @@
     "confirmMarketNote": "Market orders fill at the latest price, which may differ slightly from the reference.",
     "pendingPlaced": "Limit order placed",
     "noticeClosed": "This symbol is outside trading hours; orders will be rejected",
-    "noticePaused": "Opening is paused for this symbol; you can only close positions"
+    "noticePaused": "Opening is paused for this symbol; you can only close positions",
+    "isolated": "Isolated",
+    "switchTo": "Switch to {{side}}",
+    "tpsl": "TP / SL",
+    "detail": "Details"
   },
   "units": {
     "baseCcy": "{{n}} {{ccy}}/lot",
@@ -269,7 +279,8 @@
     "liqNow": "Current liq. price",
     "liqAfter": "Liq. price after",
     "addMarginNote": "Liquidation price is recalculated with the maintenance rate set at opening.",
-    "marginAdded": "Margin added"
+    "marginAdded": "Margin added",
+    "pageTitle": "Positions"
   },
   "orders": {
     "tab": "Orders",
@@ -481,7 +492,10 @@
     "logout": "Log out",
     "logoutTitle": "Log out",
     "logoutBody": "Log out of this account?",
-    "version": "FalconX Lite · Prototype v0.1"
+    "version": "FalconX Lite · Prototype v0.1",
+    "upDown": "Up / down colors",
+    "upDownGreen": "Green up, red down",
+    "upDownRed": "Red up, green down"
   },
   "kyc": {
     "intro": "Verification is only required before withdrawing.",
