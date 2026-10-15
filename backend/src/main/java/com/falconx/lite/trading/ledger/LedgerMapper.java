@@ -19,4 +19,11 @@ interface LedgerMapper {
   LedgerRow findEntry(@Param("bizType") String bizType, @Param("bizId") String bizId, @Param("entryType") String entryType, @Param("bucket") String bucket);
 
   int insertEntry(LedgerEntry entry);
+
+  /** 对账用的一行：键和金额 */
+  record KeyAmount(String key, BigDecimal amount) {}
+
+  java.util.List<KeyAmount> totals(@Param("bizType") String bizType, @Param("entryType") String entryType, @Param("bucket") String bucket);
+
+  java.util.List<KeyAmount> withdrawFrozen();
 }

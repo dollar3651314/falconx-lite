@@ -29,4 +29,20 @@
     INSERT INTO trading_ledger (account_id, bucket, entry_type, amount, value_after, biz_type, biz_id, remark)
     VALUES (#{accountId}, #{bucket}, #{entryType}, #{amount}, #{valueAfter}, #{bizType}, #{bizId}, #{remark})
   </insert>
+
+  <resultMap id="keyAmount" type="com.falconx.lite.trading.ledger.LedgerMapper$KeyAmount">
+    <constructor>
+      <arg column="k" javaType="string"/>
+      <arg column="amount" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+
+  <select id="totals" resultMap="keyAmount">
+    SELECT biz_id AS k, SUM(amount) AS amount FROM trading_ledger
+    WHERE biz_type = #{bizType} AND entry_type = #{entryType} AND bucket = #{bucket} GROUP BY biz_id
+  </select>
+
+  <select id="withdrawFrozen" resultMap="keyAmount">
+    SELECT CAST(user_id AS CHAR) AS k, withdraw_frozen AS amount FROM trading_account WHERE withdraw_frozen &lt;&gt; 0
+  </select>
 </mapper>
