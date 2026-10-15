@@ -9,5 +9,8 @@ management:
   server:
     port: 0
 falconx:
+  # 测试里不启动模拟行情源，由测试直接喂报价
+  market:
+    source: none
   storage:
     local-dir: ${java.io.tmpdir}/falconx-test-storage
