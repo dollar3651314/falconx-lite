@@ -1,9 +1,21 @@
 # 配置只写变量名，值由环境变量提供；密钥只由 Amos 填在服务器上（底线：密钥不经过 AI）。
 falconx:
   version: '@project.version@'
+  # 登录参数，默认值沿用现有系统（技术方案/v1-数据库设计.md 2.5–2.7）
+  auth:
+    login-failure-limit: 5
+    lock-minutes: 15
+    session-ttl-hours: 72
+    code-ttl-minutes: 10
+    code-resend-seconds: 60
+    code-max-attempts: 5
+    cookie-name: fx_session
+    cookie-secure: ${FX_COOKIE_SECURE:true}
 
 server:
   port: ${FX_HTTP_PORT:8080}
+  # 客户端真实 IP 取自 Nginx 传来的 X-Forwarded-For，只信任内网地址的代理（登录失败按 IP 计数要用）
+  forward-headers-strategy: native
 
 spring:
   application:

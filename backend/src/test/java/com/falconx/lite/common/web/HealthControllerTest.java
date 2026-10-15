@@ -33,6 +33,8 @@ class HealthControllerTest {
   @Test
   void 应用管理端点不在对外端口上() throws Exception {
     assertThat(get("/actuator/health").statusCode()).isEqualTo(404);
-    assertThat(get("/actuator/env").statusCode()).isEqualTo(404);
+    HttpResponse<String> env = get("/actuator/env");
+    assertThat(env.statusCode()).isEqualTo(404);
+    assertThat(env.body()).as("统一错误格式，不暴露内部信息").contains("\"code\":\"NOT_FOUND\"");
   }
 }
