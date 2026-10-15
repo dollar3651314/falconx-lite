@@ -75,7 +75,8 @@ class TaskServiceTest {
     String t = type();
     long id = tasks.enqueue(t, "{}", 0, 3);
     tasks.claim(t, "w", 1);
-    assertThat(tasks.recoverStuck(300)).as("刚领取的不回收").isZero();
+    tasks.recoverStuck(300); // 只回收超时的；其他测试留下的超时任务也会被回收，所以不检查总数，只检查这一个
+    assertThat(tasks.find(id).status()).as("刚领取的不回收").isEqualTo(TaskStatus.RUNNING);
     jdbc.update("UPDATE common_task SET locked_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 10 MINUTE) WHERE id = ?", id);
     assertThat(tasks.recoverStuck(300)).isGreaterThanOrEqualTo(1);
     assertThat(tasks.find(id).status()).isEqualTo(TaskStatus.PENDING);
