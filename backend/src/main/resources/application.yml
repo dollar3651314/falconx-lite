@@ -127,6 +127,15 @@ falconx:
       vapid-subject: ${FX_PUSH_VAPID_SUBJECT:}
       ttl: 24h
       max-devices: 10
+  # 后台（S16a，技术方案/v1-后台方案.md）。登录锁定次数和时长、IP 白名单在后台的系统配置里改
+  admin:
+    session-ttl: 8h
+    idle-timeout: 30m
+    cookie-name: fx_admin_session
+    cookie-secure: ${FX_COOKIE_SECURE:true}
+    # 第一个超级管理员（G1）：系统里还没有管理员时启动会用它建；密码只由 Amos 填，建好后可以删掉这两个变量
+    init-username: ${FX_ADMIN_INIT_USERNAME:}
+    init-password: ${FX_ADMIN_INIT_PASSWORD:}
   # 对象存储（证件照片）。现在是本地目录，正式环境在 S20 换成对象存储服务
   storage:
     local-dir: ${FX_STORAGE_DIR:./data/storage}

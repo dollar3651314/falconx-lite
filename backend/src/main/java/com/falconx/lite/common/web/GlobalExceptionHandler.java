@@ -21,13 +21,17 @@ public class GlobalExceptionHandler {
   private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
   /** 错误码对应的 HTTP 状态；没有列出的业务错误一律 400 */
-  private static final Map<String, HttpStatus> STATUS = Map.of(
-      "UNAUTHORIZED", HttpStatus.UNAUTHORIZED,
-      "USER_FROZEN", HttpStatus.FORBIDDEN,
-      "LOGIN_LOCKED", HttpStatus.TOO_MANY_REQUESTS,
-      "CODE_TOO_FREQUENT", HttpStatus.TOO_MANY_REQUESTS,
-      "EMAIL_TAKEN", HttpStatus.CONFLICT,
-      "NOT_FOUND", HttpStatus.NOT_FOUND);
+  private static final Map<String, HttpStatus> STATUS = Map.ofEntries(
+      Map.entry("UNAUTHORIZED", HttpStatus.UNAUTHORIZED),
+      Map.entry("USER_FROZEN", HttpStatus.FORBIDDEN),
+      Map.entry("FORBIDDEN", HttpStatus.FORBIDDEN),
+      Map.entry("IP_NOT_ALLOWED", HttpStatus.FORBIDDEN),
+      Map.entry("ACCOUNT_DISABLED", HttpStatus.FORBIDDEN),
+      Map.entry("PASSWORD_CHANGE_REQUIRED", HttpStatus.FORBIDDEN),
+      Map.entry("LOGIN_LOCKED", HttpStatus.TOO_MANY_REQUESTS),
+      Map.entry("CODE_TOO_FREQUENT", HttpStatus.TOO_MANY_REQUESTS),
+      Map.entry("EMAIL_TAKEN", HttpStatus.CONFLICT),
+      Map.entry("NOT_FOUND", HttpStatus.NOT_FOUND));
 
   @ExceptionHandler(BizException.class)
   public ResponseEntity<ApiError> biz(BizException e) {

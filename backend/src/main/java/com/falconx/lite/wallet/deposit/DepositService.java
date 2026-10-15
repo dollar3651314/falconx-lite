@@ -8,6 +8,7 @@ import com.falconx.lite.trading.api.LedgerApi;
 import com.falconx.lite.trading.api.LedgerCommand;
 import com.falconx.lite.trading.api.LedgerEntryType;
 import com.falconx.lite.wallet.Chain;
+import com.falconx.lite.wallet.Confirmations;
 import com.falconx.lite.wallet.WalletProperties;
 import com.falconx.lite.wallet.address.AddressService;
 import java.math.BigDecimal;
@@ -44,9 +45,10 @@ public class DepositService {
   private final FundsApi funds;
   private final RiskApi risk;
   private final NotifyApi notify;
+  private final Confirmations confirmations;
 
   DepositService(DepositMapper mapper, ChainClients clients, AddressService addresses, LedgerApi ledger, WalletProperties props, TransactionTemplate tx,
-      FundsApi funds, RiskApi risk, NotifyApi notify) {
+      FundsApi funds, RiskApi risk, NotifyApi notify, Confirmations confirmations) {
     this.mapper = mapper;
     this.clients = clients;
     this.addresses = addresses;
@@ -56,6 +58,7 @@ public class DepositService {
     this.funds = funds;
     this.risk = risk;
     this.notify = notify;
+    this.confirmations = confirmations;
   }
 
   /** 每 15 秒：每条链先扫块再确认 */
@@ -85,7 +88,7 @@ public class DepositService {
    * 入账后继续核对 2 倍确认数的区块：区块哈希变了（极少见的深度回滚）就冲正（修复 F4）。
    */
   private void recheck(Chain chain, WalletProperties.ChainConfig cfg, ChainClient client, long head) {
-    for (DepositMapper.DepositRow d : mapper.recentCredited(chain.name(), head - 2L * cfg.confirmations())) {
+    for (DepositMapper.DepositRow d : mapper.recentCredited(chain.name(), head - 2L * confirmations.of(chain))) {
       Optional<String> hash = client.blockHash(d.blockNumber());
       if (hash.isPresent() && hash.get().equalsIgnoreCase(d.blockHash())) continue;
       reverse(d);
@@ -152,7 +155,7 @@ public class DepositService {
   private void confirm(Chain chain, WalletProperties.ChainConfig cfg, ChainClient client, long head) {
     for (DepositMapper.DepositRow d : mapper.pending(chain.name())) {
       int conf = (int) Math.max(0, head - d.blockNumber() + 1);
-      if (conf < cfg.confirmations()) {
+      if (conf < confirmations.of(chain)) {
         mapper.updateConfirmations(d.id(), conf);
         continue;
       }

@@ -20,12 +20,12 @@ class WhitelistService {
   private static final Pattern ETH = Pattern.compile("0x[0-9a-fA-F]{40}");
 
   private final WithdrawMapper mapper;
-  private final WithdrawProperties props;
+  private final WithdrawLimits limits;
   private final Clock clock;
 
-  WhitelistService(WithdrawMapper mapper, WithdrawProperties props, Clock clock) {
+  WhitelistService(WithdrawMapper mapper, WithdrawLimits limits, Clock clock) {
     this.mapper = mapper;
-    this.props = props;
+    this.limits = limits;
     this.clock = clock;
   }
 
@@ -51,7 +51,7 @@ class WhitelistService {
     else if (l.length() > 32) errs.add("label", "tooLong");
     errs.throwIfAny();
 
-    if (mapper.countWhitelist(userId) >= props.maxWhitelist()) throw new BizException("WHITELIST_FULL", "白名单已满");
+    if (mapper.countWhitelist(userId) >= props().maxWhitelist()) throw new BizException("WHITELIST_FULL", "白名单已满");
     LocalDateTime now = LocalDateTime.now(clock.withZone(ZoneOffset.UTC));
     WhitelistRow r = new WhitelistRow();
     r.userId = userId;
@@ -60,7 +60,7 @@ class WhitelistService {
     r.addressKey = chain.family == Chain.Family.ETH ? a.toLowerCase() : a;
     r.label = l;
     r.createdAt = now;
-    r.activeAt = now.plus(props.whitelistDelay());
+    r.activeAt = now.plus(props().whitelistDelay());
     try {
       mapper.insertWhitelist(r);
     } catch (DuplicateKeyException e) {
@@ -83,5 +83,10 @@ class WhitelistService {
     } catch (IllegalArgumentException e) {
       return false;
     }
+  }
+
+  /** 当前的提现参数（后台可改，S16a） */
+  private WithdrawProperties props() {
+    return limits.current();
   }
 }

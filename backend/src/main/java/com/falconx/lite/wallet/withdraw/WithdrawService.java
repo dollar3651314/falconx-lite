@@ -47,12 +47,12 @@ public class WithdrawService implements WithdrawAdminApi {
   private final UserEventsApi events;
   private final NotifyApi notify;
   private final WithdrawSenders senders;
-  private final WithdrawProperties props;
+  private final WithdrawLimits limits;
   private final TransactionTemplate tx;
   private final Clock clock;
 
   WithdrawService(WithdrawMapper mapper, LedgerApi ledger, FundsApi funds, AccountApi account, UserEventsApi events, NotifyApi notify, WithdrawSenders senders,
-      WithdrawProperties props, TransactionTemplate tx, Clock clock) {
+      WithdrawLimits limits, TransactionTemplate tx, Clock clock) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.funds = funds;
@@ -60,7 +60,7 @@ public class WithdrawService implements WithdrawAdminApi {
     this.events = events;
     this.notify = notify;
     this.senders = senders;
-    this.props = props;
+    this.limits = limits;
     this.tx = tx;
     this.clock = clock;
   }
@@ -100,17 +100,17 @@ public class WithdrawService implements WithdrawAdminApi {
     WhitelistRow w = mapper.whitelistById(userId, wid);
     if (w == null) throw new BizException("NOT_WHITELISTED", "只能提到白名单地址");
     if (w.activeAt.isAfter(now())) throw new BizException("WHITELIST_NOT_ACTIVE", "白名单地址添加满 24 小时后才能使用");
-    if (amount.compareTo(props.minAmount()) < 0) throw new BizException("AMOUNT_BELOW_MIN", "低于最小提现金额");
-    if (amount.compareTo(props.maxPerTx()) > 0) throw new BizException("AMOUNT_ABOVE_MAX", "超过单笔提现上限");
+    if (amount.compareTo(props().minAmount()) < 0) throw new BizException("AMOUNT_BELOW_MIN", "低于最小提现金额");
+    if (amount.compareTo(props().maxPerTx()) > 0) throw new BizException("AMOUNT_ABOVE_MAX", "超过单笔提现上限");
     Chain network = Chain.valueOf(w.network);
-    BigDecimal fee = props.fee(network);
+    BigDecimal fee = props().fee(network);
     if (amount.compareTo(fee) <= 0) throw new BizException("AMOUNT_BELOW_MIN", "金额不够付手续费");
     final BigDecimal amt = amount;
 
     WithdrawalRow r = tx.execute(st -> {
       ledger.lock(userId);
       // 当日累计必须严格小于上限（需求 4.4-4，和客户端一致）；锁住账户后再算，并发提交不会一起超过
-      if (usedToday(userId).add(amt).compareTo(props.dailyLimit()) >= 0) throw new BizException("DAILY_LIMIT_EXCEEDED", "超过当日提现累计上限");
+      if (usedToday(userId).add(amt).compareTo(props().dailyLimit()) >= 0) throw new BizException("DAILY_LIMIT_EXCEEDED", "超过当日提现累计上限");
       if (amt.compareTo(funds.withdrawable(userId)) > 0) throw new BizException("INSUFFICIENT_BALANCE", "可提金额不足");
       WithdrawalRow n = new WithdrawalRow();
       n.userId = userId;
@@ -120,7 +120,7 @@ public class WithdrawService implements WithdrawAdminApi {
       n.fee = fee;
       n.status = "COOLING";
       n.createdAt = now();
-      n.coolingEndsAt = n.createdAt.plus(props.cooling());
+      n.coolingEndsAt = n.createdAt.plus(props().cooling());
       mapper.insertWithdrawal(n);
       ledger.apply(new LedgerCommand(userId, Bucket.BALANCE, amt.negate(), LedgerEntryType.WITHDRAW_FREEZE, BIZ_WITHDRAW, String.valueOf(n.id), "提现冻结"));
       ledger.apply(new LedgerCommand(userId, Bucket.WITHDRAW_FROZEN, amt, LedgerEntryType.WITHDRAW_FREEZE, BIZ_WITHDRAW, String.valueOf(n.id), "提现冻结"));
@@ -151,8 +151,8 @@ public class WithdrawService implements WithdrawAdminApi {
   public void approve(long withdrawalId, long adminId) {
     WithdrawalRow r = tx.execute(st -> {
       WithdrawalRow w = reviewing(withdrawalId);
-      boolean large = w.amount.compareTo(props.largeAmount()) >= 0;
-      LocalDateTime delay = large ? now().plus(props.largeDelay()) : null;
+      boolean large = w.amount.compareTo(props().largeAmount()) >= 0;
+      LocalDateTime delay = large ? now().plus(props().largeDelay()) : null;
       mapper.setReview(w.id, adminId, now(), null, delay);
       move(w, large ? "DELAYED" : "APPROVED", "admin:" + adminId, large ? "大额，延迟到 " + delay : null);
       w.delayEndsAt = delay;
@@ -344,5 +344,10 @@ public class WithdrawService implements WithdrawAdminApi {
       case "FAILED_REFUNDED" -> "failedRefunded";
       default -> s.toLowerCase();
     };
+  }
+
+  /** 当前的提现参数（后台可改，S16a） */
+  private WithdrawProperties props() {
+    return limits.current();
   }
 }

@@ -1,5 +1,7 @@
 package com.falconx.lite.trading.order;
 
+import com.falconx.lite.common.config.ConfigKey;
+import com.falconx.lite.common.config.SystemConfig;
 import com.falconx.lite.notification.api.NotifyApi;
 import com.falconx.lite.trading.api.AccountSnapshot;
 import com.falconx.lite.trading.api.LedgerApi;
@@ -20,7 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 追保预警（S15a，AC-15，通知方案 N4）。每 10 秒检查有持仓的客户：
  * <ul>
  *   <li>保证金水平 = 净值 ÷ 已用保证金；净值 = 余额 + 各持仓浮动盈亏（和客户端显示的口径一致）。有持仓没有报价时这一轮跳过这个客户。</li>
- *   <li>跌破追保线（默认 100%）通知一次；一直在线下不重复；回到线上以后再跌破才再通知，并且同一客户两次通知至少隔 5 分钟。</li>
+ *   <li>跌破追保线（默认 100%）通知一次；一直在线下不重复；回到线上以后再跌破才再通知，并且同一客户两次通知至少隔 5 分钟（后台系统配置 {@code notify.marginCallThrottleMinutes} 可改）。</li>
  *   <li>状态存在 {@code trading_margin_call}，服务重启不会重复通知。</li>
  * </ul>
  * 只通知，不平仓：强平按每个持仓的强平价由撮合引擎处理（逐仓）。
@@ -45,8 +47,10 @@ class MarginCallMonitor {
   private final TransactionTemplate tx;
   private final TradingProperties.MarginCall props;
   private final Clock clock;
+  private final SystemConfig config;
 
-  MarginCallMonitor(OrderMapper mapper, LedgerApi ledger, Funds funds, NotifyApi notify, TransactionTemplate tx, TradingProperties props, Clock clock) {
+  MarginCallMonitor(OrderMapper mapper, LedgerApi ledger, Funds funds, NotifyApi notify, TransactionTemplate tx, TradingProperties props, Clock clock,
+      SystemConfig config) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.funds = funds;
@@ -54,6 +58,7 @@ class MarginCallMonitor {
     this.tx = tx;
     this.props = props.marginCall();
     this.clock = clock;
+    this.config = config;
   }
 
   @Scheduled(fixedDelay = 10_000, initialDelay = 20_000)
@@ -110,7 +115,7 @@ class MarginCallMonitor {
     }
     if (s != null && s.below && s.notified) return false;
     LocalDateTime last = s == null ? null : s.lastNotifiedAt;
-    if (last != null && last.plus(props.minInterval()).isAfter(now)) {
+    if (last != null && last.plus(config.minutes(ConfigKey.NOTIFY_MARGIN_CALL_THROTTLE_MINUTES, props.minInterval())).isAfter(now)) {
       // 刚通知过：先记下"在线下、还没通知"，满 5 分钟后还在线下再通知
       if (s == null || !s.below) mapper.saveMarginCallState(userId, true, false, last, now);
       return false;
