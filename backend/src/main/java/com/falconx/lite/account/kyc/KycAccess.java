@@ -1,7 +1,6 @@
 package com.falconx.lite.account.kyc;
 
 import com.falconx.lite.account.api.KycStatus;
-import com.falconx.lite.account.auth.AuthAccess;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,11 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class KycAccess {
 
   private final KycService kyc;
-  private final AuthAccess auth;
 
-  KycAccess(KycService kyc, AuthAccess auth) {
+  KycAccess(KycService kyc) {
     this.kyc = kyc;
-    this.auth = auth;
   }
 
   public KycStatus status(long userId) {
@@ -23,11 +20,11 @@ public class KycAccess {
 
   @Transactional
   public void approve(long applicationId, long reviewerId) {
-    kyc.approve(applicationId, reviewerId, auth.email(kyc.userOf(applicationId)));
+    kyc.approve(applicationId, reviewerId);
   }
 
   @Transactional
   public void reject(long applicationId, long reviewerId, String reason) {
-    kyc.reject(applicationId, reviewerId, reason, auth.email(kyc.userOf(applicationId)));
+    kyc.reject(applicationId, reviewerId, reason);
   }
 }

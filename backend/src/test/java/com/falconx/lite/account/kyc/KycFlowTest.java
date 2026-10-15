@@ -124,7 +124,10 @@ class KycFlowTest {
     assertThatThrownBy(() -> accounts.rejectKyc(app, 1, " ")).isInstanceOf(BizException.class).extracting("code").isEqualTo("REJECT_REASON_REQUIRED");
     accounts.rejectKyc(app, 1, "照片模糊");
     assertThat(mvc.perform(get("/api/me/kyc").cookie(u.cookie())).andReturn().getResponse().getContentAsString()).contains("\"status\":\"rejected\"").contains("照片模糊");
-    verify(mail).send(eq(u.email()), eq("KYC_RESULT"), anyMap());
+    // 驳回结果通过站内信和邮件通知客户（AC-05）：站内信一条，邮件写成任务
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message WHERE user_id = ? AND template_code = 'KYC_RESULT'", Long.class, u.id())).isEqualTo(1);
+    assertThat(jdbc.queryForObject("SELECT status FROM notify_record WHERE user_id = ? AND template_code = 'KYC_RESULT' AND channel = 'EMAIL'", String.class, u.id()))
+        .isEqualTo("PENDING");
     assertThat(submit(u, "passport", docNo(), JPG, JPG, JPG).getContentAsString()).contains("\"status\":\"pending\"");
   }
 

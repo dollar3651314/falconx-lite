@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 通知：模板、偏好、站内信、通知记录。只有 notification 模块使用。 -->
+<mapper namespace="com.falconx.lite.notification.service.NotifyMapper">
+
+  <select id="template" resultType="com.falconx.lite.notification.service.Rows$TemplateRow">
+    SELECT code, audience, kind, name_zh, name_en, title_zh, title_en, body_zh, body_en, variables, channels, built_in, enabled
+    FROM notify_template WHERE code = #{code}
+  </select>
+
+  <select id="pref" resultType="com.falconx.lite.notification.service.Rows$PrefRow">
+    SELECT push_enabled, email_enabled, lang FROM notify_pref WHERE user_id = #{userId}
+  </select>
+
+  <insert id="upsertPref">
+    INSERT INTO notify_pref (user_id, push_enabled, email_enabled) VALUES (#{userId}, #{push}, #{email})
+    ON DUPLICATE KEY UPDATE push_enabled = VALUES(push_enabled), email_enabled = VALUES(email_enabled)
+  </insert>
+
+  <insert id="upsertLang">
+    INSERT INTO notify_pref (user_id, lang) VALUES (#{userId}, #{lang})
+    ON DUPLICATE KEY UPDATE lang = VALUES(lang)
+  </insert>
+
+  <insert id="insertMessage" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO notify_message (user_id, kind, template_code, params, title, body, created_at)
+    VALUES (#{userId}, #{kind}, #{templateCode}, #{params}, #{title}, #{body}, #{createdAt})
+  </insert>
+
+  <select id="messages" resultType="com.falconx.lite.notification.service.Rows$MessageRow">
+    SELECT id, user_id, kind, template_code, params, title, body, read_at, created_at
+    FROM notify_message WHERE user_id = #{userId} ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countMessages" resultType="long">
+    SELECT COUNT(*) FROM notify_message WHERE user_id = #{userId}
+  </select>
+
+  <select id="countUnread" resultType="long">
+    SELECT COUNT(*) FROM notify_message WHERE user_id = #{userId} AND read_at IS NULL
+  </select>
+
+  <update id="markRead">
+    UPDATE notify_message SET read_at = #{now} WHERE id = #{id} AND user_id = #{userId} AND read_at IS NULL
+  </update>
+
+  <update id="markAllRead">
+    UPDATE notify_message SET read_at = #{now} WHERE user_id = #{userId} AND read_at IS NULL
+  </update>
+
+  <insert id="insertRecord" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO notify_record (user_id, recipient, source, template_code, channel, title, status, error, operator_id, created_at)
+    VALUES (#{userId}, #{recipient}, #{source}, #{templateCode}, #{channel}, #{title}, #{status}, #{error}, #{operatorId}, #{createdAt})
+  </insert>
+
+  <update id="updateRecord">
+    UPDATE notify_record SET status = #{status}, error = #{error} WHERE id = #{id}
+  </update>
+
+  <select id="recordsOf" resultType="com.falconx.lite.notification.service.Rows$RecordRow">
+    SELECT id, user_id, recipient, source, template_code, channel, title, status, error, operator_id, created_at
+    FROM notify_record WHERE user_id = #{userId} ORDER BY id DESC LIMIT #{limit}
+  </select>
+
+  <select id="record" resultType="com.falconx.lite.notification.service.Rows$RecordRow">
+    SELECT id, user_id, recipient, source, template_code, channel, title, status, error, operator_id, created_at
+    FROM notify_record WHERE id = #{id}
+  </select>
+</mapper>

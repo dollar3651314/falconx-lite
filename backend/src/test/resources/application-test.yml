@@ -22,6 +22,9 @@ falconx:
     # 隔夜费不定时跑，测试里直接调用并指定时间
     swap:
       enabled: false
+    # 追保不定时检查，测试里直接调用
+    margin-call:
+      enabled: false
   # 净敞口不定时检查，测试里直接调用
   risk:
     monitor-enabled: false
@@ -43,5 +46,13 @@ falconx:
         usdt-contract: "0x55d398326f99059fF775485246999027B3197955"
       TRC20:
         usdt-contract: TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+  # 邮件任务不定时发送，测试里直接调用；SMTP 指向测试进程里的 GreenMail（NotifyFlowTest 启动），不连外网
+  notify:
+    worker-enabled: false
+    mail:
+      host: localhost
+      port: 3025
+      from: noreply@falconx.test
+      security: NONE
   storage:
     local-dir: ${java.io.tmpdir}/falconx-test-storage

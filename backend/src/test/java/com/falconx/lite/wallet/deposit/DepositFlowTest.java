@@ -53,6 +53,7 @@ class DepositFlowTest {
   @Autowired MockMvc mvc;
   @Autowired com.falconx.lite.trading.api.FundsApi funds;
   @Autowired com.falconx.lite.risk.api.RiskApi risk;
+  @Autowired com.falconx.lite.notification.api.NotifyApi notify;
   @MockitoBean MailApi mail;
 
   @AfterEach
@@ -106,6 +107,9 @@ class DepositFlowTest {
     assertThat(balance(uid)).isEqualByComparingTo("100");
     deposits.run(Chain.ERC20);
     assertThat(balance(uid)).as("不会重复入账").isEqualByComparingTo("100");
+    // 到账通知（AC-07），只发一次
+    assertThat(jdbc.queryForList("SELECT params FROM notify_message WHERE user_id = ? AND template_code = 'DEPOSIT_CREDITED'", String.class, uid))
+        .singleElement().asString().contains("\"amount\":\"100\"").contains("\"chain\":\"ERC20\"");
   }
 
   @Test
@@ -197,7 +201,7 @@ class DepositFlowTest {
   void 没有配置USDT合约的链不扫块_F3() {
     var noContract = new WalletProperties(props.ethXpub(), props.tronXpub(), props.minDeposit(),
         Map.of(Chain.ERC20, new WalletProperties.ChainConfig(null, "", 6, 12, 12, 200, null)));
-    DepositService service = new DepositService(mapper, clients, addresses, ledger, noContract, tx, funds, risk);
+    DepositService service = new DepositService(mapper, clients, addresses, ledger, noContract, tx, funds, risk, notify);
     FakeChain f = chain(Chain.ERC20, 8000);
     service.run(Chain.ERC20);
     assertThat(f.calls).isZero();
@@ -236,7 +240,7 @@ class DepositFlowTest {
     ledger.apply(new com.falconx.lite.trading.api.LedgerCommand(uid, com.falconx.lite.trading.api.Bucket.ORDER_FROZEN, new BigDecimal("80"),
         com.falconx.lite.trading.api.LedgerEntryType.ORDER_FREEZE, "TEST", "frz-" + uid, "测试冻结"));
     com.falconx.lite.risk.api.RiskApi riskMock = org.mockito.Mockito.mock(com.falconx.lite.risk.api.RiskApi.class);
-    DepositService service = new DepositService(mapper, clients, addresses, ledger, props, tx, funds, riskMock);
+    DepositService service = new DepositService(mapper, clients, addresses, ledger, props, tx, funds, riskMock, notify);
     f.reorg(10000);
     service.run(Chain.ERC20);
     assertThat(jdbc.queryForObject("SELECT status FROM wallet_deposit WHERE id = ?", String.class, id)).isEqualTo("REVERSED");

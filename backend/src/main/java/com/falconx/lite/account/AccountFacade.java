@@ -35,6 +35,11 @@ class AccountFacade implements AccountApi {
   }
 
   @Override
+  public String email(long userId) {
+    return auth.email(userId);
+  }
+
+  @Override
   public KycStatus kycStatus(long userId) {
     return kyc.status(userId);
   }

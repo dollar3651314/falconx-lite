@@ -1,0 +1,258 @@
+package com.falconx.lite.notification.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+
+import com.falconx.lite.account.api.AccountApi;
+import com.falconx.lite.common.error.ValidationException;
+import com.falconx.lite.common.task.TaskService;
+import com.falconx.lite.common.task.TaskStatus;
+import com.falconx.lite.notification.api.NotifyAdminApi;
+import com.falconx.lite.notification.api.NotifyApi;
+import com.falconx.lite.notification.api.NotifyChannel;
+import com.falconx.lite.support.FixedClockConfig;
+import com.icegreen.greenmail.util.GreenMail;
+import com.icegreen.greenmail.util.ServerSetup;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.servlet.http.Cookie;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import tools.jackson.databind.ObjectMapper;
+
+/**
+ * 通知（S15a）：站内信、通知偏好、邮件、通知记录。邮件发到测试进程里的 SMTP 服务器（GreenMail，端口 3025），不连外网。
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Import(FixedClockConfig.class)
+class NotifyFlowTest {
+
+  static GreenMail smtp;
+
+  @BeforeAll
+  static void startSmtp() {
+    smtp = new GreenMail(new ServerSetup(3025, "localhost", ServerSetup.PROTOCOL_SMTP));
+    smtp.start();
+  }
+
+  @AfterAll
+  static void stopSmtp() {
+    smtp.stop();
+  }
+
+  @Autowired MockMvc mvc;
+  @Autowired JdbcTemplate jdbc;
+  @Autowired NotifyApi notify;
+  @Autowired NotifyAdminApi admin;
+  @Autowired NotifyWorker worker;
+  @Autowired NotifyMapper mapper;
+  @Autowired TaskService tasks;
+  @Autowired AccountApi accounts;
+  @Autowired ObjectMapper json;
+
+  record User(long id, String email, Cookie cookie) {}
+
+  static String ip() {
+    return "10.9." + ThreadLocalRandom.current().nextInt(256) + "." + ThreadLocalRandom.current().nextInt(256);
+  }
+
+  MockHttpServletResponse call(MockHttpServletRequestBuilder b, Cookie c, String body) throws Exception {
+    String ip = ip();
+    b = b.with(r -> {
+      r.setRemoteAddr(ip);
+      return r;
+    });
+    if (c != null) b = b.cookie(c);
+    if (body != null) b = b.contentType(MediaType.APPLICATION_JSON).content(body);
+    return mvc.perform(b).andReturn().getResponse();
+  }
+
+  List<MimeMessage> mailsTo(String email) {
+    return Arrays.stream(smtp.getReceivedMessages()).filter(m -> {
+      try {
+        return Arrays.stream(m.getAllRecipients()).anyMatch(a -> a.toString().equals(email));
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }).toList();
+  }
+
+  static String body(MimeMessage m) throws Exception {
+    return ((String) m.getContent()).replace("\r\n", "\n").strip();
+  }
+
+  /** 真实注册流程：验证码邮件经过任务表和 SMTP 发出，从收到的邮件里取验证码 */
+  User register() throws Exception {
+    String email = "n" + System.nanoTime() + "@example.com";
+    assertThat(call(post("/api/auth/email-code"), null, "{\"email\":\"" + email + "\",\"purpose\":\"REGISTER\"}").getStatus()).isEqualTo(204);
+    worker.drain();
+    List<MimeMessage> mails = mailsTo(email);
+    assertThat(mails).hasSize(1);
+    Matcher m = Pattern.compile("验证码是 (\\d{6})").matcher(body(mails.getFirst()));
+    assertThat(m.find()).isTrue();
+    MockHttpServletResponse r = call(post("/api/auth/register"), null, "{\"email\":\"" + email + "\",\"code\":\"" + m.group(1)
+        + "\",\"password\":\"password123\",\"firstName\":\"A\",\"lastName\":\"B\",\"birthDate\":\"1990-05-01\",\"nationality\":\"CN\"}");
+    assertThat(r.getStatus()).as(r.getContentAsString()).isEqualTo(200);
+    long id = jdbc.queryForObject("SELECT id FROM account_user WHERE email = ?", Long.class, email);
+    return new User(id, email, r.getCookie("fx_session"));
+  }
+
+  /** 这个客户的通知记录："渠道 状态 原因"，按时间先后 */
+  List<String> records(long uid) {
+    return jdbc.queryForList("SELECT CONCAT(channel, ' ', status, ' ', COALESCE(error, '-')) FROM notify_record WHERE user_id = ? ORDER BY id", String.class, uid);
+  }
+
+  @Test
+  void 验证码邮件按邮箱发_中英文各一份_记录已发送() throws Exception {
+    User u = register();
+    MimeMessage m = mailsTo(u.email()).getFirst();
+    assertThat(m.getSubject()).isEqualTo("FalconX 验证码 | FalconX verification code");
+    assertThat(body(m)).contains("您的验证码是").contains("Your code is").contains("10 分钟内有效");
+    assertThat(m.getFrom()[0].toString()).isEqualTo("noreply@falconx.test");
+    assertThat(jdbc.queryForObject("SELECT status FROM notify_record WHERE recipient = ? AND template_code = 'EMAIL_CODE'", String.class, u.email())).isEqualTo("SENT");
+  }
+
+  @Test
+  void 站内信按客户当前界面语言显示_未读数_标记已读_只能标记自己的() throws Exception {
+    User u = register();
+    User other = register();
+    notify.toUser(u.id(), "KYC_RESULT", Map.of("result", "REJECTED", "reason", "照片模糊"));
+    notify.toUser(u.id(), "KYC_RESULT", Map.of("result", "APPROVED"));
+
+    String zh = call(get("/api/notifications?lang=zh-CN"), u.cookie(), null).getContentAsString();
+    assertThat(zh).contains("\"total\":2").contains("\"kind\":\"kyc\"").contains("\"title\":\"身份认证结果\"")
+        .contains("您的身份认证已通过，现在可以提现。").contains("您的身份认证未通过。\\n驳回原因：照片模糊").contains("\"read\":false");
+    assertThat(zh.indexOf("已通过")).as("最新的在前").isLessThan(zh.indexOf("未通过"));
+    String en = call(get("/api/notifications?lang=en&page=1&pageSize=1"), u.cookie(), null).getContentAsString();
+    assertThat(en).contains("\"total\":2").contains("\"pageSize\":1").contains("Your identity verification has been approved. You can now withdraw.")
+        .doesNotContain("rejected");
+    assertThat(call(get("/api/notifications/unread-count"), u.cookie(), null).getContentAsString()).isEqualTo("{\"count\":2}");
+
+    long first = jdbc.queryForObject("SELECT MIN(id) FROM notify_message WHERE user_id = ?", Long.class, u.id());
+    assertThat(call(post("/api/notifications/" + first + "/read"), other.cookie(), null).getStatus()).isEqualTo(200);
+    assertThat(call(get("/api/notifications/unread-count"), u.cookie(), null).getContentAsString()).as("别人标记不了").isEqualTo("{\"count\":2}");
+    call(post("/api/notifications/" + first + "/read"), u.cookie(), null);
+    assertThat(call(get("/api/notifications/unread-count"), u.cookie(), null).getContentAsString()).isEqualTo("{\"count\":1}");
+    call(post("/api/notifications/read-all"), u.cookie(), null);
+    assertThat(call(get("/api/notifications/unread-count"), u.cookie(), null).getContentAsString()).isEqualTo("{\"count\":0}");
+    assertThat(call(get("/api/notifications"), null, null).getStatus()).isEqualTo(401);
+  }
+
+  @Test
+  void 三个渠道各一条记录_邮件按客户语言发出_关闭推送或邮件后记已跳过_站内信照常_AC25() throws Exception {
+    User u = register();
+    assertThat(call(get("/api/me/notify-prefs"), u.cookie(), null).getContentAsString()).isEqualTo("{\"push\":true,\"email\":true}");
+    notify.toUser(u.id(), "DEPOSIT_CREDITED", Map.of("amount", "100", "chain", "TRC20"));
+    assertThat(records(u.id())).containsExactly("INBOX SENT -", "PUSH SKIPPED 没有订阅推送的设备", "EMAIL PENDING -");
+    worker.drain();
+    assertThat(records(u.id())).last().isEqualTo("EMAIL SENT -");
+    MimeMessage zh = mailsTo(u.email()).getLast();
+    assertThat(zh.getSubject()).isEqualTo("充值已到账");
+    assertThat(body(zh)).isEqualTo("您通过 TRC20 充值的 100 USDT 已到账。");
+
+    assertThat(call(put("/api/me/notify-prefs"), u.cookie(), "{\"push\":false,\"email\":false}").getContentAsString()).isEqualTo("{\"push\":false,\"email\":false}");
+    notify.toUser(u.id(), "DEPOSIT_CREDITED", Map.of("amount", "5", "chain", "BSC"));
+    assertThat(records(u.id()).subList(3, 6)).containsExactly("INBOX SENT -", "PUSH SKIPPED 客户关闭了推送", "EMAIL SKIPPED 客户关闭了邮件");
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message WHERE user_id = ?", Long.class, u.id())).isEqualTo(2);
+
+    assertThat(call(put("/api/me/notify-lang"), u.cookie(), "{\"lang\":\"en\"}").getStatus()).isEqualTo(200);
+    call(put("/api/me/notify-prefs"), u.cookie(), "{\"push\":false,\"email\":true}");
+    notify.toUser(u.id(), "WITHDRAW_STATUS", Map.of("orderId", "88", "amount", "50", "status", "REJECTED", "reason", "address risk"));
+    worker.drain();
+    MimeMessage en = mailsTo(u.email()).getLast();
+    assertThat(en.getSubject()).isEqualTo("Withdrawal update");
+    assertThat(body(en)).isEqualTo("Your withdrawal 88 (50 USDT) was rejected and the funds have been returned.\nReason: address risk");
+    assertThat(mailsTo(u.email())).as("验证码 1 封 + 中文 1 封 + 英文 1 封").hasSize(3);
+  }
+
+  @Test
+  void 偏好和语言接口校验() throws Exception {
+    User u = register();
+    MockHttpServletResponse r = call(put("/api/me/notify-prefs"), u.cookie(), "{\"push\":true}");
+    assertThat(r.getStatus()).isEqualTo(400);
+    assertThat(r.getContentAsString()).contains("\"field\":\"email\"");
+    r = call(put("/api/me/notify-lang"), u.cookie(), "{\"lang\":\"fr\"}");
+    assertThat(r.getStatus()).isEqualTo(400);
+    assertThat(r.getContentAsString()).contains("\"field\":\"lang\"");
+  }
+
+  @Test
+  void 后台手动发送_原样发送_记录操作人_遵守客户偏好() throws Exception {
+    User u = register();
+    admin.manual(u.id(), Set.of(NotifyChannel.INBOX, NotifyChannel.EMAIL, NotifyChannel.PUSH), " 系统维护通知 ", "今晚 22:00 维护 10 分钟。", 9);
+    String list = call(get("/api/notifications?lang=en"), u.cookie(), null).getContentAsString();
+    assertThat(list).contains("\"kind\":\"system\"").contains("\"title\":\"系统维护通知\"").contains("今晚 22:00 维护 10 分钟。");
+    assertThat(jdbc.queryForList("SELECT CONCAT(source, ' ', operator_id) FROM notify_record WHERE user_id = ?", String.class, u.id())).containsOnly("MANUAL 9");
+    worker.drain();
+    MimeMessage m = mailsTo(u.email()).getLast();
+    assertThat(m.getSubject()).isEqualTo("系统维护通知");
+    assertThat(body(m)).isEqualTo("今晚 22:00 维护 10 分钟。");
+
+    assertThatThrownBy(() -> admin.manual(u.id(), Set.of(), "", "x".repeat(2001), 9)).isInstanceOf(ValidationException.class)
+        .satisfies(e -> assertThat(((ValidationException) e).fields()).extracting(ValidationException.Field::field).containsExactly("channels", "title", "body"));
+  }
+
+  @Test
+  void 邮件发送失败按任务表重试_5次用完记失败_未配置时不重试记失败() throws Exception {
+    User u = register();
+    MailTransport broken = (to, subject, body) -> {
+      throw new jakarta.mail.MessagingException("连接被拒绝");
+    };
+    NotifyWorker failing = new NotifyWorker(tasks, mapper, broken, accounts, json);
+    notify.toUser(u.id(), "DEPOSIT_CREDITED", Map.of("amount", "1", "chain", "BSC"));
+    long rid = jdbc.queryForObject("SELECT id FROM notify_record WHERE user_id = ? AND channel = 'EMAIL'", Long.class, u.id());
+    long task = taskOf(rid);
+    for (int i = 1; i <= 5; i++) {
+      jdbc.update("UPDATE common_task SET status = 'RUNNING', attempts = attempts + 1 WHERE id = ?", task);
+      failing.handle(tasks.find(task));
+      String status = mapper.record(rid).status;
+      assertThat(status).as("第 " + i + " 次").isEqualTo(i < 5 ? "PENDING" : "FAILED");
+      assertThat(mapper.record(rid).error).contains("连接被拒绝");
+    }
+    assertThat(tasks.find(task).status()).isEqualTo(TaskStatus.FAILED);
+
+    MailTransport none = (to, subject, body) -> {
+      throw new MailTransport.NotConfigured();
+    };
+    notify.toUser(u.id(), "DEPOSIT_CREDITED", Map.of("amount", "2", "chain", "BSC"));
+    long rid2 = jdbc.queryForObject("SELECT MAX(id) FROM notify_record WHERE user_id = ? AND channel = 'EMAIL'", Long.class, u.id());
+    long task2 = taskOf(rid2);
+    jdbc.update("UPDATE common_task SET status = 'RUNNING', attempts = attempts + 1 WHERE id = ?", task2);
+    new NotifyWorker(tasks, mapper, none, accounts, json).handle(tasks.find(task2));
+    assertThat(mapper.record(rid2).status).isEqualTo("FAILED");
+    assertThat(mapper.record(rid2).error).isEqualTo("邮件未配置");
+    assertThat(tasks.find(task2).status()).isEqualTo(TaskStatus.SUCCEEDED);
+  }
+
+  long taskOf(long recordId) {
+    return jdbc.queryForObject("SELECT id FROM common_task WHERE task_type = 'MAIL_SEND' AND JSON_EXTRACT(payload, '$.recordId') = ?", Long.class, recordId);
+  }
+
+  @Test
+  void 只能用发给客户的模板通知客户() {
+    assertThatThrownBy(() -> notify.toUser(1, "EMAIL_CODE", Map.of())).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> notify.toUser(1, "NOT_EXIST", Map.of())).isInstanceOf(IllegalArgumentException.class);
+  }
+}

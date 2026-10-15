@@ -12,6 +12,9 @@ public interface AccountApi {
   /** 用户状态；用户不存在时抛 {@code BizException("USER_NOT_FOUND")}。 */
   UserStatus status(long userId);
 
+  /** 登录邮箱（通知模块发邮件时用）；用户不存在时抛 {@code BizException("USER_NOT_FOUND")}。 */
+  String email(long userId);
+
   /** 当前 KYC 状态。只在提现前要求 APPROVED（需求 4.1-6）。 */
   KycStatus kycStatus(long userId);
 

@@ -197,6 +197,14 @@ class WithdrawFlowTest {
     withdraws.advance();
     assertThat(status(w2.id)).as("冷静期结束进入待审核").isEqualTo("REVIEWING");
     ledgerConsistent(uid);
+    assertThat(notices(w.id)).as("客户自己撤销不通知").isEmpty();
+    assertThat(notices(w2.id)).as("冷静期结束不通知").isEmpty();
+  }
+
+  /** 这笔提现通知客户的状态（通知方案 N6），按时间先后 */
+  List<String> notices(long withdrawalId) {
+    return jdbc.queryForList("SELECT JSON_UNQUOTE(JSON_EXTRACT(params, '$.status')) FROM notify_message WHERE template_code = 'WITHDRAW_STATUS' "
+        + "AND JSON_UNQUOTE(JSON_EXTRACT(params, '$.orderId')) = ? ORDER BY id", String.class, String.valueOf(withdrawalId));
   }
 
   WithdrawalRow reviewing(long uid, long address, String amount) {
@@ -223,6 +231,7 @@ class WithdrawFlowTest {
     assertThat(jdbc.queryForObject("SELECT tx_hash FROM wallet_withdrawal WHERE id = ?", String.class, w.id)).isEqualTo("0xtx" + w.id);
     withdraws.confirmed(w.id);
     assertThat(status(w.id)).isEqualTo("COMPLETED");
+    assertThat(notices(w.id)).containsExactly("APPROVED", "BROADCASTING", "COMPLETED");
     assertThat(bal(uid)).isEqualByComparingTo("900");
     assertThat(frozen(uid)).isEqualByComparingTo("0");
     ledgerConsistent(uid);
@@ -236,6 +245,9 @@ class WithdrawFlowTest {
     assertThatThrownBy(() -> withdraws.reject(w.id, 9L, " ")).isInstanceOf(ValidationException.class);
     withdraws.reject(w.id, 9L, "地址存在风险");
     assertThat(status(w.id)).isEqualTo("REJECTED");
+    assertThat(notices(w.id)).containsExactly("REJECTED");
+    assertThat(jdbc.queryForObject("SELECT params FROM notify_message WHERE template_code = 'WITHDRAW_STATUS' AND params LIKE ?", String.class,
+        "%\"orderId\":\"" + w.id + "\"%")).as("驳回原因告诉客户").contains("地址存在风险");
     assertThat(bal(uid)).isEqualByComparingTo("1000");
     assertThat(code(() -> withdraws.approve(w.id, 9L))).as("不能再审核").isEqualTo("WITHDRAW_NOT_REVIEWABLE");
   }
@@ -257,6 +269,7 @@ class WithdrawFlowTest {
     withdraws.advance();
     assertThat(status(w.id)).as("延迟到期直接广播").isEqualTo("BROADCASTING");
     assertThat(s.sent).hasSize(1);
+    assertThat(notices(w.id)).as("延迟期满不再通知审核通过").containsExactly("DELAYED", "BROADCASTING");
   }
 
   @Test
@@ -272,6 +285,9 @@ class WithdrawFlowTest {
         Integer.class, w.id)).isEqualTo(1);
     assertThat(jdbc.queryForList("SELECT to_status FROM wallet_withdraw_event WHERE withdrawal_id = ? ORDER BY id", String.class, w.id))
         .containsExactly("COOLING", "REVIEWING", "DELAYED", "CANCELLED");
+    assertThat(notices(w.id)).containsExactly("DELAYED", "CANCELLED");
+    assertThat(jdbc.queryForList("SELECT params FROM notify_message WHERE template_code = 'WITHDRAW_STATUS' AND user_id = ?", String.class, uid))
+        .as("紧急取消的原因是内部信息，不告诉客户").noneMatch(p -> p.contains("疑似盗号"));
   }
 
   @Test
@@ -299,6 +315,9 @@ class WithdrawFlowTest {
     assertThat(status(w2.id)).isEqualTo("FAILED_REFUNDED");
     assertThat(bal(uid)).isEqualByComparingTo("1000");
     ledgerConsistent(uid);
+    // 失败退回通知客户（AC-20）
+    assertThat(notices(w.id)).containsExactly("APPROVED", "FAILED_REFUNDED");
+    assertThat(notices(w2.id)).containsExactly("APPROVED", "BROADCASTING", "FAILED_REFUNDED");
   }
 
   @Test

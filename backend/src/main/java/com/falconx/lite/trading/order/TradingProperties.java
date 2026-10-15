@@ -1,6 +1,7 @@
 package com.falconx.lite.trading.order;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalTime;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -13,10 +14,11 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param engineThreads 检查线程数；同一品种同一时间只占一个
  * @param engineWorkers 执行线程数：被触发的挂单、持仓并行成交或平仓；每个占一个数据库连接，要小于连接池大小
  * @param swap 隔夜费结算（S10）
+ * @param marginCall 追保预警（S15a，AC-15）
  */
 @ConfigurationProperties("falconx.trading")
 record TradingProperties(BigDecimal positionLimitUsd, @DefaultValue("true") boolean engineEnabled, @DefaultValue("8") int engineThreads,
-    @DefaultValue("8") int engineWorkers, @DefaultValue Swap swap) {
+    @DefaultValue("8") int engineWorkers, @DefaultValue Swap swap, @DefaultValue MarginCall marginCall) {
 
   /**
    * 隔夜费。
@@ -26,4 +28,13 @@ record TradingProperties(BigDecimal positionLimitUsd, @DefaultValue("true") bool
    * @param catchUpDays 服务停机后补结算最近几天
    */
   record Swap(@DefaultValue("true") boolean enabled, @DefaultValue("22:00") LocalTime rolloverTime, @DefaultValue("3") int catchUpDays) {}
+
+  /**
+   * 追保预警（通知方案 N4）。保证金水平 = 净值 ÷ 已用保证金，和客户端显示的口径一致。
+   *
+   * @param enabled 是否定时检查（测试环境默认关，测试里直接调用）
+   * @param line 追保线（小数，1.00 即 100%，沿用现有系统）；S16 改为后台可配置
+   * @param minInterval 同一客户两次通知至少间隔（沿用现有系统的 5 分钟）
+   */
+  record MarginCall(@DefaultValue("true") boolean enabled, @DefaultValue("1.00") BigDecimal line, @DefaultValue("5m") Duration minInterval) {}
 }

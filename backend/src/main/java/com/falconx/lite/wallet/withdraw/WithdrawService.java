@@ -9,6 +9,7 @@ import com.falconx.lite.trading.api.FundsApi;
 import com.falconx.lite.trading.api.LedgerApi;
 import com.falconx.lite.trading.api.LedgerCommand;
 import com.falconx.lite.trading.api.LedgerEntryType;
+import com.falconx.lite.notification.api.NotifyApi;
 import com.falconx.lite.trading.api.UserEventsApi;
 import com.falconx.lite.wallet.Chain;
 import com.falconx.lite.wallet.api.WithdrawAdminApi;
@@ -44,18 +45,20 @@ public class WithdrawService implements WithdrawAdminApi {
   private final FundsApi funds;
   private final AccountApi account;
   private final UserEventsApi events;
+  private final NotifyApi notify;
   private final WithdrawSenders senders;
   private final WithdrawProperties props;
   private final TransactionTemplate tx;
   private final Clock clock;
 
-  WithdrawService(WithdrawMapper mapper, LedgerApi ledger, FundsApi funds, AccountApi account, UserEventsApi events, WithdrawSenders senders,
+  WithdrawService(WithdrawMapper mapper, LedgerApi ledger, FundsApi funds, AccountApi account, UserEventsApi events, NotifyApi notify, WithdrawSenders senders,
       WithdrawProperties props, TransactionTemplate tx, Clock clock) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.funds = funds;
     this.account = account;
     this.events = events;
+    this.notify = notify;
     this.senders = senders;
     this.props = props;
     this.tx = tx;
@@ -292,7 +295,30 @@ public class WithdrawService implements WithdrawAdminApi {
   private void move(WithdrawalRow w, String to, String actor, String note) {
     if (mapper.transit(w.id, w.status, to) != 1) throw new IllegalStateException("提现状态已变化：" + w.id);
     mapper.insertEvent(w.id, w.status, to, actor, note);
+    String from = w.status;
     w.status = to;
+    if (notifyCustomer(from, to, actor)) {
+      Map<String, String> p = new LinkedHashMap<>();
+      p.put("orderId", String.valueOf(w.id));
+      p.put("amount", w.amount.stripTrailingZeros().toPlainString());
+      p.put("status", to);
+      // 只有驳回把原因告诉客户；紧急取消、上链失败的原因是内部信息
+      if ("REJECTED".equals(to) && note != null) p.put("reason", note);
+      notify.toUser(w.userId, "WITHDRAW_STATUS", p);
+    }
+  }
+
+  /**
+   * 哪些状态变化通知客户（通知方案 N6）：客户自己的操作（提交、撤销）不通知，冷静期结束进入审核不通知；
+   * 审核通过（含大额延迟）、驳回、开始上链、完成、失败退回、紧急取消都通知。延迟期满进入上链时不再通知"审核通过"，紧接着会通知"开始上链"。
+   */
+  static boolean notifyCustomer(String from, String to, String actor) {
+    if (actor != null && actor.startsWith("user:")) return false;
+    return switch (to) {
+      case "APPROVED" -> "REVIEWING".equals(from);
+      case "DELAYED", "REJECTED", "BROADCASTING", "COMPLETED", "FAILED_REFUNDED", "CANCELLED" -> true;
+      default -> false;
+    };
   }
 
   /** 退回：提现冻结 → 余额 */

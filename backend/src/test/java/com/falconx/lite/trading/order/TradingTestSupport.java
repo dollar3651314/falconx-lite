@@ -122,4 +122,8 @@ abstract class TradingTestSupport {
     return c;
   }
 
+  /** 这个客户收到的站内信："模板编号 变量 JSON"，按时间先后 */
+  java.util.List<String> notices(long uid) {
+    return jdbc.queryForList("SELECT CONCAT(template_code, ' ', params) FROM notify_message WHERE user_id = ? ORDER BY id", String.class, uid);
+  }
 }
