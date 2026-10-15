@@ -25,5 +25,17 @@ falconx:
   # 净敞口不定时检查，测试里直接调用
   risk:
     monitor-enabled: false
+  # 钱包：xpub 来自 BIP39 公开的测试助记词（"abandon … about"，人人都知道，没有任何价值），只用于测试；
+  # 合约地址是三条链官方 USDT 合约的公开地址。测试用链替身，不连真实节点
+  wallet:
+    eth-xpub: xpub6DCoCpSuQZB2jawqnGMEPS63ePKWkwWPH4TU45Q7LPXWuNd8TMtVxRrgjtEshuqpK3mdhaWHPFsBngh5GFZaM6si3yZdUsT8ddYM3PwnATt
+    tron-xpub: xpub6D1AabNHCupeiLM65ZR9UStMhJ1vCpyV4XbZdyhMZBiJXALQtmn9p42VTQckoHVn8WNqS7dqnJokZHAHcHGoaQgmv8D45oNUKx6DZMNZBCd
+    chains:
+      ERC20:
+        usdt-contract: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+      BSC:
+        usdt-contract: "0x55d398326f99059fF775485246999027B3197955"
+      TRC20:
+        usdt-contract: TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
   storage:
     local-dir: ${java.io.tmpdir}/falconx-test-storage

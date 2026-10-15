@@ -43,6 +43,33 @@ falconx:
     monitor-enabled: true
     # 自动禁开时通知的风控人员邮箱，逗号分隔（Amos 提供，H7）
     alert-emails: ${FX_RISK_ALERT_EMAILS:}
+  # 钱包（S12，技术方案/v1-充值方案.md）。xpub、节点地址、合约地址都由 Amos 填进服务器环境变量，仓库里只有变量名
+  wallet:
+    # 账户级 xpub（只有公钥），Amos 离线生成助记词后导出（充值方案 D1）
+    eth-xpub: ${FX_WALLET_ETH_XPUB:}
+    tron-xpub: ${FX_WALLET_TRON_XPUB:}
+    # 最小充值 1 USDT（Amos 确认，充值方案 D4）
+    min-deposit: 1
+    chains:
+      ERC20:
+        rpc-url: ${FX_WALLET_ETH_RPC_URL:}
+        usdt-contract: ${FX_WALLET_ERC20_USDT_CONTRACT:}
+        usdt-decimals: 6
+        confirmations: 12
+        block-seconds: 12
+      BSC:
+        rpc-url: ${FX_WALLET_BSC_RPC_URL:}
+        usdt-contract: ${FX_WALLET_BSC_USDT_CONTRACT:}
+        # BSC 上的 USDT 是 18 位小数，按需求要上链实测确认（S20）
+        usdt-decimals: 18
+        confirmations: 15
+        block-seconds: 3
+      TRC20:
+        rpc-url: ${FX_WALLET_TRON_RPC_URL:}
+        usdt-contract: ${FX_WALLET_TRC20_USDT_CONTRACT:}
+        usdt-decimals: 6
+        confirmations: 19
+        block-seconds: 3
   # 对象存储（证件照片）。现在是本地目录，正式环境在 S20 换成对象存储服务
   storage:
     local-dir: ${FX_STORAGE_DIR:./data/storage}
