@@ -1,5 +1,6 @@
 package com.falconx.lite.trading.order;
 
+import com.falconx.lite.trading.api.UserEventsApi;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -13,12 +14,17 @@ import org.springframework.stereotype.Component;
  * 事务提交以后再调用，推送失败不影响交易。
  */
 @Component
-class TradingEvents {
+class TradingEvents implements UserEventsApi {
 
   private final TradingPush push;
 
   TradingEvents(TradingPush push) {
     this.push = push;
+  }
+
+  @Override
+  public void send(long userId, Map<String, Object> event) {
+    push.send(userId, event);
   }
 
   void changed(long userId, String... types) {
