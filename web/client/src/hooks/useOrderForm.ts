@@ -58,7 +58,8 @@ export function useOrderForm(symbol: SymbolInfo, initialSide: Side, onDone?: () 
   const est = useMemo(() => {
     if (!quote || !refPrice || !isDecimalString(refPrice) || !isDecimalString(form.lots) || !/^\d+$/.test(form.leverage)) return null;
     const lev = Number(form.leverage);
-    if (lev < 1) return null;
+    // 手数为 0 或杠杆无效时不显示预估（强平价 0.00 会误导）
+    if (lev < 1 || cmp(dec(form.lots), ZERO) <= 0) return null;
     return estimateOrder({ symbol, price: dec(refPrice), lots: dec(form.lots), leverage: lev, side: form.side, quoteToUsd: quote.quoteToUsd });
   }, [quote, refPrice, form.lots, form.leverage, form.side, symbol]);
 
