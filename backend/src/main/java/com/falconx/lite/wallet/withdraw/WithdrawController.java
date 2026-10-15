@@ -36,16 +36,16 @@ class WithdrawController {
   private final WhitelistService whitelist;
   private final WithdrawService withdraws;
   private final WithdrawMapper mapper;
-  private final WithdrawProperties props;
+  private final WithdrawLimits limits;
   private final AccountApi account;
   private final FundsApi funds;
 
-  WithdrawController(WhitelistService whitelist, WithdrawService withdraws, WithdrawMapper mapper, WithdrawProperties props, AccountApi account,
+  WithdrawController(WhitelistService whitelist, WithdrawService withdraws, WithdrawMapper mapper, WithdrawLimits limits, AccountApi account,
       FundsApi funds) {
     this.whitelist = whitelist;
     this.withdraws = withdraws;
     this.mapper = mapper;
-    this.props = props;
+    this.limits = limits;
     this.account = account;
     this.funds = funds;
   }
@@ -73,16 +73,16 @@ class WithdrawController {
     m.put("kycStatus", account.kycStatus(uid).name().toLowerCase());
     m.put("available", money(funds.withdrawable(uid).max(BigDecimal.ZERO)));
     m.put("usedToday", money(withdraws.usedToday(uid)));
-    m.put("minAmount", money(props.minAmount()));
-    m.put("maxPerTx", money(props.maxPerTx()));
-    m.put("dailyLimit", money(props.dailyLimit()));
-    m.put("largeAmount", money(props.largeAmount()));
-    m.put("largeDelayHours", props.largeDelay().toHours());
-    m.put("coolingHours", props.cooling().toHours());
+    m.put("minAmount", money(props().minAmount()));
+    m.put("maxPerTx", money(props().maxPerTx()));
+    m.put("dailyLimit", money(props().dailyLimit()));
+    m.put("largeAmount", money(props().largeAmount()));
+    m.put("largeDelayHours", props().largeDelay().toHours());
+    m.put("coolingHours", props().cooling().toHours());
     Map<String, String> fees = new LinkedHashMap<>();
-    for (Chain c : Chain.values()) fees.put(c.name(), money(props.fee(c)));
+    for (Chain c : Chain.values()) fees.put(c.name(), money(props().fee(c)));
     m.put("fees", fees);
-    m.put("maxWhitelist", props.maxWhitelist());
+    m.put("maxWhitelist", props().maxWhitelist());
     return m;
   }
 
@@ -119,5 +119,10 @@ class WithdrawController {
 
   static String iso(LocalDateTime t) {
     return t == null ? null : t.toInstant(ZoneOffset.UTC).toString();
+  }
+
+  /** 当前的提现参数（后台可改，S16a） */
+  private WithdrawProperties props() {
+    return limits.current();
   }
 }

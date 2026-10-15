@@ -54,6 +54,7 @@ class DepositFlowTest {
   @Autowired com.falconx.lite.trading.api.FundsApi funds;
   @Autowired com.falconx.lite.risk.api.RiskApi risk;
   @Autowired com.falconx.lite.notification.api.NotifyApi notify;
+  @Autowired com.falconx.lite.wallet.Confirmations confirmations;
   @MockitoBean MailApi mail;
 
   @AfterEach
@@ -201,7 +202,7 @@ class DepositFlowTest {
   void 没有配置USDT合约的链不扫块_F3() {
     var noContract = new WalletProperties(props.ethXpub(), props.tronXpub(), props.minDeposit(),
         Map.of(Chain.ERC20, new WalletProperties.ChainConfig(null, "", 6, 12, 12, 200, null)));
-    DepositService service = new DepositService(mapper, clients, addresses, ledger, noContract, tx, funds, risk, notify);
+    DepositService service = new DepositService(mapper, clients, addresses, ledger, noContract, tx, funds, risk, notify, confirmations);
     FakeChain f = chain(Chain.ERC20, 8000);
     service.run(Chain.ERC20);
     assertThat(f.calls).isZero();
@@ -240,7 +241,7 @@ class DepositFlowTest {
     ledger.apply(new com.falconx.lite.trading.api.LedgerCommand(uid, com.falconx.lite.trading.api.Bucket.ORDER_FROZEN, new BigDecimal("80"),
         com.falconx.lite.trading.api.LedgerEntryType.ORDER_FREEZE, "TEST", "frz-" + uid, "测试冻结"));
     com.falconx.lite.risk.api.RiskApi riskMock = org.mockito.Mockito.mock(com.falconx.lite.risk.api.RiskApi.class);
-    DepositService service = new DepositService(mapper, clients, addresses, ledger, props, tx, funds, riskMock, notify);
+    DepositService service = new DepositService(mapper, clients, addresses, ledger, props, tx, funds, riskMock, notify, confirmations);
     f.reorg(10000);
     service.run(Chain.ERC20);
     assertThat(jdbc.queryForObject("SELECT status FROM wallet_deposit WHERE id = ?", String.class, id)).isEqualTo("REVERSED");

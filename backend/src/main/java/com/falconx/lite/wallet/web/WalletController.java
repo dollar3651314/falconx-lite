@@ -3,6 +3,7 @@ package com.falconx.lite.wallet.web;
 import com.falconx.lite.common.error.BizException;
 import com.falconx.lite.common.web.CurrentUser;
 import com.falconx.lite.wallet.Chain;
+import com.falconx.lite.wallet.Confirmations;
 import com.falconx.lite.wallet.WalletProperties;
 import com.falconx.lite.wallet.address.AddressService;
 import com.falconx.lite.wallet.deposit.DepositService;
@@ -23,11 +24,13 @@ class WalletController {
   private final AddressService addresses;
   private final DepositService deposits;
   private final WalletProperties props;
+  private final Confirmations confirmations;
 
-  WalletController(AddressService addresses, DepositService deposits, WalletProperties props) {
+  WalletController(AddressService addresses, DepositService deposits, WalletProperties props, Confirmations confirmations) {
     this.addresses = addresses;
     this.deposits = deposits;
     this.props = props;
+    this.confirmations = confirmations;
   }
 
   /** 最近 50 条充值记录（S12b） */
@@ -35,7 +38,7 @@ class WalletController {
   List<DepositView> deposits() {
     return deposits.history(CurrentUser.id(), 50).stream().map(d -> {
       WalletProperties.ChainConfig cfg = props.chain(d.chain());
-      int required = cfg == null ? 0 : cfg.confirmations();
+      int required = cfg == null ? 0 : confirmations.of(d.chain());
       String status = switch (d.status()) {
         case "BELOW_MIN" -> "belowMin";
         default -> d.status().toLowerCase();
@@ -53,7 +56,7 @@ class WalletController {
     for (Chain c : Chain.values()) {
       WalletProperties.ChainConfig cfg = props.chain(c);
       String address = addresses.addressOf(uid, c).orElseThrow(() -> new BizException("WALLET_NOT_READY", "充值地址暂不可用"));
-      int conf = cfg == null ? 0 : cfg.confirmations();
+      int conf = cfg == null ? 0 : confirmations.of(c);
       int eta = cfg == null ? 0 : (int) Math.ceil(conf * cfg.blockSeconds() / 60.0);
       out.add(new DepositAddressView(c.name(), address, conf, eta, props.minDeposit().stripTrailingZeros().toPlainString()));
     }
