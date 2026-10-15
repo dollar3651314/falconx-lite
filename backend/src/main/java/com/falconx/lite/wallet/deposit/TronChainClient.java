@@ -1,12 +1,8 @@
 package com.falconx.lite.wallet.deposit;
 
 import com.falconx.lite.wallet.address.Base58;
+import com.falconx.lite.wallet.chain.TronHttp;
 import java.math.BigInteger;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -24,13 +20,10 @@ class TronChainClient implements ChainClient {
 
   private static final String TRANSFER_TOPIC = EvmChainClient.TRANSFER_TOPIC.substring(2);
 
-  private final String baseUrl;
-  private final ObjectMapper json;
-  private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+  private final TronHttp http;
 
   TronChainClient(String baseUrl, ObjectMapper json) {
-    this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-    this.json = json;
+    this.http = new TronHttp(baseUrl, json);
   }
 
   @Override
@@ -83,16 +76,6 @@ class TronChainClient implements ChainClient {
   }
 
   private JsonNode post(String path, Map<String, Object> body) {
-    try {
-      HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(baseUrl + path)).timeout(Duration.ofSeconds(20)).header("Content-Type", "application/json")
-          .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build(), HttpResponse.BodyHandlers.ofString());
-      if (r.statusCode() != 200) throw new IllegalStateException("TRON 节点返回 HTTP " + r.statusCode() + "（" + path + "）");
-      return json.readTree(r.body());
-    } catch (java.io.IOException e) {
-      throw new IllegalStateException("连接 TRON 节点失败（" + path + "）", e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new IllegalStateException("连接 TRON 节点被中断", e);
-    }
+    return http.post(path, body);
   }
 }

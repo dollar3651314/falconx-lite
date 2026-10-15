@@ -241,6 +241,23 @@ public class WithdrawService implements WithdrawAdminApi {
     }
   }
 
+  /** 上链中的提现查链上结果（S13b）：确认够了完成；确定转账没发生则失败退款；其他情况继续等（加价重发、过期重建在广播器里） */
+  void track() {
+    for (Long id : mapper.withStatus("BROADCASTING")) {
+      WithdrawalRow w = mapper.byId(id);
+      var sender = senders.get(Chain.valueOf(w.network));
+      if (sender.isEmpty()) continue;
+      switch (sender.get().check(id)) {
+        case WithdrawSender.Confirmed c -> {
+          mapper.setTx(id, c.txHash());
+          confirmed(id);
+        }
+        case WithdrawSender.Failed f -> failed(id, "BROADCASTING", f.reason());
+        case WithdrawSender.Pending p -> { }
+      }
+    }
+  }
+
   /** 链上确认：上链中 → 已完成，扣掉提现冻结（S13b 的确认任务调用） */
   public void confirmed(long id) {
     WithdrawalRow r = tx.execute(st -> {

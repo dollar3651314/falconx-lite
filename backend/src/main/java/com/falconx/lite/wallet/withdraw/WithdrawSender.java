@@ -25,4 +25,20 @@ public interface WithdrawSender {
   record Rejected(String reason) implements Outcome {}
 
   Outcome send(Order order);
+
+  /** 上链中的提现查一次链上结果 */
+  sealed interface Check permits Confirmed, Pending, Failed {}
+
+  /** 链上成功并且确认数够了；txHash 是最终上链的那一笔（加价重发时可能不是第一笔） */
+  record Confirmed(String txHash) implements Check {}
+
+  record Pending() implements Check {}
+
+  /** 确定转账没有发生（链上执行失败、TRON 交易全部过期）：可以退款 */
+  record Failed(String reason) implements Check {}
+
+  /** 查链上结果；S13b 的真实实现会顺带处理超时（加价重发、过期重建） */
+  default Check check(long withdrawalId) {
+    return new Pending();
+  }
 }
