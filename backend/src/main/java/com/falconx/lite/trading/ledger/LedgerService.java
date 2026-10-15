@@ -5,7 +5,9 @@ import com.falconx.lite.common.money.Amounts;
 import com.falconx.lite.trading.api.AccountSnapshot;
 import com.falconx.lite.trading.api.Bucket;
 import com.falconx.lite.trading.api.LedgerApi;
+import com.falconx.lite.trading.api.LedgerQueryApi;
 import com.falconx.lite.trading.api.LedgerCommand;
+import com.falconx.lite.trading.api.LedgerEntryType;
 import com.falconx.lite.trading.api.LedgerResult;
 import java.math.BigDecimal;
 import org.springframework.stereotype.Service;
@@ -14,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** {@link LedgerApi} 的实现：先锁账户行，再查幂等、改金额、写账本，全部在一个事务里。 */
 @Service
-class LedgerService implements LedgerApi {
+class LedgerService implements LedgerApi, LedgerQueryApi {
 
   private final LedgerMapper mapper;
 
@@ -73,6 +75,22 @@ class LedgerService implements LedgerApi {
     AccountRow a = mapper.lockAccount(userId);
     if (a == null) throw new BizException("ACCOUNT_NOT_FOUND", "交易账户不存在：" + userId);
     return new AccountSnapshot(a.userId(), a.balance(), a.withdrawFrozen(), a.orderFrozen());
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public java.util.Map<String, BigDecimal> totals(String bizType, LedgerEntryType type, Bucket bucket) {
+    java.util.Map<String, BigDecimal> m = new java.util.HashMap<>();
+    for (LedgerMapper.KeyAmount k : mapper.totals(bizType, type.name(), bucket.name())) m.put(k.key(), k.amount());
+    return m;
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public java.util.Map<Long, BigDecimal> withdrawFrozenByUser() {
+    java.util.Map<Long, BigDecimal> m = new java.util.HashMap<>();
+    for (LedgerMapper.KeyAmount k : mapper.withdrawFrozen()) m.put(Long.valueOf(k.key()), k.amount());
+    return m;
   }
 
   /** 列名只来自这个固定映射，不拼接外部输入 */

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 对账。只有 wallet 模块使用。 -->
+<mapper namespace="com.falconx.lite.wallet.recon.ReconMapper">
+
+  <resultMap id="deposit" type="com.falconx.lite.wallet.recon.ReconMapper$DepositRow">
+    <constructor>
+      <arg column="id" javaType="_long"/>
+      <arg column="chain" javaType="string"/>
+      <arg column="tx_hash" javaType="string"/>
+      <arg column="log_index" javaType="_int"/>
+      <arg column="user_id" javaType="_long"/>
+      <arg column="amount" javaType="java.math.BigDecimal"/>
+      <arg column="status" javaType="string"/>
+      <arg column="block_number" javaType="_long"/>
+      <arg column="block_hash" javaType="string"/>
+      <arg column="created_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+
+  <resultMap id="suspense" type="com.falconx.lite.wallet.recon.ReconMapper$SuspenseRow">
+    <constructor>
+      <arg column="id" javaType="_long"/>
+      <arg column="user_id" javaType="_long"/>
+      <arg column="deposit_id" javaType="_long"/>
+      <arg column="amount" javaType="java.math.BigDecimal"/>
+      <arg column="status" javaType="string"/>
+    </constructor>
+  </resultMap>
+
+  <resultMap id="withdrawal" type="com.falconx.lite.wallet.recon.ReconMapper$WithdrawalRow">
+    <constructor>
+      <arg column="id" javaType="_long"/>
+      <arg column="user_id" javaType="_long"/>
+      <arg column="amount" javaType="java.math.BigDecimal"/>
+      <arg column="status" javaType="string"/>
+    </constructor>
+  </resultMap>
+
+  <resultMap id="issue" type="com.falconx.lite.wallet.api.WalletReconApi$Issue">
+    <constructor>
+      <arg column="id" javaType="_long"/>
+      <arg column="kind" javaType="string"/>
+      <arg column="ref_id" javaType="string"/>
+      <arg column="user_id" javaType="java.lang.Long"/>
+      <arg column="expected" javaType="java.math.BigDecimal"/>
+      <arg column="actual" javaType="java.math.BigDecimal"/>
+      <arg column="detail" javaType="string"/>
+      <arg column="status" javaType="string"/>
+      <arg column="created_at" javaType="java.time.LocalDateTime"/>
+      <arg column="resolved_by" javaType="java.lang.Long"/>
+      <arg column="resolved_at" javaType="java.time.LocalDateTime"/>
+      <arg column="note" javaType="string"/>
+    </constructor>
+  </resultMap>
+
+  <sql id="issueCols">id, kind, ref_id, user_id, expected, actual, detail, status, created_at, resolved_by, resolved_at, note</sql>
+
+  <select id="creditedDeposits" resultMap="deposit">
+    SELECT id, chain, tx_hash, log_index, user_id, amount, status, block_number, block_hash, created_at
+    FROM wallet_deposit WHERE status IN ('CREDITED', 'REVERSED')
+  </select>
+
+  <select id="suspenses" resultMap="suspense">
+    SELECT id, user_id, deposit_id, amount, status FROM wallet_suspense
+  </select>
+
+  <select id="withdrawals" resultMap="withdrawal">
+    SELECT id, user_id, amount, status FROM wallet_withdrawal
+  </select>
+
+  <select id="openIssueCount" resultType="int">
+    SELECT COUNT(*) FROM wallet_recon_issue WHERE kind = #{kind} AND ref_id = #{refId} AND status = 'OPEN'
+  </select>
+
+  <insert id="insertIssue">
+    INSERT INTO wallet_recon_issue (kind, ref_id, user_id, expected, actual, detail) VALUES (#{kind}, #{refId}, #{userId}, #{expected}, #{actual}, #{detail})
+  </insert>
+
+  <select id="issues" resultMap="issue">
+    SELECT <include refid="issueCols"/> FROM wallet_recon_issue WHERE status = #{status} ORDER BY id DESC LIMIT #{limit}
+  </select>
+
+  <select id="lockIssue" resultMap="issue">
+    SELECT <include refid="issueCols"/> FROM wallet_recon_issue WHERE id = #{id} FOR UPDATE
+  </select>
+
+  <update id="resolveIssue">
+    UPDATE wallet_recon_issue SET status = 'RESOLVED', resolved_by = #{adminId}, resolved_at = #{at}, note = #{note} WHERE id = #{id} AND status = 'OPEN'
+  </update>
+
+  <update id="resolveSuspense">
+    UPDATE wallet_suspense SET status = 'RESOLVED', resolved_at = #{at}, note = #{note} WHERE id = #{id} AND status = 'OPEN'
+  </update>
+</mapper>
