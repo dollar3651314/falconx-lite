@@ -1,0 +1,29 @@
+# 配置只写变量名，值由环境变量提供；密钥只由 Amos 填在服务器上（底线：密钥不经过 AI）。
+falconx:
+  version: '@project.version@'
+
+server:
+  port: ${FX_HTTP_PORT:8080}
+
+spring:
+  application:
+    name: falconx-lite
+  datasource:
+    url: ${FX_DB_URL}
+    username: ${FX_DB_USERNAME}
+    password: ${FX_DB_PASSWORD}
+  data:
+    redis:
+      host: ${FX_REDIS_HOST:localhost}
+      port: ${FX_REDIS_PORT:6379}
+      password: ${FX_REDIS_PASSWORD:}
+
+# 应用管理端点只在内网端口监听，Nginx 不转发（修复 fxsystem S3）
+management:
+  server:
+    port: ${FX_MANAGEMENT_PORT:8081}
+    address: 127.0.0.1
+  endpoints:
+    web:
+      exposure:
+        include: health,info
