@@ -21,6 +21,13 @@ public interface RiskApi {
   /** 自动强平开关；关闭后撮合引擎不再自动强平（止盈止损照常）。 */
   boolean autoLiquidationEnabled();
 
+  /**
+   * 通知风控人员（现在发邮件到 FX_RISK_ALERT_EMAILS；站内信和推送在 S15、S16）。给其他模块用，例如充值冲正挂账（F4）。
+   *
+   * @param template 邮件模板名
+   */
+  void notifyStaff(String template, java.util.Map<String, String> params);
+
   // ---------- 看板（只给后台） ----------
 
   /**

@@ -57,6 +57,8 @@ falconx:
         usdt-decimals: 6
         confirmations: 12
         block-seconds: 12
+        # 主网 USDT 每个区块有上百笔转账，每次少扫一些，避免节点服务的返回条数上限
+        scan-batch: 20
       BSC:
         rpc-url: ${FX_WALLET_BSC_RPC_URL:}
         usdt-contract: ${FX_WALLET_BSC_USDT_CONTRACT:}
@@ -64,12 +66,15 @@ falconx:
         usdt-decimals: 18
         confirmations: 15
         block-seconds: 3
+        scan-batch: 50
       TRC20:
         rpc-url: ${FX_WALLET_TRON_RPC_URL:}
         usdt-contract: ${FX_WALLET_TRC20_USDT_CONTRACT:}
         usdt-decimals: 6
         confirmations: 19
         block-seconds: 3
+        # TRON 按区块逐个查，每个区块 2 次请求
+        scan-batch: 10
   # 对象存储（证件照片）。现在是本地目录，正式环境在 S20 换成对象存储服务
   storage:
     local-dir: ${FX_STORAGE_DIR:./data/storage}

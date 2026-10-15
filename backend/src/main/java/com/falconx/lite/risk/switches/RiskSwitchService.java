@@ -28,11 +28,18 @@ class RiskSwitchService implements RiskApi {
   private final RiskSwitchMapper mapper;
   private final ExposureApi exposure;
   private final MarketApi market;
+  private final RiskAlerts alerts;
 
-  RiskSwitchService(RiskSwitchMapper mapper, ExposureApi exposure, MarketApi market) {
+  RiskSwitchService(RiskSwitchMapper mapper, ExposureApi exposure, MarketApi market, RiskAlerts alerts) {
     this.mapper = mapper;
     this.exposure = exposure;
     this.market = market;
+    this.alerts = alerts;
+  }
+
+  @Override
+  public void notifyStaff(String template, Map<String, String> params) {
+    alerts.send(template, params);
   }
 
   @Override

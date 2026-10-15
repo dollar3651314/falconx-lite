@@ -51,6 +51,8 @@ class DepositFlowTest {
   @Autowired TransactionTemplate tx;
   @Autowired JdbcTemplate jdbc;
   @Autowired MockMvc mvc;
+  @Autowired com.falconx.lite.trading.api.FundsApi funds;
+  @Autowired com.falconx.lite.risk.api.RiskApi risk;
   @MockitoBean MailApi mail;
 
   @AfterEach
@@ -195,10 +197,53 @@ class DepositFlowTest {
   void 没有配置USDT合约的链不扫块_F3() {
     var noContract = new WalletProperties(props.ethXpub(), props.tronXpub(), props.minDeposit(),
         Map.of(Chain.ERC20, new WalletProperties.ChainConfig(null, "", 6, 12, 12, 200, null)));
-    DepositService service = new DepositService(mapper, clients, addresses, ledger, noContract, tx);
+    DepositService service = new DepositService(mapper, clients, addresses, ledger, noContract, tx, funds, risk);
     FakeChain f = chain(Chain.ERC20, 8000);
     service.run(Chain.ERC20);
     assertThat(f.calls).isZero();
+  }
+
+  long creditedErc20(long uid, FakeChain f, long block, String amount) {
+    String to = addresses.addressOf(uid, Chain.ERC20).orElseThrow();
+    String tx = f.transfer(block, ERC20_USDT, to, usdt6(amount));
+    f.head = block + 11;
+    deposits.run(Chain.ERC20);
+    assertThat(status(Chain.ERC20, tx)).isEqualTo("CREDITED");
+    return jdbc.queryForObject("SELECT id FROM wallet_deposit WHERE tx_hash = ?", Long.class, tx);
+  }
+
+  @Test
+  void 入账后被回滚_可用余额够就全额冲正() {
+    long uid = newUser();
+    FakeChain f = chain(Chain.ERC20, 9000);
+    long id = creditedErc20(uid, f, 9000, "100");
+    assertThat(balance(uid)).isEqualByComparingTo("100");
+    f.reorg(9000);
+    deposits.run(Chain.ERC20);
+    assertThat(jdbc.queryForObject("SELECT status FROM wallet_deposit WHERE id = ?", String.class, id)).isEqualTo("REVERSED");
+    assertThat(balance(uid)).isEqualByComparingTo("0");
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_suspense WHERE deposit_id = ?", Integer.class, id)).isZero();
+    deposits.run(Chain.ERC20);
+    assertThat(balance(uid)).as("不会重复冲正").isEqualByComparingTo("0");
+  }
+
+  @Test
+  void 入账后被回滚_可用余额不够_不扣成负数_挂账并通知风控_AC09() {
+    long uid = newUser();
+    FakeChain f = chain(Chain.ERC20, 10000);
+    long id = creditedErc20(uid, f, 10000, "100");
+    // 客户已经用掉 80（这里用挂单冻结模拟），只剩 20 可以自由动用
+    ledger.apply(new com.falconx.lite.trading.api.LedgerCommand(uid, com.falconx.lite.trading.api.Bucket.ORDER_FROZEN, new BigDecimal("80"),
+        com.falconx.lite.trading.api.LedgerEntryType.ORDER_FREEZE, "TEST", "frz-" + uid, "测试冻结"));
+    com.falconx.lite.risk.api.RiskApi riskMock = org.mockito.Mockito.mock(com.falconx.lite.risk.api.RiskApi.class);
+    DepositService service = new DepositService(mapper, clients, addresses, ledger, props, tx, funds, riskMock);
+    f.reorg(10000);
+    service.run(Chain.ERC20);
+    assertThat(jdbc.queryForObject("SELECT status FROM wallet_deposit WHERE id = ?", String.class, id)).isEqualTo("REVERSED");
+    assertThat(balance(uid)).as("只扣了 20，挂单冻结的 80 还在").isEqualByComparingTo("80");
+    assertThat(ledger.snapshot(uid).orderFrozen()).isEqualByComparingTo("80");
+    assertThat(jdbc.queryForObject("SELECT amount FROM wallet_suspense WHERE deposit_id = ?", BigDecimal.class, id)).isEqualByComparingTo("80");
+    org.mockito.Mockito.verify(riskMock).notifyStaff(eq("DEPOSIT_SUSPENSE"), org.mockito.ArgumentMatchers.argThat(m -> "80.00000000".equals(m.get("shortfall"))));
   }
 
   @SuppressWarnings("unchecked")
@@ -219,5 +264,14 @@ class DepositFlowTest {
         .contains("{\"network\":\"BSC\",\"address\":\"" + eth + "\",\"confirmations\":15,\"etaMinutes\":1,\"minDeposit\":\"1\"}")
         .contains("{\"network\":\"TRC20\",\"address\":\"" + tron + "\",\"confirmations\":19,\"etaMinutes\":1,\"minDeposit\":\"1\"}");
     assertThat(mvc.perform(get("/api/wallet/addresses")).andReturn().getResponse().getStatus()).isEqualTo(401);
+    // 充值记录
+    FakeChain f = chain(Chain.TRC20, 11000);
+    String txHash = f.transfer(11000, TRC20_USDT, tron, usdt6("25.5"));
+    String small = f.transfer(11000, TRC20_USDT, tron, usdt6("0.5"));
+    f.head = 11005;
+    deposits.run(Chain.TRC20);
+    String list = mvc.perform(get("/api/wallet/deposits").cookie(c)).andReturn().getResponse().getContentAsString();
+    assertThat(list).contains("\"network\":\"TRC20\",\"txHash\":\"" + txHash + "\",\"amount\":\"25.5\",\"status\":\"pending\",\"confirmations\":6,\"requiredConfirmations\":19")
+        .contains("\"txHash\":\"" + small + "\",\"amount\":\"0.5\",\"status\":\"belowMin\"");
   }
 }

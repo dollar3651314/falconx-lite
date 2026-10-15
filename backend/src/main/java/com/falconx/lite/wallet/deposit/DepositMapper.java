@@ -28,5 +28,13 @@ interface DepositMapper {
   /** 只有待确认的能改，返回 1 表示这次改成功（防止重复入账） */
   int finish(@Param("id") long id, @Param("status") String status, @Param("confirmations") int confirmations);
 
+  /** 最近已入账的充值（区块号 ≥ minBlock），入账后继续核对是否被回滚 */
+  List<DepositRow> recentCredited(@Param("chain") String chain, @Param("minBlock") long minBlock);
+
+  /** 已入账 → 已冲正；返回 1 表示这次才改（防重复冲正） */
+  int markReversed(@Param("id") long id);
+
+  int insertSuspense(@Param("userId") long userId, @Param("depositId") long depositId, @Param("amount") BigDecimal amount, @Param("note") String note);
+
   List<DepositRow> byUser(@Param("userId") long userId, @Param("limit") int limit);
 }

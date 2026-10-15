@@ -1,6 +1,5 @@
 package com.falconx.lite.risk.switches;
 
-import com.falconx.lite.notification.api.MailApi;
 import com.falconx.lite.risk.api.RiskApi;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -21,13 +20,13 @@ class ExposureMonitor {
 
   private final RiskApi risk;
   private final RiskSwitchMapper mapper;
-  private final MailApi mail;
+  private final RiskAlerts alerts;
   private final RiskProperties props;
 
-  ExposureMonitor(RiskApi risk, RiskSwitchMapper mapper, MailApi mail, RiskProperties props) {
+  ExposureMonitor(RiskApi risk, RiskSwitchMapper mapper, RiskAlerts alerts, RiskProperties props) {
     this.risk = risk;
     this.mapper = mapper;
-    this.mail = mail;
+    this.alerts = alerts;
     this.props = props;
   }
 
@@ -63,14 +62,6 @@ class ExposureMonitor {
   }
 
   private void alert(String title, String symbol, String net, String threshold) {
-    log.warn("风控自动禁开：{} symbol={} net={} threshold={}", title, symbol, net, threshold);
-    var to = props.alertEmails().stream().filter(e -> e != null && !e.isBlank()).toList();
-    if (to.isEmpty()) {
-      log.warn("没有配置风控人员邮箱（falconx.risk.alert-emails），只记了日志和风控事件");
-      return;
-    }
-    for (String email : to) {
-      mail.send(email, "RISK_AUTO_PAUSE", Map.of("title", title, "symbol", symbol, "netUsd", net, "threshold", threshold));
-    }
+    alerts.send("RISK_AUTO_PAUSE", Map.of("title", title, "symbol", symbol, "netUsd", net, "threshold", threshold));
   }
 }
