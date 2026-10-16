@@ -1,6 +1,7 @@
 package com.falconx.lite.wallet.withdraw;
 
 import com.falconx.lite.account.api.AccountApi;
+import com.falconx.lite.common.ratelimit.UserWriteLimited;
 import com.falconx.lite.common.web.CurrentUser;
 import com.falconx.lite.trading.api.FundsApi;
 import com.falconx.lite.wallet.Chain;
@@ -55,11 +56,13 @@ class WithdrawController {
     return whitelist.list(CurrentUser.id()).stream().map(WithdrawController::view).toList();
   }
 
+  @UserWriteLimited
   @PostMapping("/api/wallet/whitelist")
   WhitelistView addWhitelist(@RequestBody AddWhitelist req) {
     return view(whitelist.add(CurrentUser.id(), req.network(), req.address(), req.label()));
   }
 
+  @UserWriteLimited
   @DeleteMapping("/api/wallet/whitelist/{id}")
   void removeWhitelist(@PathVariable long id) {
     whitelist.remove(CurrentUser.id(), id);
@@ -86,6 +89,7 @@ class WithdrawController {
     return m;
   }
 
+  @UserWriteLimited
   @PostMapping("/api/wallet/withdrawals")
   WithdrawalView submit(@RequestBody SubmitWithdraw req) {
     return view(withdraws.submit(CurrentUser.id(), req.whitelistId(), req.amount()));

@@ -16,6 +16,12 @@ falconx:
   # 测试都从 127.0.0.1 发请求、共用一个 Redis，按 IP 的发验证码限次（SEC-03）放大；限次本身在 SendCodeLimiterTest 里单独测
   auth:
     code-ip-hourly-limit: 1000000
+  # 通用限流（P-05）：测试都从 127.0.0.1 或少数几个 IP 发请求、共用一个 Redis，上限放大；限流本身在 RateLimitTest 里用很小的上限单独测
+  rate-limit:
+    ip-per-minute: 1000000
+    ws-handshake-per-minute: 1000000
+    user-write-per-minute: 1000000
+    admin-login-per-ip: 1000000
   # 测试里不启动模拟行情源，由测试直接喂报价
   market:
     source: none

@@ -1,5 +1,6 @@
 package com.falconx.lite.trading.order;
 
+import com.falconx.lite.common.ratelimit.UserWriteLimited;
 import com.falconx.lite.common.web.CurrentUser;
 import com.falconx.lite.market.api.MarketApi;
 import com.falconx.lite.market.api.SymbolSpec;
@@ -82,6 +83,7 @@ class TradingController {
         money(used), money(funds.available(a, ps)));
   }
 
+  @UserWriteLimited
   @PostMapping("/api/trading/orders")
   PlaceOrder.Result place(@RequestBody PlaceOrder req) {
     return orders.place(CurrentUser.id(), req);
@@ -100,6 +102,7 @@ class TradingController {
   }
 
   /** 全额平仓 */
+  @UserWriteLimited
   @PostMapping("/api/trading/positions/{id}/close")
   CloseView close(@PathVariable long id) {
     PositionService.Closed c = positions.close(CurrentUser.id(), id);
@@ -107,18 +110,21 @@ class TradingController {
   }
 
   /** 修改止盈止损；字段不传或为空表示取消 */
+  @UserWriteLimited
   @PutMapping("/api/trading/positions/{id}/tpsl")
   void tpSl(@PathVariable long id, @RequestBody TpSlRequest req) {
     positions.updateTpSl(CurrentUser.id(), id, req.takeProfit(), req.stopLoss());
   }
 
   /** 追加保证金，返回更新后的持仓（新强平价） */
+  @UserWriteLimited
   @PostMapping("/api/trading/positions/{id}/margin")
   PositionView addMargin(@PathVariable long id, @RequestBody MarginRequest req) {
     return view(positions.addMargin(CurrentUser.id(), id, req.amount()));
   }
 
   /** 修改挂单：限价、手数、止盈止损 */
+  @UserWriteLimited
   @PutMapping("/api/trading/orders/{id}")
   void modify(@PathVariable long id, @RequestBody OrderService.ModifyOrder req) {
     orders.modify(CurrentUser.id(), id, req);
@@ -207,6 +213,7 @@ class TradingController {
     }).toList();
   }
 
+  @UserWriteLimited
   @DeleteMapping("/api/trading/orders/{id}")
   void cancel(@PathVariable long id) {
     orders.cancel(CurrentUser.id(), id);

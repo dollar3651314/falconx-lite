@@ -457,6 +457,7 @@
     "permissionExceedsOwn": "You cannot assign or edit a role with permissions you do not have.",
     "positionNotOpen": "This position is already closed. Refresh to see the latest status.",
     "quoteUnavailable": "No tradable quote for this symbol right now. Try again later.",
+    "rateLimited": "Too many requests. Please try again later.",
     "reasonRequired": "A reason is required.",
     "reasonTooLong": "The reason is too long. Please shorten it.",
     "roleCodeTaken": "Role code already exists.",
