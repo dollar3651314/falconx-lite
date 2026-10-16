@@ -7,6 +7,8 @@ import { RiskPage } from './risk/RiskPage';
 import { CustomerListPage } from './customers/CustomerListPage';
 import { AdminsPage } from './system/AdminsPage';
 import { App } from '../App';
+import { TemplatesPage } from './notify/TemplatesPage';
+import * as db from '../mocks/data/db';
 
 afterEach(() => setScenario('normal'));
 
@@ -83,5 +85,27 @@ describe('权限演示', () => {
     await screen.findByText('lina');
     fireEvent.click(screen.getByRole('button', { name: /新增管理员/ }));
     expect(await screen.findByText('你不是超级管理员，不能分配"超级管理员"角色（该选项已禁用）。')).toBeInTheDocument();
+  });
+});
+
+describe('通知模板：品牌改名提醒（v2，《v2-需求说明书》第 8 节）', () => {
+  it('没有模板含旧品牌名时不提醒', async () => {
+    renderAs(<TemplatesPage />);
+    expect(await screen.findByText('email_code')).toBeInTheDocument();
+    expect(screen.queryByTestId('old-brand-hint')).toBeNull();
+  });
+
+  it('运营改过、仍含旧品牌名的模板：提醒运营检查', async () => {
+    const tpl = db.templates.find((t) => t.code === 'email_code')!;
+    const before = tpl.titleZh;
+    tpl.titleZh = 'Falcon' + 'X 验证码（运营改过）';
+    try {
+      renderAs(<TemplatesPage />);
+      const hint = await screen.findByTestId('old-brand-hint');
+      expect(hint).toHaveTextContent('旧品牌名');
+      expect(hint).toHaveTextContent('email_code');
+    } finally {
+      tpl.titleZh = before;
+    }
   });
 });

@@ -8,7 +8,8 @@
 #   写在本文件里而不是单独的 workflow_run 文件：workflow_run、schedule 只认默认分支（main）上的文件，staging 上不会触发。
 # v0.6：部署形态的端到端测试 e2e-deployed（同一个主流程，经过测试环境用的两个镜像、Nginx（HTTPS、两个域名）和 docker-compose.yml）；
 #   推镜像前必须通过。
-# v0.7（v2 官网）：web 矩阵加 site（lint、单元测试、真实和原型两种构建、真实构建不含模拟层）；端到端两种形态都构建官网并跑官网用例；镜像里带官网。
+# v0.7（v2 品牌改名）：两个前端的构建产物里不能有旧品牌名（scripts/check-brand.mjs，AC2-11）。
+# v0.8（v2 官网）：web 矩阵加 site（lint、单元测试、真实和原型两种构建、真实构建不含模拟层、没有旧品牌名）；端到端两种形态都构建官网并跑官网用例；镜像里带官网。
 name: ci
 on:
   pull_request:
@@ -65,11 +66,16 @@ jobs:
         run: npm run build
       - name: 真实接口模式的构建不含原型模拟层（src/mocks/）
         run: node ../../scripts/check-no-mocks.mjs src/mocks dist
+      - name: 构建产物里没有旧品牌名（v2 品牌改名，AC2-11）
+        run: node ../../scripts/check-brand.mjs dist
       - name: 原型模式构建（客户端和官网 VITE_API_MODE=mock，Vercel 原型站用）
         if: matrix.app == 'client' || matrix.app == 'site'
         run: npm run build
         env:
           VITE_API_MODE: mock
+      - name: 原型模式的构建产物里也没有旧品牌名
+        if: matrix.app == 'client' || matrix.app == 'site'
+        run: node ../../scripts/check-brand.mjs dist
       - name: 依赖安全检查（高危漏洞不允许）
         run: npm audit --audit-level=high --omit=dev
   backend:
