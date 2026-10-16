@@ -9,7 +9,7 @@
  */
 import { expect, request as apiRequest, test, type BrowserContext, type Page } from '@playwright/test';
 import { adminLogin, cjk, confirmAndWait, setConfig } from './admin';
-import { CLIENT_PASSWORD, e2e, expectNoHorizontalScroll, PNG_1PX, Recorder, selectTab, step, SYMBOL, trackSocketOpen, uniqueId, waitSocketOpen } from './support';
+import { CLIENT_PASSWORD, e2e, expectNoHorizontalScroll, expectNoHorizontalScrollWithScrollbar, PNG_1PX, Recorder, selectTab, step, SYMBOL, trackSocketOpen, uniqueId, waitSocketOpen } from './support';
 import { ADMIN_URL, CLIENT_URL, DEPLOYED, EXPECT_ENV_BANNER, STUB_URL } from './targets';
 
 const DEPOSIT = '1000';
@@ -131,24 +131,55 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
     });
 
     await step('客户：电脑最窄宽度 1024 各页面没有横向滚动（AC-31）', async () => {
-      // 以前行情页的宽表格在 1024 宽时右边到 1030px（长品种名不换行），这里把电脑版几个主要页面都走一遍
-      await page.setViewportSize({ width: 1024, height: 800 });
-      await page.goto('/markets');
-      await expect(page.locator('.mt-table tbody tr').first()).toBeVisible();
-      await expect(page.locator('.mt-table tbody tr').first()).not.toContainText('—', { timeout: 15_000 });
-      await expectNoHorizontalScroll(page, '1024 宽行情页');
-      for (const [path, where] of [
-        [`/trade/${SYMBOL}`, '1024 宽交易页'],
-        ['/positions', '1024 宽持仓页'],
-        ['/assets', '1024 宽资产页'],
-        ['/assets/ledger', '1024 宽资金流水'],
-      ] as const) {
-        await page.goto(path);
-        await expect(page.locator('.main')).toBeVisible();
-        await page.waitForLoadState('networkidle');
-        await expectNoHorizontalScroll(page, where);
+      // 以前行情页的宽表格在 1024 宽时右边到 1030px（长品种名不换行），这里把电脑版几个主要页面都走一遍。
+      // 必须用电脑浏览器的上下文：手机模拟（isMobile）下内容超宽时浏览器会把布局视口放大到内容宽度，scrollWidth 和 clientWidth 一样大，查不出来
+      const desk = await browser.newContext({ baseURL: CLIENT_URL, ignoreHTTPSErrors: DEPLOYED, viewport: { width: 1024, height: 800 }, locale: 'zh-CN', serviceWorkers: 'block', storageState: await client.storageState() });
+      try {
+        // 新库没有 K 线历史，"今日走势"一列只有"—"，比真实环境窄，查不出问题：这里给每个品种补一条走势（只影响这个上下文的显示）
+        await desk.route('**/api/market/sparklines', async (route) => {
+          const res = await route.fetch();
+          const real = (await res.json()) as Record<string, string[]>;
+          const symbols = (await (await desk.request.get('/api/market/symbols')).json()) as { code: string }[];
+          const fake = Object.fromEntries(symbols.map((s) => [s.code, real[s.code]?.length > 1 ? real[s.code] : Array.from({ length: 24 }, (_, i) => String(100 + Math.sin(i / 3) * 2))]));
+          await route.fulfill({ response: res, json: fake });
+        });
+        const d = await desk.newPage();
+        await d.goto('/markets');
+        await expect(d.locator('.mt-table svg.spark').first(), '走势图已显示').toBeVisible();
+        // 等第一行的卖价到了（报价没到时显示"—"，列宽和有价格时不同）
+        const firstBid = d.locator('.mt-table tbody tr').first().locator('td').nth(2);
+        await expect(firstBid).toBeVisible();
+        await expect(firstBid).not.toHaveText('—', { timeout: 15_000 });
+        await expectNoHorizontalScroll(d, '1024 宽行情页');
+        await expectNoHorizontalScrollWithScrollbar(d, '1024 宽行情页');
+        // 宽表格本身不能超出外面的面板（以前超出 6～22px：右边的"交易"一列压在面板边框外，内容多时把页面撑出横向滚动）
+        // 同样留出 15px 滚动条（见 expectNoHorizontalScrollWithScrollbar）
+        const fit = await d.evaluate(async () => {
+          const s = document.createElement('style');
+          s.textContent = 'html { margin-right: 15px !important; }';
+          document.head.appendChild(s);
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const t = document.querySelector('.mt-table')!.getBoundingClientRect();
+          const p = document.querySelector('.mt-panel')!.getBoundingClientRect();
+          s.remove();
+          return { table: Math.round(t.right), panel: Math.round(p.right) };
+        });
+        expect(fit.table, `1024 宽行情页（留出 15px 滚动条）：表格右边 ${fit.table}px 超出面板 ${fit.panel}px`).toBeLessThanOrEqual(fit.panel);
+        for (const [path, where] of [
+          [`/trade/${SYMBOL}`, '1024 宽交易页'],
+          ['/positions', '1024 宽持仓页'],
+          ['/assets', '1024 宽资产页'],
+          ['/assets/ledger', '1024 宽资金流水'],
+        ] as const) {
+          await d.goto(path);
+          await expect(d.locator('.main')).toBeVisible();
+          await d.waitForLoadState('networkidle');
+          await expectNoHorizontalScroll(d, where);
+          await expectNoHorizontalScrollWithScrollbar(d, where);
+        }
+      } finally {
+        await desk.close();
       }
-      await page.setViewportSize({ width: 390, height: 844 });
     });
 
     let address = '';

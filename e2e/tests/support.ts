@@ -162,6 +162,42 @@ export async function expectNoHorizontalScroll(page: Page, where: string): Promi
 }
 
 /**
+ * AC-31（电脑）：Windows 上 1024 宽的窗口有 15～17px 的竖向滚动条，页面实际只有约 1009px 宽，但媒体查询仍按 1024 算（仍是电脑版）。
+ * 测试用的无头浏览器不显示滚动条，这里给 html 右边留出 15px 模拟滚动条，再看主内容区（#main）里有没有元素超出 html 的右边。
+ * body 是 overflow-x: hidden，超出的部分不会出现滚动条而是被裁掉（同样不行），所以按元素位置判断；
+ * 本身可以横向滚动或裁剪的容器（例如持仓表格外面那层）里面的元素不算。
+ */
+export async function expectNoHorizontalScrollWithScrollbar(page: Page, where: string): Promise<void> {
+  const w = await page.evaluate(async () => {
+    const s = document.createElement('style');
+    s.textContent = 'html { margin-right: 15px !important; }';
+    document.head.appendChild(s);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const main = document.getElementById('main');
+    const edge = document.documentElement.getBoundingClientRect().right;
+    let right = 0;
+    let what = '';
+    for (const el of main ? main.querySelectorAll('*') : []) {
+      let clipped = false;
+      for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
+        if (getComputedStyle(a).overflowX !== 'visible') {
+          clipped = true;
+          break;
+        }
+      }
+      const b = el.getBoundingClientRect();
+      if (!clipped && b.width > 0 && b.right > right) {
+        right = b.right;
+        what = `${el.tagName.toLowerCase()}.${String(el.className).split(' ')[0]}`;
+      }
+    }
+    s.remove();
+    return { right: Math.round(right), edge: Math.round(edge), what };
+  });
+  expect(w.right, `${where}（留出 15px 滚动条）：${w.what} 右边到 ${w.right}px，超过页面宽 ${w.edge}px`).toBeLessThanOrEqual(w.edge);
+}
+
+/**
  * 切换到某个标签页，直到它真的被选中。
  * 手机上提示条（toast）从顶部滑入，会盖住持仓页的标签栏：平仓推送的"止盈平仓"提示恰好在点击时出现，点击就落在提示条上，
  * 标签没有切换（PR #46 的 CI 实际发生过）。真人会再点一次，这里同样重试，并检查 aria-selected。
