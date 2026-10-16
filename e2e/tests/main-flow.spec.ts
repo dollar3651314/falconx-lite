@@ -184,7 +184,9 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser, reque
       const list = page.locator('.ledger');
       await expect(list.getByText(/^充值( · |$)/).first()).toBeVisible();
       await expect(list.getByText(/^手续费( · |$)/).first()).toBeVisible();
-      await expect(list.getByText(/^平仓盈亏( · |$)/).first()).toBeVisible();
+      // E2E-3：显示品种代码，不显示平仓原因
+      await expect(list.getByText('平仓盈亏 · ETHUSD').first()).toBeVisible();
+      await expect(list.getByText(/平仓盈亏 · (CLOSED|TP|SL|LIQUIDATED)/)).toHaveCount(0);
       await expectNoHorizontalScroll(page, '资金流水页');
     });
 
