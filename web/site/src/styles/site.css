@@ -19,7 +19,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 /* ---------- Logo、按钮、语言切换 ---------- */
 .logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; letter-spacing: -0.01em; white-space: nowrap; }
-.logo .mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #22d3ee, #0891b2); color: #04121a; display: grid; place-items: center; font-weight: 900; font-size: 15px; flex: none; }
+.logo .mark { width: 28px; height: 28px; flex: none; display: block; }
 .btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 22px; border-radius: var(--r-md); font-weight: 700; font-size: 15px; white-space: nowrap; transition: background-color 0.15s; }
 .btn.pri { background: var(--primary); color: #fff; }
 .btn.pri:hover { background: var(--primary-hover); }

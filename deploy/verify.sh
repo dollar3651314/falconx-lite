@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 从外部确认测试环境部署成功（S20，部署方案 v1.1 第 8 节）。在任何能上网的机器上运行，不需要登录服务器：
 #   bash deploy/verify.sh test-app.<域名> test-admin.<域名> [期望的提交号] [官网域名 test-www.<域名>]
-# 检查：版本、HTTPS 和证书、跳转、不该开放的路径和端口、页面能打开、测试环境标识；给了官网域名时再检查官网（AC2-10，部署方案第 11 节）。
+# 检查：版本、HTTPS 和证书、跳转、不该开放的路径和端口、页面能打开、测试环境标识；给了官网域名时再检查官网（AC2-10，部署方案第 14 节）。
 # 只检查官网、不核对提交号时，第三个参数写 ""（例如 verify.sh test-app.x test-admin.x "" test-www.x）。
 # 真实 IP（伪造 X-Forwarded-For 不起作用）、WebSocket、冒烟流程要在浏览器里手动确认，见部署方案第 8 节。
 set -uo pipefail
@@ -41,7 +41,7 @@ done
 if [ -n "$www" ]; then
   echo "== 官网 $www"
   [ "$(code "http://$www/")" = 301 ] && ok "http 跳转到 https" || bad "官网 http 没有跳转"
-  if curl -s -o /dev/null --max-time 10 "https://$www/"; then ok "$www 证书有效"; else bad "$www 证书无效或无法访问（证书里有没有这个域名？见部署方案第 11 节）"; fi
+  if curl -s -o /dev/null --max-time 10 "https://$www/"; then ok "$www 证书有效"; else bad "$www 证书无效或无法访问（证书里有没有这个域名？见部署方案第 14 节）"; fi
   page=$(curl -s --max-time 10 "https://$www/" || true)
   case "$page" in *"Quick Come"*) ok "官网首页能打开" ;; *) bad "官网首页打不开或不是官网" ;; esac
   case "$page" in *"content=\"https://$app\""*) ok "注册、登录跳到 https://$app" ;; *) bad "官网页面里的客户端地址不是 https://$app" ;; esac

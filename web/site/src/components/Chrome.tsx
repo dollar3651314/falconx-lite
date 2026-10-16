@@ -1,7 +1,7 @@
 /**
  * 每个页面都有的部分：测试环境标识、顶部风险提示条、导航（电脑、手机两套）、页脚、手机底部固定的"登录 | 免费注册"。
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { fetchEnvLabel } from '../api/envLabel';
 import { Link } from '../app/router';
 import { clientLink, CONTACT_EMAIL } from '../config';
@@ -36,12 +36,25 @@ export function RiskBar({ short }: { short?: boolean }) {
   );
 }
 
+/**
+ * 文字 Logo（F2-1）：和客户端 web/client/src/components/Icon.tsx 的 Logo / Brand 同一个图形（青色渐变圆角方块 + 深色"Q"），
+ * 也和 public/favicon.svg 一致；客户端改图形时同步改这里。
+ */
 export function Logo() {
+  const id = `qc-g-${useId().replace(/:/g, '')}`;
   return (
     <Link to="home" className="logo" data-testid="logo">
-      <span className="mark" aria-hidden="true">
-        Q
-      </span>
+      <svg className="mark" width={28} height={28} viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#22d3ee" />
+            <stop offset="1" stopColor="#0891b2" />
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="112" fill={`url(#${id})`} />
+        <circle cx="248" cy="240" r="112" fill="none" stroke="#04121a" strokeWidth="56" />
+        <path d="M318 310 384 376" stroke="#04121a" strokeWidth="60" strokeLinecap="round" />
+      </svg>
       <span className="word">Quick Come</span>
     </Link>
   );

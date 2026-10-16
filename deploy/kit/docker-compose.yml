@@ -20,7 +20,7 @@ services:
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?缺少 APP_DOMAIN}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?缺少 ADMIN_DOMAIN}
-      # 官网（v2，部署方案第 11 节）。已有服务器的 .env 还没加时用一个不会被访问到的占位域名，Nginx 照常启动，官网那一段不生效
+      # 官网（v2，部署方案第 14 节）。已有服务器的 .env 还没加时用一个不会被访问到的占位域名，Nginx 照常启动，官网那一段不生效
       WWW_DOMAIN: ${WWW_DOMAIN:-www-not-configured.invalid}
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro

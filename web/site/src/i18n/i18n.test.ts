@@ -33,7 +33,7 @@ describe('官网翻译文件（AC2-05）', () => {
   });
 
   it('英文里没有中文残留，中文里的占位符和英文一致', () => {
-    expect(enKeys.filter((k) => /[　-〿一-鿿＀-￯]/.test(value(en, k)))).toEqual([]);
+    expect(enKeys.filter((k) => /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/.test(value(en, k)))).toEqual([]);
     const ph = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
     expect(zhKeys.filter((k) => ph(value(zh, k)).join() !== ph(value(en, k)).join())).toEqual([]);
   });

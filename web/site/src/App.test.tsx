@@ -47,7 +47,7 @@ describe('官网首页（原型模式，模拟行情）', () => {
     expect(document.documentElement.lang).toBe('en');
     // 英文页面上除了语言切换的"中"以外没有中文
     const text = (document.body.textContent || '').replace('中', '');
-    expect(text).not.toMatch(/[一-鿿]/);
+    expect(text).not.toMatch(/[\u4e00-\u9fff]/);
   });
 
   it('电脑：顶部导航有登录和注册，行情面板有表头和走势列', async () => {

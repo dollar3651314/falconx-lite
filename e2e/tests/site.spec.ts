@@ -9,7 +9,7 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { expectNoHorizontalScroll, Recorder, step } from './support';
 import { CLIENT_URL, EXPECT_ENV_BANNER, SITE_URL } from './targets';
 
-const CJK = /[一-鿿]/;
+const CJK = /[\u4e00-\u9fff]/;
 /** 公开行情允许的字段（AC2-03） */
 const TOP_KEYS = ['items', 'sample'];
 const ITEM_KEYS = ['bid', 'changePct', 'nameEn', 'nameZh', 'status', 'symbol', 'time'];

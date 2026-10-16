@@ -1,7 +1,7 @@
 import { LEGAL } from './legal';
 import { LEGAL_PAGES } from '../lib/route';
 
-const CJK = /[　-〿一-鿿＀-￯]/;
+const CJK = /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/;
 const text = (d: (typeof LEGAL)['terms']['en']) => [d.title, ...d.intro, ...d.sections.flatMap((s) => [s.h, ...s.p])].join('\n');
 
 describe('法律页样板（AC2-08、F2-6）', () => {

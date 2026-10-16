@@ -32,7 +32,7 @@ b64url() { base64 -w0 | tr '+/' '-_' | tr -d '='; }
   set_if_empty ADMIN_DOMAIN "$2"
   set_if_empty CERT_EMAIL "$3"
 }
-# 官网域名（v2，可选的第 4 个参数；部署方案第 11 节）
+# 官网域名（v2，可选的第 4 个参数；部署方案第 14 节）
 [ $# -ge 4 ] && set_if_empty WWW_DOMAIN "$4"
 
 set_if_empty MYSQL_ROOT_PASSWORD "$(rand 24)"
