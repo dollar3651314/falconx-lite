@@ -42,6 +42,7 @@ public class QuoteProcessor {
   private final MarketProperties props;
   private final QualityGuard guard;
   private final QuoteBook book = new QuoteBook();
+  private final RecentTicks ticks = new RecentTicks();
   private final List<QuoteListener> listeners = new CopyOnWriteArrayList<>();
   private final Set<String> changed = ConcurrentHashMap.newKeySet();
   private final ExecutorService[] stripes = new ExecutorService[STRIPES];
@@ -96,6 +97,7 @@ public class QuoteProcessor {
     var markup = spec.get().markup();
     MarketQuote mq = new MarketQuote(q.symbol(), q.bid().subtract(markup), q.ask().add(markup), QualityGuard.mid(q.bid(), q.ask()), q.time(), st, true);
     book.put(mq);
+    ticks.add(q.symbol(), new RecentTicks.Tick(q.time(), mq.bid(), mq.ask()));
     klines.accept(q.symbol(), mq.mid(), q.time());
     changed.add(q.symbol());
     for (QuoteListener l : listeners) {
@@ -129,6 +131,11 @@ public class QuoteProcessor {
 
   public QuoteBook book() {
     return book;
+  }
+
+  /** 某个品种最近 limit 笔报价（Tick 图），只在内存里，见 {@link RecentTicks} */
+  public List<RecentTicks.Tick> recentTicks(String symbol, int limit) {
+    return ticks.recent(symbol, limit);
   }
 
   public Optional<MarketQuote> latest(String symbol) {

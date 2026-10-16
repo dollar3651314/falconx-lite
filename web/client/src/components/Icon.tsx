@@ -1,4 +1,7 @@
 /** 线性图标（内联 SVG，不加载外部资源）。路径取自效果图。 */
+import { useId } from 'react';
+import { BRAND_NAME } from '../lib/brand';
+
 const PATHS = {
   home: 'M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
   markets: 'M4 19V9M10 19V5M16 19v-7M22 19H2',
@@ -47,12 +50,33 @@ export function Icon({ name, size = 20, strokeWidth = 1.9, className }: { name: 
   );
 }
 
-/** 品牌标志：几何化的猎鹰（与效果图一致） */
-export function Logo({ size = 30 }: { size?: number }) {
+/**
+ * Quick Come 文字 Logo 的图形部分（v2，《v2-官网风格调研》方向 A：青色渐变圆角方块 + 深色"Q"）。
+ * 和 public/favicon.svg、PWA 图标是同一个图形；文字"Quick Come"由调用方写在后面（见 Brand）。
+ */
+export function Logo({ size = 28 }: { size?: number }) {
+  const id = `qc-g-${useId().replace(/:/g, '')}`;
   return (
-    <svg width={size} height={(size * 96) / 160} viewBox="0 0 160 96" aria-hidden="true" focusable="false">
-      <path d="M80 39 10 8l28 45-24 35 66-28 66 28-24-35 28-45-70 31Z" fill="currentColor" />
-      <path d="M80 52 66 75h28L80 52Z" fill="currentColor" opacity=".88" />
+    <svg className="logo-mark" width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#22d3ee" />
+          <stop offset="1" stopColor="#0891b2" />
+        </linearGradient>
+      </defs>
+      <rect width="512" height="512" rx="112" fill={`url(#${id})`} />
+      <circle cx="248" cy="240" r="112" fill="none" stroke="#04121a" strokeWidth="56" />
+      <path d="M318 310 384 376" stroke="#04121a" strokeWidth="60" strokeLinecap="round" />
     </svg>
+  );
+}
+
+/** 品牌：图形 + "Quick Come" 文字（品牌名不翻译） */
+export function Brand() {
+  return (
+    <>
+      <Logo />
+      <span className="brand-word">{BRAND_NAME}</span>
+    </>
   );
 }

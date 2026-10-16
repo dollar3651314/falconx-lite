@@ -4,11 +4,12 @@ import com.falconx.lite.market.api.MarketApi;
 import com.falconx.lite.market.api.SymbolSpec;
 import com.falconx.lite.market.kline.Bar;
 import com.falconx.lite.market.quote.QuoteBook;
+import com.falconx.lite.market.quote.RecentTicks;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 
-/** 返回给客户端的格式，和前端 src/api/types.ts 的 SymbolInfo、Quote、Kline 一致。价格按品种小数位输出成字符串。 */
+/** 返回给客户端的格式，和前端 src/api/types.ts 的 SymbolInfo、Quote、Kline、Tick 一致。价格按品种小数位输出成字符串。 */
 final class Views {
   private Views() {}
 
@@ -19,6 +20,9 @@ final class Views {
   record QuoteView(String symbol, String bid, String ask, String open, String high, String low, String quoteToUsd, String time) {}
 
   record KlineView(long time, String open, String high, String low, String close, String volume) {}
+
+  /** Tick 图的一笔：time 是毫秒级 Unix 时间戳，bid、ask 已含加点 */
+  record TickView(long time, String bid, String ask) {}
 
   static String plain(BigDecimal v) {
     return v.stripTrailingZeros().toPlainString();
@@ -43,6 +47,10 @@ final class Views {
 
   static KlineView kline(Bar b, int digits) {
     return new KlineView(b.time(), price(b.open(), digits), price(b.high(), digits), price(b.low(), digits), price(b.close(), digits), String.valueOf(b.ticks()));
+  }
+
+  static TickView tick(RecentTicks.Tick t, int digits) {
+    return new TickView(t.time().toEpochMilli(), price(t.bid(), digits), price(t.ask(), digits));
   }
 
   static boolean open(MarketApi market, String code) {

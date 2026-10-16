@@ -467,7 +467,7 @@ const tplSeeds: TplSeed[] = [
   { code: 'margin_call', zh: '追保预警', en: 'Margin call', tZh: '保证金不足提醒', tEn: 'Margin call', bZh: '{symbol} 持仓保证金水平已降至 {level}%，请及时追加保证金。', bEn: 'Margin level of your {symbol} position fell to {level}%. Please add margin.', vars: ['symbol', 'level'] },
   { code: 'liquidated', zh: '强平通知', en: 'Liquidation', tZh: '持仓已被强平', tEn: 'Position liquidated', bZh: '{symbol} 持仓已于 {price} 强制平仓。', bEn: 'Your {symbol} position was liquidated at {price}.', vars: ['symbol', 'price'] },
   { code: 'kyc_result', zh: 'KYC 结果', en: 'KYC result', tZh: '身份认证结果', tEn: 'Verification result', bZh: '您的身份认证{result}。{reason}', bEn: 'Your identity verification was {result}. {reason}', vars: ['result', 'reason'] },
-  { code: 'email_code', zh: '邮箱验证码', en: 'Email code', tZh: 'FalconX 验证码', tEn: 'FalconX verification code', bZh: '您的验证码是 {code}，10 分钟内有效。', bEn: 'Your code is {code}. It expires in 10 minutes.', vars: ['code'], channels: ['email'] },
+  { code: 'email_code', zh: '邮箱验证码', en: 'Email code', tZh: 'Quick Come 验证码', tEn: 'Quick Come verification code', bZh: '您的验证码是 {code}，10 分钟内有效。', bEn: 'Your code is {code}. It expires in 10 minutes.', vars: ['code'], channels: ['email'] },
   { code: 'risk_auto_block', zh: '风控：自动禁开（发给风控人员）', en: 'Risk: auto block (to risk staff)', tZh: '品种已自动禁止新开仓', tEn: 'Symbol auto-blocked', bZh: '{symbol} 净敞口 {net} USD 超过阈值 {threshold} USD，已自动禁止新开仓。', bEn: '{symbol} net exposure {net} USD exceeded {threshold} USD; new positions blocked.', vars: ['symbol', 'net', 'threshold'] },
   { code: 'reversal_shortfall', zh: '冲正挂账（发给风控人员）', en: 'Reversal shortfall (to risk staff)', tZh: '冲正余额不足，已挂账', tEn: 'Reversal shortfall recorded', bZh: '客户 {customerId} 的入金 {txHash} 被链上回滚，余额不足，已生成挂账。', bEn: 'Deposit {txHash} of customer {customerId} was reversed; shortfall recorded.', vars: ['customerId', 'txHash'] },
   { code: 'promo_weekend', zh: '周末行情提醒', en: 'Weekend market notice', tZh: '周末休市提醒', tEn: 'Weekend market closure', bZh: '外汇和贵金属将于周六 05:00 休市，请留意持仓风险。', bEn: 'Forex and metals close at 05:00 Saturday. Please mind your positions.', vars: [], builtIn: false, channels: ['inbox'] },
@@ -531,15 +531,15 @@ export const roles: Role[] = [
 ];
 
 export const admins: AdminUser[] = [
-  { id: 1, username: 'amos', displayName: 'Amos', email: 'amos@falconx.example', roleIds: ['R-1'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(3), createdAt: '2026-09-01 10:00:00' },
-  { id: 2, username: 'lina', displayName: '李娜', email: 'lina@falconx.example', roleIds: ['R-2'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(12), createdAt: '2026-09-03 09:12:00' },
-  { id: 3, username: 'wangwu', displayName: '王五', email: 'wangwu@falconx.example', roleIds: ['R-3'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(40), createdAt: '2026-09-03 09:20:00' },
-  { id: 4, username: 'zhaoqiang', displayName: '赵强', email: 'zhaoqiang@falconx.example', roleIds: ['R-2'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(300), createdAt: '2026-09-05 14:00:00' },
-  { id: 5, username: 'chen.finance', displayName: '陈会计', email: 'chen.finance@falconx.example', roleIds: ['R-4'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(60 * 26), createdAt: '2026-09-08 11:00:00' },
-  { id: 6, username: 'newbie', displayName: '新同事', email: 'newbie@falconx.example', roleIds: ['R-2'], status: 'active', mustChangePassword: true, lastLoginAt: null, createdAt: '2026-10-14 09:00:00' },
-  { id: 7, username: 'liu.risk', displayName: '刘风控', email: 'liu.risk@falconx.example', roleIds: ['R-3'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(60 * 5), createdAt: '2026-09-10 10:00:00' },
-  { id: 8, username: 'old.ops', displayName: '离职运营（已禁用）', email: 'old.ops@falconx.example', roleIds: ['R-2'], status: 'disabled', mustChangePassword: false, lastLoginAt: '2026-09-28 18:00:00', createdAt: '2026-09-02 10:00:00' },
-  { id: 9, username: 'sunny.ops.with.a.very.long.username', displayName: 'Sunny Wong-Featherstonehaugh', email: 'sunny.ops@falconx.example', roleIds: ['R-2'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(60 * 50), createdAt: '2026-09-15 10:00:00' },
+  { id: 1, username: 'amos', displayName: 'Amos', email: 'amos@quickcome.example', roleIds: ['R-1'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(3), createdAt: '2026-09-01 10:00:00' },
+  { id: 2, username: 'lina', displayName: '李娜', email: 'lina@quickcome.example', roleIds: ['R-2'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(12), createdAt: '2026-09-03 09:12:00' },
+  { id: 3, username: 'wangwu', displayName: '王五', email: 'wangwu@quickcome.example', roleIds: ['R-3'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(40), createdAt: '2026-09-03 09:20:00' },
+  { id: 4, username: 'zhaoqiang', displayName: '赵强', email: 'zhaoqiang@quickcome.example', roleIds: ['R-2'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(300), createdAt: '2026-09-05 14:00:00' },
+  { id: 5, username: 'chen.finance', displayName: '陈会计', email: 'chen.finance@quickcome.example', roleIds: ['R-4'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(60 * 26), createdAt: '2026-09-08 11:00:00' },
+  { id: 6, username: 'newbie', displayName: '新同事', email: 'newbie@quickcome.example', roleIds: ['R-2'], status: 'active', mustChangePassword: true, lastLoginAt: null, createdAt: '2026-10-14 09:00:00' },
+  { id: 7, username: 'liu.risk', displayName: '刘风控', email: 'liu.risk@quickcome.example', roleIds: ['R-3'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(60 * 5), createdAt: '2026-09-10 10:00:00' },
+  { id: 8, username: 'old.ops', displayName: '离职运营（已禁用）', email: 'old.ops@quickcome.example', roleIds: ['R-2'], status: 'disabled', mustChangePassword: false, lastLoginAt: '2026-09-28 18:00:00', createdAt: '2026-09-02 10:00:00' },
+  { id: 9, username: 'sunny.ops.with.a.very.long.username', displayName: 'Sunny Wong-Featherstonehaugh', email: 'sunny.ops@quickcome.example', roleIds: ['R-2'], status: 'active', mustChangePassword: false, lastLoginAt: minutesAgo(60 * 50), createdAt: '2026-09-15 10:00:00' },
 ];
 
 // ---------------- 审计日志 ----------------

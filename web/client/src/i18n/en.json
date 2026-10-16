@@ -83,7 +83,7 @@
     "sellShort": "Sell"
   },
   "auth": {
-    "loginTitle": "Log in to FalconX",
+    "loginTitle": "Log in to Quick Come",
     "loginSubtitle": "USDT-margined CFD trading",
     "loginProtoHint": "Prototype: any email and password logs in. Use password wrongpass1 to see \"wrong password\", or an email containing \"locked\" to see \"account locked\".",
     "email": "Email",
@@ -164,7 +164,8 @@
     "removeFav": "Remove from favorites",
     "emptyFav": "No favorites yet",
     "emptyFavHint": "Tap the star in the list to add one",
-    "bidAsk": "Bid / Ask"
+    "bidAsk": "Bid / Ask",
+    "ticker": "Hot symbols"
   },
   "trade": {
     "change": "Change",
@@ -185,7 +186,15 @@
     "close": "C",
     "empty": "No chart data",
     "aria": "{{symbol}} {{tf}} candlestick chart",
-    "credit": "Charts by the open-source Lightweight Charts™ library, ©"
+    "credit": "Charts by the open-source Lightweight Charts™ library, ©",
+    "bid": "Bid",
+    "ask": "Ask",
+    "tick": "Tick",
+    "tickMid": "Mid",
+    "ariaTick": "{{symbol}} tick chart (recent mid prices)",
+    "emptyTick": "No ticks yet. They appear as new quotes arrive",
+    "indicators": "Indicators",
+    "bidAsk": "Bid/Ask lines"
   },
   "order": {
     "title": "Order",
@@ -508,7 +517,7 @@
     "logout": "Log out",
     "logoutTitle": "Log out",
     "logoutBody": "Log out of this account?",
-    "version": "FalconX Lite · Prototype v0.1",
+    "version": "Quick Come · v2.0",
     "upDown": "Up / down colors",
     "upDownGreen": "Green up, red down",
     "upDownRed": "Red up, green down"

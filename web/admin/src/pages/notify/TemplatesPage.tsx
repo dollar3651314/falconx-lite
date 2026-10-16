@@ -1,5 +1,7 @@
 /**
  * 通知模板：列表和编辑。内置模板只能改文案，不能禁用（禁用会导致出金结算等流程失败）。
+ * v2 品牌改名：数据库迁移 V20 只改了仍是原始默认文字的内置模板；运营改过的保留原样，这里提醒运营检查文案里还有旧品牌名的模板
+ * （《v2-需求说明书》第 8 节）。
  */
 import { useCallback, useState } from 'react';
 import { Alert, Button, Drawer, Form, Input, Space, Switch, Tooltip } from 'antd';
@@ -16,6 +18,10 @@ import { PermButton } from '../../components/PermButton';
 import { Pill } from '../../components/Pill';
 import { Num } from '../../components/Num';
 import { localName, shortTime } from '../../utils/display';
+
+/** 旧品牌名（写成正则，构建产物里不出现旧品牌名的原文，scripts/check-brand.mjs） */
+const OLD_BRAND = /falcon\s*x/i;
+const hasOldBrand = (r: NotifyTemplate) => OLD_BRAND.test([r.titleZh, r.bodyZh, r.titleEn, r.bodyEn].join('\n'));
 
 type EditValues = Pick<NotifyTemplate, 'titleZh' | 'bodyZh' | 'titleEn' | 'bodyEn' | 'enabled'>;
 
@@ -43,12 +49,14 @@ export function TemplatesPage() {
     if (ok) setEditing(null);
   };
 
+  const oldBrand = (data ?? []).filter(hasOldBrand).map((r) => r.code);
   const required = [{ required: true, whitespace: true, message: t('validation.required') }];
 
   return (
     <>
       <PageHeader title={t('templates.title')} sub={t('templates.sub')} />
       <Alert type="info" showIcon icon={<LockOutlined />} message={t('templates.builtInHint')} />
+      {oldBrand.length ? <Alert type="warning" showIcon style={{ marginTop: 8 }} data-testid="old-brand-hint" message={t('templates.oldBrandHint', { codes: oldBrand.join(i18n.language.startsWith('zh') ? '、' : ', ') })} /> : null}
       <DataTable<NotifyTemplate>
         rowKey="id"
         loading={loading}
