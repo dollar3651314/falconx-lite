@@ -757,6 +757,9 @@
     "sub": "Isolated positions; rows below 100% margin level are highlighted",
     "title": "Positions"
   },
+  "env": {
+    "banner": "Test environment · Testing only, not real funds"
+  },
   "proto": {
     "banner": "Prototype · Simulated data, actions take no real effect",
     "identity": {

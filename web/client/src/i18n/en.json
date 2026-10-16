@@ -32,6 +32,9 @@
     "main": "Main navigation",
     "positions": "Positions"
   },
+  "env": {
+    "banner": "Test environment · Testing only, not real funds"
+  },
   "proto": {
     "banner": "Prototype · Simulated data, actions have no real effect",
     "title": "Prototype",

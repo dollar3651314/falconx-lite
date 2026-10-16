@@ -7,6 +7,7 @@ import com.falconx.lite.common.task.TaskStatus;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -14,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * 发送邮件任务（{@code MAIL_SEND}）和推送任务（{@code PUSH_SEND}，S15b）。失败按任务表的规则退避重试，最多 5 次，仍失败把通知记录标为失败。
  * 发给客户的邮件在发送时才查邮箱（客户改了邮箱也发到新邮箱）。日志不打印邮件内容（可能有验证码）。
+ * 测试环境（{@code FX_ENV_LABEL} 非空）发出的邮件和推送，标题前加"[测试] / [TEST] "（{@link EnvLabel}）。
  */
 @Component
 class NotifyWorker {
@@ -28,14 +30,17 @@ class NotifyWorker {
   private final AccountApi accounts;
   private final ObjectMapper json;
   private final WebPush webPush;
+  private final EnvLabel envLabel;
 
-  NotifyWorker(TaskService tasks, NotifyMapper mapper, MailTransport transport, AccountApi accounts, ObjectMapper json, WebPush webPush) {
+  NotifyWorker(TaskService tasks, NotifyMapper mapper, MailTransport transport, AccountApi accounts, ObjectMapper json, WebPush webPush,
+      @Value("${falconx.env-label:}") String envLabel) {
     this.tasks = tasks;
     this.mapper = mapper;
     this.transport = transport;
     this.accounts = accounts;
     this.json = json;
     this.webPush = webPush;
+    this.envLabel = new EnvLabel(envLabel);
   }
 
   /** 把到期的邮件和推送任务全部发完，返回处理的数量 */
@@ -73,9 +78,15 @@ class NotifyWorker {
         Rows.TemplateRow tpl = mapper.template(code);
         if (tpl == null) throw new IllegalStateException("模板不存在：" + code);
         Map<String, String> params = json.convertValue(p.getOrDefault("params", Map.of()), PARAMS);
-        text = p.get("lang") instanceof String lang ? Render.render(tpl, params, lang) : Render.bilingual(tpl, params);
+        if (p.get("lang") instanceof String lang) {
+          Render.Text r = Render.render(tpl, params, lang);
+          text = new Render.Text(envLabel.prefix(lang) + r.title(), r.body());
+        } else {
+          text = Render.bilingual(tpl, params, envLabel.zh(), envLabel.en());
+        }
       } else {
-        text = new Render.Text(String.valueOf(p.get("subject")), String.valueOf(p.get("body")));
+        // 后台手写的邮件：不知道是什么语言
+        text = new Render.Text(envLabel.prefix(null) + p.get("subject"), String.valueOf(p.get("body")));
       }
       transport.send(to, text.title(), text.body());
       tasks.succeed(t.id());
@@ -115,10 +126,12 @@ class NotifyWorker {
       if (p.get("template") instanceof String code) {
         Rows.TemplateRow tpl = mapper.template(code);
         if (tpl == null) throw new IllegalStateException("模板不存在：" + code);
-        text = Render.render(tpl, json.convertValue(p.getOrDefault("params", Map.of()), PARAMS), String.valueOf(p.get("lang")));
+        String lang = String.valueOf(p.get("lang"));
+        Render.Text r = Render.render(tpl, json.convertValue(p.getOrDefault("params", Map.of()), PARAMS), lang);
+        text = new Render.Text(envLabel.prefix(lang) + r.title(), r.body());
         urgent = "MARGIN_CALL".equals(code) || "LIQUIDATED".equals(code);
       } else {
-        text = new Render.Text(String.valueOf(p.get("subject")), String.valueOf(p.get("body")));
+        text = new Render.Text(envLabel.prefix(null) + p.get("subject"), String.valueOf(p.get("body")));
       }
       byte[] plaintext = pushPayload(text, p.get("kind"), p.get("messageId"));
       WebPush.Result r = webPush.send(sub.endpoint, WebPushCrypto.b64(sub.p256dh), WebPushCrypto.b64(sub.auth), plaintext, urgent);

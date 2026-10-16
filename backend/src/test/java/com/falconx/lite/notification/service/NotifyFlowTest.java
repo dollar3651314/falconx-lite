@@ -144,7 +144,7 @@ class NotifyFlowTest extends NotifyTestSupport {
     MailTransport broken = (to, subject, body) -> {
       throw new jakarta.mail.MessagingException("连接被拒绝");
     };
-    NotifyWorker failing = new NotifyWorker(tasks, mapper, broken, accounts, json, webPush);
+    NotifyWorker failing = new NotifyWorker(tasks, mapper, broken, accounts, json, webPush, "");
     notify.toUser(u.id(), "DEPOSIT_CREDITED", Map.of("amount", "1", "chain", "BSC"));
     long rid = jdbc.queryForObject("SELECT id FROM notify_record WHERE user_id = ? AND channel = 'EMAIL'", Long.class, u.id());
     long task = taskOf(rid);
@@ -164,7 +164,7 @@ class NotifyFlowTest extends NotifyTestSupport {
     long rid2 = jdbc.queryForObject("SELECT MAX(id) FROM notify_record WHERE user_id = ? AND channel = 'EMAIL'", Long.class, u.id());
     long task2 = taskOf(rid2);
     jdbc.update("UPDATE common_task SET status = 'RUNNING', attempts = attempts + 1 WHERE id = ?", task2);
-    new NotifyWorker(tasks, mapper, none, accounts, json, webPush).handle(tasks.find(task2));
+    new NotifyWorker(tasks, mapper, none, accounts, json, webPush, "").handle(tasks.find(task2));
     assertThat(mapper.record(rid2).status).isEqualTo("FAILED");
     assertThat(mapper.record(rid2).error).isEqualTo("邮件未配置");
     assertThat(tasks.find(task2).status()).isEqualTo(TaskStatus.SUCCEEDED);

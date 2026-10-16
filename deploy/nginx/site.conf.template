@@ -1,0 +1,94 @@
+# 测试环境站点（S20，部署方案 v1.1 第 4 节）。${APP_DOMAIN}、${ADMIN_DOMAIN} 在容器启动时由 .env 替换；
+# Nginx 自己的变量（例如 $host）不受影响（只替换已定义的环境变量）。
+# 证书：一张 Let's Encrypt 证书同时包含两个域名，名字固定为 falconx（first-start.sh 申请，certbot 自动续期）。
+
+# 80：只用于申请证书和跳转到 HTTPS
+server {
+  listen 80 default_server;
+  server_name _;
+  location /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+  }
+  location / {
+    return 301 https://$host$request_uri;
+  }
+}
+
+# 不认识的域名（例如直接用 IP 访问 443）：直接断开
+server {
+  listen 443 ssl default_server;
+  ssl_reject_handshake on;
+}
+
+# 客户端：test-app.<域名>
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name ${APP_DOMAIN};
+  ssl_certificate /etc/letsencrypt/live/falconx/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/falconx/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  include /etc/nginx/snippets/security.inc;
+
+  root /usr/share/nginx/client;
+
+  # 后台接口只在后台域名开放；端到端测试接口、应用管理端点一律不转发
+  location /api/admin/ { return 404; }
+  location /api/e2e/ { return 404; }
+  location /actuator { return 404; }
+
+  location /api/ws/ {
+    include /etc/nginx/snippets/proxy.inc;
+    proxy_read_timeout 1h;
+  }
+  location /api/ {
+    include /etc/nginx/snippets/proxy.inc;
+    proxy_read_timeout 120s;
+  }
+
+  # 带文件名哈希的静态资源长期缓存；页面、Service Worker、manifest 每次都检查更新
+  location /assets/ {
+    expires 30d;
+  }
+  location ~ ^/(index\.html|sw\.js|push-sw\.js|registerSW\.js|manifest\.webmanifest)$ {
+    expires -1;
+  }
+  location / {
+    expires -1;
+    try_files $uri $uri/ /index.html;
+  }
+}
+
+# 后台：test-admin.<域名>（页面在 /admin/，和构建时的 base 一致）
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name ${ADMIN_DOMAIN};
+  ssl_certificate /etc/letsencrypt/live/falconx/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/falconx/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  include /etc/nginx/snippets/security.inc;
+
+  root /usr/share/nginx;
+
+  location = / {
+    return 302 /admin/;
+  }
+  location /api/admin/ {
+    include /etc/nginx/snippets/proxy.inc;
+    proxy_read_timeout 120s;
+  }
+  location = /api/health {
+    include /etc/nginx/snippets/proxy.inc;
+  }
+  location /admin/assets/ {
+    expires 30d;
+  }
+  location /admin/ {
+    expires -1;
+    try_files $uri $uri/ /admin/index.html;
+  }
+  location / {
+    return 404;
+  }
+}

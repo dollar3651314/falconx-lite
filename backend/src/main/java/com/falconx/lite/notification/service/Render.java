@@ -54,11 +54,11 @@ final class Render {
     return new Text(fill(en ? t.titleEn : t.titleZh, params, en), fill(en ? t.bodyEn : t.bodyZh, params, en));
   }
 
-  /** 不知道收件人语言时（按邮箱发的邮件）：中英文各一份 */
-  static Text bilingual(Rows.TemplateRow t, Map<String, String> params) {
+  /** 不知道收件人语言时（按邮箱发的邮件）：中英文各一份；中英文标题前各加一个前缀（测试环境标识，{@link EnvLabel}，没有时传空串） */
+  static Text bilingual(Rows.TemplateRow t, Map<String, String> params, String zhPrefix, String enPrefix) {
     Text zh = render(t, params, ZH);
     Text en = render(t, params, EN);
-    return new Text(zh.title() + " | " + en.title(), zh.body() + "\n\n----------\n\n" + en.body());
+    return new Text(zhPrefix + zh.title() + " | " + enPrefix + en.title(), zh.body() + "\n\n----------\n\n" + en.body());
   }
 
   static String fill(String text, Map<String, String> params, boolean en) {
