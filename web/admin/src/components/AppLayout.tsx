@@ -13,6 +13,7 @@ import { useAuth } from '../auth/AuthContext';
 import { IS_MOCK, getMenuBadges, type ProtoIdentity } from '../api';
 import type { MenuBadges } from '../api/types';
 import { setLanguage } from '../i18n';
+import { EnvBanner } from './EnvBanner';
 import { ProtoBanner } from './ProtoBanner';
 import { ScenarioPanel } from './ScenarioPanel';
 import { Logo } from './Logo';
@@ -111,6 +112,7 @@ export function AppLayout() {
   return (
     <Layout className="app-shell">
       <ProtoBanner />
+      <EnvBanner />
       <Layout.Header className="app-header">
         {!isDesktop ? (
           <Button type="text" icon={<MenuOutlined />} aria-label={t('menu.open')} onClick={() => setDrawerOpen(true)} className="hamburger" />

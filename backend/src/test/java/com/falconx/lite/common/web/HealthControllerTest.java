@@ -27,7 +27,8 @@ class HealthControllerTest {
   void 健康检查报告应用数据库和Redis都可用() throws Exception {
     HttpResponse<String> r = get("/api/health");
     assertThat(r.statusCode()).isEqualTo(200);
-    assertThat(r.body()).contains("\"status\":\"UP\"").contains("\"db\":\"UP\"").contains("\"redis\":\"UP\"").contains("\"version\":\"0.1.0-SNAPSHOT\"");
+    assertThat(r.body()).contains("\"status\":\"UP\"").contains("\"db\":\"UP\"").contains("\"redis\":\"UP\"").contains("\"version\":\"0.1.0-SNAPSHOT\"")
+        .as("没有设置 FX_ENV_LABEL 时不返回 env").doesNotContain("\"env\"");
   }
 
   @Test

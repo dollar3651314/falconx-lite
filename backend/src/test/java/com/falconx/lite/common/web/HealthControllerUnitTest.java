@@ -22,7 +22,7 @@ class HealthControllerUnitTest {
     when(jdbc.queryForObject(anyString(), any(Class.class))).thenThrow(new DataAccessResourceFailureException("connection refused 10.0.0.5:3306"));
     RedisConnectionFactory redis = mock(RedisConnectionFactory.class);
     when(redis.getConnection()).thenReturn(mock(RedisConnection.class));
-    var r = new HealthController(jdbc, redis, "test", java.util.List.of()).health();
+    var r = new HealthController(jdbc, redis, "test", "", java.util.List.of()).health();
     assertThat(r.getStatusCode().value()).isEqualTo(503);
     assertThat(r.getBody()).containsEntry("status", "DOWN").containsEntry("db", "DOWN").containsEntry("redis", "UP");
     assertThat(r.getBody().toString()).doesNotContain("10.0.0.5");
@@ -34,7 +34,7 @@ class HealthControllerUnitTest {
     when(jdbc.queryForObject(anyString(), any(Class.class))).thenReturn(1);
     RedisConnectionFactory redis = mock(RedisConnectionFactory.class);
     when(redis.getConnection()).thenThrow(new RedisConnectionFailureException("down"));
-    var r = new HealthController(jdbc, redis, "test", java.util.List.of()).health();
+    var r = new HealthController(jdbc, redis, "test", "", java.util.List.of()).health();
     assertThat(r.getStatusCode().value()).isEqualTo(503);
     assertThat(r.getBody()).containsEntry("db", "UP").containsEntry("redis", "DOWN");
   }
@@ -49,8 +49,24 @@ class HealthControllerUnitTest {
       public String name() { return "wallet"; }
       public boolean ok() { return false; }
     };
-    var r = new HealthController(jdbc, redis, "test", java.util.List.of(wallet)).health();
+    var r = new HealthController(jdbc, redis, "test", "", java.util.List.of(wallet)).health();
     assertThat(r.getStatusCode().value()).isEqualTo(503);
     assertThat(r.getBody()).containsEntry("status", "DOWN").containsEntry("wallet", "DOWN").containsEntry("db", "UP");
+  }
+
+  @Test
+  void 设置了测试环境标识时返回env字段_没设置时不返回() {
+    JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    when(jdbc.queryForObject(anyString(), any(Class.class))).thenReturn(1);
+    RedisConnectionFactory redis = mock(RedisConnectionFactory.class);
+    when(redis.getConnection()).thenReturn(mock(RedisConnection.class));
+    var test = new HealthController(jdbc, redis, "a1b2c3d", " test ", java.util.List.of()).health();
+    assertThat(test.getStatusCode().value()).isEqualTo(200);
+    assertThat(test.getBody()).containsEntry("version", "a1b2c3d").containsEntry("env", "test");
+    assertThat(test.getBody().keySet()).containsExactly("status", "version", "env", "db", "redis");
+    var prod = new HealthController(jdbc, redis, "a1b2c3d", "", java.util.List.of()).health();
+    assertThat(prod.getBody()).as("生产不设，返回和以前一样").doesNotContainKey("env");
+    assertThat(prod.getBody().keySet()).containsExactly("status", "version", "db", "redis");
+    assertThat(new HealthController(jdbc, redis, "x", null, java.util.List.of()).health().getBody()).doesNotContainKey("env");
   }
 }

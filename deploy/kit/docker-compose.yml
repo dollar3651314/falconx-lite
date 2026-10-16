@@ -1,0 +1,133 @@
+# 测试环境的容器（S20，部署方案 v1.1 第 4 节）。放在服务器 /opt/falconx/，由 deploy.sh 用两个变量文件启动：
+#   .env               ← 密钥和域名，只由 Amos 填（变量名见 env.example），权限 600
+#   state/image.env    ← 当前版本 IMAGE_TAG=<提交号>（deploy.sh、rollback.sh 写）
+# 内存上限按 2 核 2G 服务器设置（部署方案第 2 节）；数据库、Redis、后端端口都不对公网开放。
+name: falconx
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 50m
+    max-file: "3"
+
+services:
+  web:
+    image: ghcr.io/dollar3651314/falconx-lite-web:${IMAGE_TAG:?缺少 IMAGE_TAG}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?缺少 APP_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?缺少 ADMIN_DOMAIN}
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on:
+      - app
+    mem_limit: 64m
+    logging: *logging
+
+  app:
+    image: ghcr.io/dollar3651314/falconx-lite-app:${IMAGE_TAG:?缺少 IMAGE_TAG}
+    restart: unless-stopped
+    # 只给本机的部署脚本做健康检查，不对公网开放（云防火墙也只开 80、443）
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      FX_DB_URL: jdbc:mysql://mysql:3306/falconx?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true
+      FX_DB_USERNAME: falconx
+      FX_DB_PASSWORD: ${FX_DB_PASSWORD:?缺少 FX_DB_PASSWORD}
+      FX_REDIS_HOST: redis
+      FX_REDIS_PASSWORD: ${FX_REDIS_PASSWORD:?缺少 FX_REDIS_PASSWORD}
+      FX_COOKIE_SECURE: "true"
+      FX_ENV_LABEL: test
+      FX_MARKET_SOURCE: ${FX_MARKET_SOURCE:-simulated}
+      FX_ADMIN_INIT_USERNAME: ${FX_ADMIN_INIT_USERNAME:-}
+      FX_ADMIN_INIT_PASSWORD: ${FX_ADMIN_INIT_PASSWORD:-}
+      FX_MAIL_HOST: ${FX_MAIL_HOST:-}
+      FX_MAIL_PORT: ${FX_MAIL_PORT:-587}
+      FX_MAIL_SECURITY: ${FX_MAIL_SECURITY:-STARTTLS}
+      FX_MAIL_USERNAME: ${FX_MAIL_USERNAME:-}
+      FX_MAIL_PASSWORD: ${FX_MAIL_PASSWORD:-}
+      FX_MAIL_FROM: ${FX_MAIL_FROM:-}
+      FX_PUSH_VAPID_PUBLIC_KEY: ${FX_PUSH_VAPID_PUBLIC_KEY:-}
+      FX_PUSH_VAPID_PRIVATE_KEY: ${FX_PUSH_VAPID_PRIVATE_KEY:-}
+      FX_PUSH_VAPID_SUBJECT: ${FX_PUSH_VAPID_SUBJECT:-}
+      FX_RISK_ALERT_EMAILS: ${FX_RISK_ALERT_EMAILS:-}
+      # 区块链（D4 第二步才填，全部用测试网）；没配置的链不扫块
+      FX_WALLET_ETH_XPUB: ${FX_WALLET_ETH_XPUB:-}
+      FX_WALLET_TRON_XPUB: ${FX_WALLET_TRON_XPUB:-}
+      FX_WALLET_ETH_RPC_URL: ${FX_WALLET_ETH_RPC_URL:-}
+      FX_WALLET_BSC_RPC_URL: ${FX_WALLET_BSC_RPC_URL:-}
+      FX_WALLET_TRON_RPC_URL: ${FX_WALLET_TRON_RPC_URL:-}
+      FX_WALLET_ERC20_USDT_CONTRACT: ${FX_WALLET_ERC20_USDT_CONTRACT:-}
+      FX_WALLET_BSC_USDT_CONTRACT: ${FX_WALLET_BSC_USDT_CONTRACT:-}
+      FX_WALLET_TRC20_USDT_CONTRACT: ${FX_WALLET_TRC20_USDT_CONTRACT:-}
+      FX_WALLET_ERC20_CHAIN_ID: ${FX_WALLET_ERC20_CHAIN_ID:-11155111}
+      FX_WALLET_BSC_CHAIN_ID: ${FX_WALLET_BSC_CHAIN_ID:-97}
+      FX_WALLET_ETH_HOT_KEY: ${FX_WALLET_ETH_HOT_KEY:-}
+      FX_WALLET_TRON_HOT_KEY: ${FX_WALLET_TRON_HOT_KEY:-}
+      FX_WALLET_ETH_HOT_ADDRESS: ${FX_WALLET_ETH_HOT_ADDRESS:-}
+      FX_WALLET_TRON_HOT_ADDRESS: ${FX_WALLET_TRON_HOT_ADDRESS:-}
+    volumes:
+      - ./data/storage:/data/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # 单实例：停机时先停止接收新订单、处理完队列再退出（架构方案 3.3 ⑦）
+    stop_grace_period: 60s
+    mem_limit: 768m
+    memswap_limit: 1g
+    logging: *logging
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?缺少 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: falconx
+      MYSQL_USER: falconx
+      MYSQL_PASSWORD: ${FX_DB_PASSWORD:?缺少 FX_DB_PASSWORD}
+      TZ: UTC
+    # 2G 内存：调小缓存、关闭性能监控（部署方案第 2 节）
+    command:
+      - --innodb-buffer-pool-size=256M
+      - --performance-schema=OFF
+      - --max-connections=60
+      - --innodb-log-buffer-size=8M
+      - --key-buffer-size=8M
+      - --tmp-table-size=16M
+      - --max-heap-table-size=16M
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    mem_limit: 450m
+    memswap_limit: 700m
+    logging: *logging
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    # 密码从容器的环境变量读，不写进 compose 的命令行
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --maxmemory 64mb --maxmemory-policy noeviction --save 300 10"]
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${FX_REDIS_PASSWORD:?缺少 FX_REDIS_PASSWORD}
+    mem_limit: 96m
+    logging: *logging

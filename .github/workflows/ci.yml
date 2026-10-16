@@ -4,6 +4,8 @@
 # v0.2：项目地图和索引检查、密钥扫描；客户端和后台的 lint、单元测试、构建、依赖安全检查。
 # v0.3（S2）：后端 Maven 测试，用 GitHub 的 MySQL、Redis 服务容器（C37）。
 # v0.4（S19）：端到端测试（Playwright），后端以 e2e profile 启动，外部服务全部用替身。
+# v0.5（S20）：推送到 staging 且前面的检查全部通过后，构建镜像推到 GitHub 私有镜像仓库；测试服务器每分钟自己来拉（部署方案 v1.1 D1）。
+#   写在本文件里而不是单独的 workflow_run 文件：workflow_run、schedule 只认默认分支（main）上的文件，staging 上不会触发。
 name: ci
 on:
   pull_request:
@@ -174,3 +176,70 @@ jobs:
       - name: 停止后端
         if: always()
         run: kill "$(cat e2e/logs/backend.pid)" 2> /dev/null || true
+  publish-staging:
+    # 只在合并到 staging（push）并且上面的检查全部通过时运行；PR 上不运行
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    needs: [checks, web, backend, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write   # 推镜像到 GitHub 私有镜像仓库（ghcr.io），用本次运行自带的临时令牌，不需要另存密钥
+    env:
+      REG: ghcr.io/dollar3651314/falconx-lite
+      SHA: ${{ github.sha }}
+      # 测试环境客户端地址（例如 https://test-app.<域名>），在仓库 Settings → Variables 里设；没设时跳过"等待生效"
+      STAGING_APP_URL: ${{ vars.FX_STAGING_APP_URL }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/client/package-lock.json
+            web/admin/package-lock.json
+      - name: 构建后端 jar（测试已在 backend、e2e 里跑过）
+        run: mvn -B -ntp -f backend package -DskipTests
+      - name: 构建两个前端（真实接口模式，不设 VITE_API_MODE）
+        run: |
+          npm ci --prefix web/client --no-audit --no-fund && npm run build --prefix web/client
+          npm ci --prefix web/admin --no-audit --no-fund && npm run build --prefix web/admin
+      - name: 构建镜像（标签 = 提交号）
+        run: |
+          docker build -f deploy/app.Dockerfile --build-arg FX_VERSION="$SHA" -t "$REG-app:$SHA" .
+          docker build -f deploy/web.Dockerfile --build-arg FX_VERSION="$SHA" -t "$REG-web:$SHA" .
+      - name: 推送镜像（先推版本号标签，最后才移动 app 的 staging 标签，服务器看到 staging 变化时两个镜像都已就绪）
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$REG-web:$SHA"
+          docker push "$REG-app:$SHA"
+          docker tag "$REG-web:$SHA" "$REG-web:staging" && docker push "$REG-web:staging"
+          docker tag "$REG-app:$SHA" "$REG-app:staging" && docker push "$REG-app:staging"
+      - name: 镜像仓库只保留最近 10 个版本（H4）
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: falconx-lite-app
+          package-type: container
+          min-versions-to-keep: 10
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: falconx-lite-web
+          package-type: container
+          min-versions-to-keep: 10
+      - name: 等测试环境换成这个版本（最多 15 分钟；不成功时本次运行失败，GitHub 会发邮件）
+        if: env.STAGING_APP_URL != ''
+        run: |
+          for _ in $(seq 1 90); do
+            v=$(curl -sf --max-time 5 "$STAGING_APP_URL/api/health" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' || true)
+            if [ "$v" = "$SHA" ]; then echo "测试环境已是 $SHA"; exit 0; fi
+            sleep 10
+          done
+          echo "15 分钟内测试环境没有换成 $SHA（当前：${v:-无法访问}）。服务器上看 /opt/falconx/logs/deploy.log" >&2
+          exit 1
+

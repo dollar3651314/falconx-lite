@@ -1,5 +1,5 @@
 /**
- * 登录后的整体布局：顶部原型横幅（只在 mock 模式）；手机为底部 5 个导航（行情 / 交易 / 持仓 / 资产 / 我的，U4），
+ * 登录后的整体布局：顶部原型横幅（只在 mock 模式）或测试环境标识条（只在 real 模式且后端返回了 env，S20）；手机为底部 5 个导航（行情 / 交易 / 持仓 / 资产 / 我的，U4），
  * 桌面（≥1024）为顶部导航（持仓在交易页里，不单列）。
  */
 import type { ReactNode } from 'react';
@@ -10,6 +10,7 @@ import { useAccount } from '../app/contexts';
 import { useUnread } from '../hooks/useUnread';
 import { formatAmount, formatPercent } from '../lib/format';
 import { marginLevelTone } from '../lib/trading';
+import { EnvBanner } from './EnvBanner';
 import { Icon, Logo, type IconName } from './Icon';
 import { ProtoPanel } from './ProtoPanel';
 import { PushListener } from './PushListener';
@@ -64,6 +65,7 @@ export function Layout() {
   return (
     <div className="app">
       <ProtoBanner />
+      <EnvBanner />
       <header className="topnav">
         <NavLink to="/markets" className="brand" aria-label="FalconX">
           <Logo />

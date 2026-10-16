@@ -6,6 +6,7 @@ import { Alert, App, Button, Form, Input } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth/AuthContext';
+import { EnvBanner } from '../components/EnvBanner';
 import { ProtoBanner } from '../components/ProtoBanner';
 import { Logo } from '../components/Logo';
 import { errorText } from '../utils/errors';
@@ -44,6 +45,7 @@ export function ChangePasswordPage() {
   return (
     <div>
       <ProtoBanner />
+      <EnvBanner />
       <main className="login-wrap">
         <div className="card login-card" style={{ maxWidth: 420 }}>
           <Logo />
