@@ -8,7 +8,7 @@
  * 两个前端顶部有"测试环境"标识条。
  */
 import { expect, request as apiRequest, test, type BrowserContext, type Page } from '@playwright/test';
-import { adminLogin, cjk, setConfig } from './admin';
+import { adminLogin, cjk, confirmAndWait, setConfig } from './admin';
 import { CLIENT_PASSWORD, e2e, expectNoHorizontalScroll, PNG_1PX, Recorder, step, SYMBOL, trackSocketOpen, uniqueId, waitSocketOpen } from './support';
 import { ADMIN_URL, CLIENT_URL, DEPLOYED, EXPECT_ENV_BANNER, STUB_URL } from './targets';
 
@@ -157,7 +157,7 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await expect(adminPage.getByText(email)).toBeVisible();
       await expect(adminPage.getByRole('img', { name: '证件正面' })).toBeVisible();
       await adminPage.getByRole('button', { name: cjk('通过') }).click();
-      await adminPage.locator('.ant-modal-confirm').getByRole('button', { name: cjk('通过') }).click();
+      await confirmAndWait(adminPage, cjk('通过'), '/review');
       await expect(adminPage.locator('.ant-tag, .pill').getByText('已通过').first()).toBeVisible();
     });
 
@@ -252,8 +252,7 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       withdrawalId = ((await detail.locator('h3 .num').innerText()) || '').trim();
       expect(withdrawalId).toMatch(/^\d+$/);
       await detail.getByRole('button', { name: cjk('通过') }).click();
-      await adminPage.locator('.ant-modal-confirm').getByRole('button', { name: cjk('通过') }).click();
-      await expect(adminPage.getByText('已通过').first()).toBeVisible();
+      await confirmAndWait(adminPage, cjk('通过'), `/api/admin/withdrawals/${withdrawalId}/approve`);
       await expect(page.locator('.wd-recs li').first()).toContainText('上链中');
     });
 

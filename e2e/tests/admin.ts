@@ -73,3 +73,20 @@ export async function setConfig(page: Page, key: string, value: string): Promise
   );
   expect(r.ok, `设置 ${key}=${value} 返回 ${r.status} ${r.text}`).toBeTruthy();
 }
+
+/**
+ * 后台的确认弹窗：等弹出动画结束再点确定，并等这次操作的接口返回成功。
+ * 原因（2026-10-16 CI 偶发失败）：弹窗还在弹出动画里时点"通过"，点击没有生效、接口没有发出，
+ * 而后面"页面上有'已通过'"的检查又匹配到了别的文字，结果卡在下一步、看不出原因。现在点击丢失会在这里直接报错。
+ */
+export async function confirmAndWait(page: Page, okName: RegExp, urlPart: string): Promise<void> {
+  const dialog = page.locator('.ant-modal-confirm');
+  await expect(dialog).toBeVisible();
+  // antd 的弹出动画结束后，.ant-modal 上不再有 *-appear / *-enter 类
+  await expect(page.locator('.ant-modal[class*="-appear"], .ant-modal[class*="-enter"]')).toHaveCount(0);
+  const done = page.waitForResponse((r) => r.url().includes(urlPart) && r.request().method() === 'POST', { timeout: 15_000 });
+  await dialog.getByRole('button', { name: okName }).click();
+  const res = await done;
+  expect(res.ok(), `${urlPart} 返回 ${res.status()}`).toBe(true);
+  await expect(dialog).toBeHidden();
+}
