@@ -218,7 +218,7 @@
     "protoHintFirst": "账号 amos 为超级管理员；lina 为运营；wangwu 为风控；用 newbie 登录可演示\"首次登录强制改密\"。",
     "pwdChanged": "密码已修改，其他设备上的登录已失效",
     "pwdRule": "至少 {{min}} 位，同时包含字母和数字",
-    "securityNote": "连续输错 5 次将锁定 30 分钟；正式环境只允许白名单 IP 访问。",
+    "securityNote": "连续输错 5 次将锁定 30 分钟。",
     "submitPassword": "保存新密码",
     "tempPassword": "临时密码",
     "username": "账号",

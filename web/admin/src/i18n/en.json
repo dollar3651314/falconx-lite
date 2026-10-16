@@ -218,7 +218,7 @@
     "protoHintFirst": "amos = super admin; lina = operations; wangwu = risk. Sign in as newbie to see the forced first-login password change.",
     "pwdChanged": "Password changed; other sessions were signed out",
     "pwdRule": "At least {{min}} characters, with letters and digits",
-    "securityNote": "5 wrong attempts lock the account for 30 minutes; production only allows whitelisted IPs.",
+    "securityNote": "5 wrong attempts lock the account for 30 minutes.",
     "submitPassword": "Save new password",
     "tempPassword": "Temporary password",
     "username": "Username",
