@@ -24,7 +24,8 @@ function load(): ProtoState {
   }
 }
 
-let state: ProtoState = load();
+// 标成纯调用：真实接口模式的构建没有用到 state 时整句去掉（读 localStorage 不算需要保留的副作用）
+let state: ProtoState = /* @__PURE__ */ load();
 let version = 0;
 const listeners = new Set<() => void>();
 

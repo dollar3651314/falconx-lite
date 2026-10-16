@@ -45,14 +45,17 @@ class AuthService {
   /**
    * 发验证码。注册：邮箱已注册时直接提示；重置密码：邮箱不存在时假装已发送，不暴露哪些邮箱注册过。
    * 先按 IP 限次（安全审查 SEC-03），邮箱存不存在都算一次。
+   *
+   * @return 下次可以重发前要等的秒数
    */
-  void sendCode(String rawEmail, EmailCodeService.Purpose purpose, String ip) {
+  int sendCode(String rawEmail, EmailCodeService.Purpose purpose, String ip) {
     if (!codeLimiter.allow(ip)) throw new BizException("CODE_TOO_FREQUENT", "发送太频繁，请稍后再试");
     String email = normalizeEmail(rawEmail);
     boolean exists = mapper.findUserByEmail(email) != null;
     if (purpose == EmailCodeService.Purpose.REGISTER && exists) throw new BizException("EMAIL_TAKEN", "邮箱已注册");
-    if (purpose == EmailCodeService.Purpose.RESET_PASSWORD && !exists) return;
-    codes.send(email, purpose);
+    // 找回密码时邮箱不存在：不发，但返回和发了一样的结果，不暴露邮箱是否注册过
+    if (purpose == EmailCodeService.Purpose.RESET_PASSWORD && !exists) return codes.cooldownSeconds();
+    return codes.send(email, purpose);
   }
 
   /** 注册：建用户、资料、交易账户，返回用户 ID。同一个事务。 */

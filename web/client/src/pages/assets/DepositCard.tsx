@@ -108,8 +108,9 @@ const RECENT = 5;
 function DepositRecords() {
   const { t } = useTranslation();
   const s = useAsync(listDeposits, 'deposits');
+  // 发现待确认的充值时后端就推 deposit 事件（E2E-2），不用刷新页面就能看到"待确认"和确认进度
   useServerEvent((e) => {
-    if (e.type === 'account' || (e.type === 'notification' && e.item.kind === 'deposit')) s.reload();
+    if (e.type === 'deposit' || e.type === 'account' || (e.type === 'notification' && e.item.kind === 'deposit')) s.reload();
   });
   const label = (d: DepositRecord) => (d.status === 'pending' ? t('deposit.status.pending', { n: d.confirmations, m: d.requiredConfirmations }) : t(`deposit.status.${d.status}`));
   return (

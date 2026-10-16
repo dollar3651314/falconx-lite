@@ -28,8 +28,8 @@ export const changePassword: typeof real.changePassword = IS_MOCK ? mock.changeP
 /** GET /api/admin/me（当前管理员、角色、权限点、可见菜单）。模拟层按 adminId 取演示身份 */
 export const getCurrentAdmin = (adminId?: number): ReturnType<typeof real.getCurrentAdmin> =>
   IS_MOCK ? mock.getCurrentAdmin(adminId ?? 1) : real.getCurrentAdmin();
-/** 原型专用：切换演示身份（正式版没有这个接口） */
-export const switchIdentity = mock.switchIdentity;
+/** 原型专用：切换演示身份（正式版没有这个接口；真实接口模式下调用直接失败，也不会打包模拟层） */
+export const switchIdentity: typeof mock.switchIdentity = IS_MOCK ? mock.switchIdentity : () => Promise.reject(new Error('原型专用：真实接口模式没有切换演示身份'));
 
 // ---- 仪表盘 ----
 /** GET /api/admin/dashboard */
@@ -182,9 +182,17 @@ export const listSystemConfigs: typeof real.listSystemConfigs = IS_MOCK ? mock.l
 export const updateSystemConfig: typeof real.updateSystemConfig = IS_MOCK ? mock.updateSystemConfig : real.updateSystemConfig;
 
 // ---- 原型场景（只在 mock 模式下有界面入口） ----
-export const proto = {
-  getScenario: runtime.getScenario,
-  setScenario: runtime.setScenario,
-  subscribeScenario: runtime.subscribeScenario,
-  getScenarioVersion: runtime.getScenarioVersion,
-};
+// 真实接口模式下恒为"正常数据"、版本号恒为 0；按编译期常量选，real 构建不打包模拟层（vite.config.ts 的 mockFree）
+export const proto: Pick<typeof runtime, 'getScenario' | 'setScenario' | 'subscribeScenario' | 'getScenarioVersion'> = IS_MOCK
+  ? {
+      getScenario: runtime.getScenario,
+      setScenario: runtime.setScenario,
+      subscribeScenario: runtime.subscribeScenario,
+      getScenarioVersion: runtime.getScenarioVersion,
+    }
+  : {
+      getScenario: () => 'normal',
+      setScenario: () => {},
+      subscribeScenario: () => () => {},
+      getScenarioVersion: () => 0,
+    };

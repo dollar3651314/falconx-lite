@@ -66,7 +66,9 @@ class AuthFlowTest {
   /** 发验证码并从邮件替身里取出验证码 */
   @SuppressWarnings("unchecked")
   private String sendCode(String email, String purpose) throws Exception {
-    assertThat(call(post("/api/auth/email-code"), ip(), null, "{\"email\":\"" + email + "\",\"purpose\":\"" + purpose + "\"}").getStatus()).isEqualTo(204);
+    MockHttpServletResponse sent = call(post("/api/auth/email-code"), ip(), null, "{\"email\":\"" + email + "\",\"purpose\":\"" + purpose + "\"}");
+    assertThat(sent.getStatus()).isEqualTo(200);
+    assertThat(sent.getContentAsString()).isEqualTo("{\"cooldownSeconds\":60}");
     ArgumentCaptor<Map<String, String>> params = ArgumentCaptor.forClass(Map.class);
     verify(mail, atLeastOnce()).send(eq(email), eq("EMAIL_CODE"), params.capture());
     return params.getValue().get("code");
@@ -149,7 +151,19 @@ class AuthFlowTest {
     assertThat(call(post("/api/auth/email-code"), ip(), null, "{\"email\":\"" + email + "\",\"purpose\":\"REGISTER\"}").getContentAsString()).contains("EMAIL_TAKEN");
     String other = email();
     sendCode(other, "REGISTER");
-    assertThat(call(post("/api/auth/email-code"), ip(), null, "{\"email\":\"" + other + "\",\"purpose\":\"REGISTER\"}").getStatus()).isEqualTo(429);
+    MockHttpServletResponse again = call(post("/api/auth/email-code"), ip(), null, "{\"email\":\"" + other + "\",\"purpose\":\"REGISTER\"}");
+    assertThat(again.getStatus()).isEqualTo(429);
+    // 429 也返回还要等多少秒（1–60），客户端按它倒计时，不写死 60 秒
+    assertThat(again.getContentAsString()).contains("\"code\":\"CODE_TOO_FREQUENT\"").containsPattern("\"cooldownSeconds\":([1-9]|[1-5][0-9]|60)[,}]");
+    long left = Long.parseLong(again.getContentAsString().replaceAll(".*\"cooldownSeconds\":(\\d+).*", "$1"));
+    assertThat(again.getHeader("Retry-After")).isEqualTo(String.valueOf(left));
+    // 已经过了 45 秒：只剩 15 秒左右
+    jdbc.update("UPDATE account_email_code SET created_at = DATE_SUB(created_at, INTERVAL 45 SECOND) WHERE email = ?", other);
+    String body = call(post("/api/auth/email-code"), ip(), null, "{\"email\":\"" + other + "\",\"purpose\":\"REGISTER\"}").getContentAsString();
+    long later = Long.parseLong(body.replaceAll(".*\"cooldownSeconds\":(\\d+).*", "$1"));
+    assertThat(later).isBetween(13L, 15L);
+    // 其他错误不带 cooldownSeconds
+    assertThat(call(post("/api/auth/email-code"), ip(), null, "{\"email\":\"" + email + "\",\"purpose\":\"REGISTER\"}").getContentAsString()).doesNotContain("cooldownSeconds");
   }
 
   @Test
@@ -230,6 +244,9 @@ class AuthFlowTest {
 
   @Test
   void 重置密码时邮箱不存在也返回成功_不暴露哪些邮箱注册过() throws Exception {
-    assertThat(call(post("/api/auth/email-code"), ip(), null, "{\"email\":\"" + email() + "\",\"purpose\":\"RESET_PASSWORD\"}").getStatus()).isEqualTo(204);
+    // 没注册过的邮箱：不发，但返回和发了一样的结果（不暴露邮箱是否注册过）
+    MockHttpServletResponse unknown = call(post("/api/auth/email-code"), ip(), null, "{\"email\":\"" + email() + "\",\"purpose\":\"RESET_PASSWORD\"}");
+    assertThat(unknown.getStatus()).isEqualTo(200);
+    assertThat(unknown.getContentAsString()).isEqualTo("{\"cooldownSeconds\":60}");
   }
 }

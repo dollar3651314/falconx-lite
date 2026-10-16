@@ -105,8 +105,11 @@ export interface Quote {
   open: string;
   high: string;
   low: string;
-  /** 报价对 USD 的折算率（非美元报价品种用实时汇率） */
-  quoteToUsd: string;
+  /**
+   * 报价对 USD 的折算率（非美元报价品种用实时汇率）。后端暂时取不到汇率时没有（接口返回 null），
+   * 这时所有按 USD 折算的预估（保证金、手续费、强平价、浮动盈亏）显示"—"，用 `lib/trading.ts` 的 `usdRate` 取。
+   */
+  quoteToUsd?: string;
   time: string;
 }
 
@@ -337,4 +340,6 @@ export type ServerEvent =
   | { type: 'orders' }
   | { type: 'notification'; item: NotificationItem }
   | { type: 'trade'; kind: 'fill' | 'tp' | 'sl' | 'liquidation'; symbol: string; pnl?: string; price?: string }
-  | { type: 'withdraw'; status: WithdrawStatus; amount: string };
+  | { type: 'withdraw'; status: WithdrawStatus; amount: string }
+  /** 充值记录变了（发现待确认、确认数变化、到账、作废、冲正），客户端重新拉取充值记录（E2E-2） */
+  | { type: 'deposit'; status: DepositStatus; network: Network; amount: string; confirmations?: number };

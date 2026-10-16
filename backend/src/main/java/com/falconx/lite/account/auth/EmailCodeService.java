@@ -2,6 +2,7 @@ package com.falconx.lite.account.auth;
 
 import com.falconx.lite.account.auth.Rows.EmailCodeRow;
 import com.falconx.lite.common.error.BizException;
+import com.falconx.lite.common.error.RetryLaterException;
 import com.falconx.lite.notification.api.MailApi;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -32,14 +33,28 @@ class EmailCodeService {
     return Secrets.sha256(email + ":" + purpose + ":" + code);
   }
 
+  /**
+   * 发送验证码。60 秒内重发抛 {@link RetryLaterException}（429，带剩余秒数）。
+   *
+   * @return 下次可以重发前要等的秒数（客户端按它倒计时）
+   */
   @Transactional
-  void send(String email, Purpose purpose) {
+  int send(String email, Purpose purpose) {
     EmailCodeRow last = mapper.latestEmailCode(email, purpose.name());
-    if (last != null && last.ageSeconds() < props.codeResendSeconds()) throw new BizException("CODE_TOO_FREQUENT", "发送太频繁，请稍后再试");
+    if (last != null && last.ageSeconds() < props.codeResendSeconds()) {
+      throw new RetryLaterException("CODE_TOO_FREQUENT", "发送太频繁，请稍后再试", props.codeResendSeconds() - last.ageSeconds());
+    }
+    // 同一邮箱同一用途 24 小时的上限（安全审查 SEC-03）：没有明确的等待时间，不带 cooldownSeconds
     if (mapper.countEmailCodesSince(email, purpose.name(), 24) >= props.codeDailyLimit()) throw new BizException("CODE_TOO_FREQUENT", "发送太频繁，请稍后再试");
     String code = Secrets.newCode();
     mapper.insertEmailCode(email, purpose.name(), hash(email, purpose, code), props.codeTtlMinutes());
     mail.send(email, "EMAIL_CODE", Map.of("code", code, "purpose", purpose.name()));
+    return props.codeResendSeconds();
+  }
+
+  /** 两次发送之间的冷却秒数（配置值） */
+  int cooldownSeconds() {
+    return props.codeResendSeconds();
   }
 
   /**

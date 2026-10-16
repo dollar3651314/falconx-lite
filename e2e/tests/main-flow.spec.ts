@@ -126,13 +126,12 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
     });
 
     await step(`客户：链上转入 ${DEPOSIT} USDT（TRC20），先显示待确认，确认数够了到账`, async () => {
+      // 先等交易推送连上再转账：连上之前发生的变化页面收不到推送（问题 D-2，经过 Nginx 和 TLS 时更容易碰上）
+      await waitSocketOpen(page, '/api/ws/trading');
       const r = await e2e.deposit(request, 'TRC20', address, DEPOSIT);
       expect(r.status).toBe('PENDING');
-      // 发现待确认的充值时后端不推送事件，充值记录要刷新页面才出现（已记入测试报告的"发现的问题"）
-      await page.reload();
+      // 发现待确认的充值时后端就推送 deposit 事件，不刷新页面也能看到"待确认"（E2E-2 已修复）
       await expect(page.getByText(/待确认 \d+\/19/)).toBeVisible();
-      // 先等交易推送连上再出块：连上之前入账的话页面收不到推送（问题 D-2，经过 Nginx 和 TLS 时更容易碰上）
-      await waitSocketOpen(page, '/api/ws/trading');
       await e2e.mine(request, 'TRC20', 25);
       await expect(page.getByText('已到账 · TRC20')).toBeVisible();
       // 站内信推送的提示（AC-07 客户收到通知）

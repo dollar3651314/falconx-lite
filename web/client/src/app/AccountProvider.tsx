@@ -29,7 +29,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const perPosition = pos.data.map((p) => {
       const info = map[p.symbol];
       const q = quotes[p.symbol];
-      return { margin: dec(p.margin), pnl: info && q ? positionPnl(p, info, q) : ZERO };
+      // 没有报价或没有汇率时，这一笔的浮动盈亏按 0 计（和没有报价时一样）
+      return { margin: dec(p.margin), pnl: (info && q ? positionPnl(p, info, q) : null) ?? ZERO };
     });
     const pnl = sum(perPosition.map((x) => x.pnl));
     const balance = dec(acc.data.balance);

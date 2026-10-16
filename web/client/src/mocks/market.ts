@@ -63,7 +63,10 @@ export function symbolInfo(code: string): SymbolInfo | undefined {
   return live.get(code)?.info;
 }
 
-function toQuote(q: LiveQuote): Quote {
+/** 模拟报价总是带汇率（真实接口里汇率可能暂时没有，见 types.ts 的 Quote.quoteToUsd） */
+export type MockQuote = Quote & { quoteToUsd: string };
+
+function toQuote(q: LiveQuote): MockQuote {
   return {
     symbol: q.info.code,
     bid: ticksToStr(q.bid, q.digits),
@@ -76,12 +79,12 @@ function toQuote(q: LiveQuote): Quote {
   };
 }
 
-export function quote(code: string): Quote | undefined {
+export function quote(code: string): MockQuote | undefined {
   const q = live.get(code);
   return q ? toQuote(q) : undefined;
 }
 
-export function allQuotes(): Quote[] {
+export function allQuotes(): MockQuote[] {
   return [...live.values()].map(toQuote);
 }
 

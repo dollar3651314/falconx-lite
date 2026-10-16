@@ -1,6 +1,6 @@
 import { dec, toFixed } from './decimal';
-import { availableFunds, estimateOrder, execPrice, liquidationAfterAddMargin, pnlAt } from './trading';
-import type { SymbolInfo } from '../api/types';
+import { availableFunds, estimateOrder, execPrice, liquidationAfterAddMargin, pnlAt, positionPnl, usdRate } from './trading';
+import type { Position, Quote, SymbolInfo } from '../api/types';
 
 const base: Omit<SymbolInfo, 'code' | 'category' | 'digits' | 'contractSize' | 'unit' | 'baseCcy' | 'quoteCcy' | 'maxLeverage'> = {
   nameZh: '',
@@ -69,5 +69,25 @@ describe('可用余额（和后端 Funds 同一口径，DF-02）', () => {
 
   it('没有持仓时 = 余额 − 挂单冻结', () => {
     expect(toFixed(availableFunds(dec('100'), dec('30'), []), 2)).toBe('70.00');
+  });
+});
+
+describe('汇率为空（后端暂时取不到）', () => {
+  it('usdRate：只认合法的正数', () => {
+    expect(usdRate({ quoteToUsd: '0.0066' })).toBe('0.0066');
+    expect(usdRate({ quoteToUsd: undefined })).toBeNull();
+    expect(usdRate({})).toBeNull();
+    expect(usdRate({ quoteToUsd: '0' })).toBeNull();
+    expect(usdRate({ quoteToUsd: '' })).toBeNull();
+    expect(usdRate({ quoteToUsd: 'abc' })).toBeNull();
+    expect(usdRate(null)).toBeNull();
+    expect(usdRate(undefined)).toBeNull();
+  });
+
+  it('positionPnl：没有汇率返回 null，不抛错', () => {
+    const p = { side: 'buy', openPrice: '150.000', lots: '1' } as Position;
+    const q: Quote = { symbol: 'USDJPY', bid: '151.000', ask: '151.010', open: '150', high: '151', low: '149', time: '2026-10-15T00:00:00Z' };
+    expect(positionPnl(p, JPY, q)).toBeNull();
+    expect(toFixed(positionPnl(p, JPY, { ...q, quoteToUsd: '0.0066' })!, 2)).toBe('660.00');
   });
 });

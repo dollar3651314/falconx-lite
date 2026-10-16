@@ -1,8 +1,8 @@
-/** 邮箱 + "发送验证码" 按钮（60 秒倒计时）+ 验证码输入 */
+/** 邮箱 + "发送验证码" 按钮（按接口返回的冷却秒数倒计时，发送太频繁时按剩余秒数）+ 验证码输入 */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PROTOTYPE_EMAIL_CODE, sendEmailCode } from '../../api/auth';
-import { errorKey } from '../../api/errors';
+import { errorKey, isApiError } from '../../api/errors';
 import { IS_MOCK } from '../../api/mode';
 import type { EmailCodePurpose } from '../../api/types';
 import { TextField } from '../../components/Form';
@@ -38,6 +38,8 @@ export function EmailCodeFields(props: {
       setSent(true);
     } catch (err) {
       setSendErr([errorKey(err)]);
+      // 太频繁（429）：按后端返回的剩余秒数倒计时
+      if (isApiError(err) && err.cooldownSeconds) setLeft(err.cooldownSeconds);
     } finally {
       setSending(false);
     }

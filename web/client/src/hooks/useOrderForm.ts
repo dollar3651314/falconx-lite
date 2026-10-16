@@ -11,7 +11,7 @@ import type { Side, SymbolInfo } from '../api/types';
 import { useAccount, useToast } from '../app/contexts';
 import { add, cmp, dec, isDecimalString, mul, sub, toFixed, toPlain, ZERO, type Dec } from '../lib/decimal';
 import { formatLots, formatPrice } from '../lib/format';
-import { estimateOrder, execPrice, pnlAt } from '../lib/trading';
+import { estimateOrder, execPrice, pnlAt, usdRate } from '../lib/trading';
 import { hasErrors, sanitizeLots, validateOrder, type FieldErrors, type OrderForm } from '../lib/validators';
 import { useQuote } from './useQuotes';
 
@@ -55,18 +55,20 @@ export function useOrderForm(symbol: SymbolInfo, initialSide: Side, onDone?: () 
   const errors: FieldErrors<keyof OrderForm> = useMemo(() => validateOrder(form, symbol, marketPrice), [form, symbol, marketPrice]);
   const shown = submitted ? errors : {};
 
+  // 没有汇率时（后端暂时取不到）不算预估，页面显示"—"
+  const rate = usdRate(quote);
   const est = useMemo(() => {
-    if (!quote || !refPrice || !isDecimalString(refPrice) || !isDecimalString(form.lots) || !/^\d+$/.test(form.leverage)) return null;
+    if (!quote || !rate || !refPrice || !isDecimalString(refPrice) || !isDecimalString(form.lots) || !/^\d+$/.test(form.leverage)) return null;
     const lev = Number(form.leverage);
     // 手数为 0 或杠杆无效时不显示预估（强平价 0.00 会误导）
     if (lev < 1 || cmp(dec(form.lots), ZERO) <= 0) return null;
-    return estimateOrder({ symbol, price: dec(refPrice), lots: dec(form.lots), leverage: lev, side: form.side, quoteToUsd: quote.quoteToUsd });
-  }, [quote, refPrice, form.lots, form.leverage, form.side, symbol]);
+    return estimateOrder({ symbol, price: dec(refPrice), lots: dec(form.lots), leverage: lev, side: form.side, quoteToUsd: rate });
+  }, [quote, rate, refPrice, form.lots, form.leverage, form.side, symbol]);
 
   /** 按当前手数，价格到 v 时的预计盈亏 */
   const expected = (v: string): Dec | null => {
-    if (!est || !quote || !isDecimalString(v) || !isDecimalString(form.lots)) return null;
-    return pnlAt(form.side, est.price, dec(v), dec(form.lots), symbol.contractSize, quote.quoteToUsd);
+    if (!est || !rate || !isDecimalString(v) || !isDecimalString(form.lots)) return null;
+    return pnlAt(form.side, est.price, dec(v), dec(form.lots), symbol.contractSize, rate);
   };
 
   const setLots = (raw: string) => set('lots', sanitizeLots(form.lots, raw));

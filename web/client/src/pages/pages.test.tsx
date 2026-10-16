@@ -82,6 +82,8 @@ describe('下单面板手数', () => {
 });
 
 import { DepositCard } from './assets/DepositCard';
+import { emit } from '../mocks/bus';
+import { db } from '../mocks/db';
 
 describe('充值', () => {
   it('选网络后显示最小充值金额；下方显示充值记录的各种状态（AC-41）', async () => {
@@ -90,5 +92,14 @@ describe('充值', () => {
     expect(screen.getByText(/待确认 7\/20/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: /TRC20/ }));
     expect(await screen.findByText('单笔最少 1 USDT，低于该金额不会入账')).toBeInTheDocument();
+  });
+
+  it('收到充值推送（发现待确认）时重新拉取充值记录，不用刷新页面（E2E-2）', async () => {
+    renderPage(<DepositCard />, '/assets');
+    expect(await screen.findByText('低于最小充值金额')).toBeInTheDocument();
+    expect(screen.queryByText('4,321.00')).not.toBeInTheDocument();
+    db.ledger.unshift({ id: 'Lnew', type: 'deposit', amount: '4321', ref: 'ERC20', time: new Date().toISOString() });
+    act(() => emit({ type: 'deposit', status: 'pending', network: 'ERC20', amount: '4321', confirmations: 1 }));
+    expect(await screen.findByText('4,321.00')).toBeInTheDocument();
   });
 });
