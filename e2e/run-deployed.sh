@@ -122,7 +122,8 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=$APP_DOMAIN" \
 
 # ---------- 4. 启动（新库：每次都是新的数据目录） ----------
 say "启动容器（compose 项目 $PROJECT）"
-E2E_CERT_DIR="$TMP/certs" compose up -d --pull never --quiet-pull > "$LOGS/up.log" 2>&1 || { cat "$LOGS/up.log" >&2; exit 1; }
+# 刚构建的两个镜像在本机，不会去拉；mysql、redis 本机没有时（例如 CI）才拉
+E2E_CERT_DIR="$TMP/certs" compose up -d --pull missing --quiet-pull > "$LOGS/up.log" 2>&1 || { cat "$LOGS/up.log" >&2; exit 1; }
 say "等后端健康检查（版本 $SHA）"
 ok=""
 for _ in $(seq 1 120); do
