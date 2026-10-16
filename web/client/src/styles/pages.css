@@ -116,6 +116,9 @@
 .net { border: 1.5px solid var(--border); border-radius: var(--r-md); padding: 8px 4px; display: flex; flex-direction: column; align-items: center; background: var(--s1); }
 .net b { font-size: 14px; font-family: var(--mono); } .net small { font-size: 11px; color: var(--subtle); }
 .net.on { border-color: var(--cyan); background: var(--cyan-soft); } .net.on b { color: var(--cyan-deep); }
+.card.flash { animation: card-flash 1.2s ease-out; }
+@keyframes card-flash { 0%, 40% { box-shadow: 0 0 0 2px var(--cyan); } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .card.flash { animation: none; outline: 2px solid var(--cyan); } }
 .pick-first { font-size: 13px; color: var(--muted); text-align: center; padding: 24px 8px 12px; }
 .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 0 4px; }
 .addr { display: flex; align-items: center; gap: 10px; width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px 10px; }

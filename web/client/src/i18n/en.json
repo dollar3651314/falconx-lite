@@ -355,7 +355,9 @@
       "dropped": "Dropped",
       "belowMin": "Below minimum deposit",
       "reversed": "Reversed"
-    }
+    },
+    "notOpenTitle": "Deposits are not open yet",
+    "notOpenHint": "Deposit channels are being prepared. Your deposit address will appear here once they open. Questions? Contact info@quickcome.online"
   },
   "ledger": {
     "filterAll": "All",
