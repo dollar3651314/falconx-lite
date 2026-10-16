@@ -1,5 +1,7 @@
 package com.falconx.lite.trading.order;
 
+import com.falconx.lite.common.config.ConfigKey;
+import com.falconx.lite.common.config.SystemConfig;
 import com.falconx.lite.common.error.BizException;
 import com.falconx.lite.common.error.ValidationException;
 import com.falconx.lite.market.api.MarketApi;
@@ -46,9 +48,10 @@ class OrderService {
   private final Funds funds;
   private final PositionService positionService;
   private final TradingEvents events;
+  private final SystemConfig config;
 
   OrderService(OrderMapper mapper, LedgerApi ledger, MarketApi market, RiskApi risk, TradingProperties props, TransactionTemplate tx, Clock clock, Funds funds,
-      PositionService positions, TradingEvents events) {
+      PositionService positions, TradingEvents events, SystemConfig config) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.market = market;
@@ -59,6 +62,7 @@ class OrderService {
     this.funds = funds;
     this.positionService = positions;
     this.events = events;
+    this.config = config;
   }
 
   /** 校验通过后的请求 */
@@ -101,7 +105,7 @@ class OrderService {
       BigDecimal total = notional;
       for (PositionRow p : positions) total = total.add(p.notionalUsd);
       for (OrderRow o : pending) total = total.add(o.notionalUsd);
-      if (total.compareTo(props.positionLimitUsd()) > 0) throw reject("POSITION_LIMIT", "超过持仓上限");
+      if (total.compareTo(positionLimit()) > 0) throw reject("POSITION_LIMIT", "超过持仓上限");
 
       BigDecimal need = margin.add(fee);
       if (need.compareTo(funds.available(acc, positions)) > 0) throw reject("INSUFFICIENT_BALANCE", "可用余额不足");
@@ -176,7 +180,7 @@ class OrderService {
       BigDecimal total = notional;
       for (PositionRow p : positions) total = total.add(p.notionalUsd);
       for (OrderRow other : mapper.pendingOrders(userId)) if (!other.id.equals(o.id)) total = total.add(other.notionalUsd);
-      if (total.compareTo(props.positionLimitUsd()) > 0) throw reject("POSITION_LIMIT", "超过持仓上限");
+      if (total.compareTo(positionLimit()) > 0) throw reject("POSITION_LIMIT", "超过持仓上限");
 
       BigDecimal delta = frozen.subtract(o.frozenAmount);
       if (delta.signum() > 0 && delta.compareTo(funds.available(acc, positions)) > 0) throw reject("INSUFFICIENT_BALANCE", "可用余额不足");
@@ -277,5 +281,10 @@ class OrderService {
     Checks.digits(errs, spec, "stopLoss", sl);
     errs.throwIfAny();
     return new Checked(spec, limit, side, lots, r.leverage(), limitPrice, tp, sl);
+  }
+
+  /** 单个客户的持仓上限：风控页改的值优先（S16c），没有时用 application.yml */
+  private BigDecimal positionLimit() {
+    return config.decimal(ConfigKey.RISK_PER_USER_LIMIT, props.positionLimitUsd());
   }
 }

@@ -31,11 +31,15 @@ public enum ConfigKey {
   ADMIN_IP_WHITELIST("admin.ipWhitelist", Unit.TEXT, "security", null),
   ADJUST_SINGLE_LIMIT("adjust.singleLimit", Unit.USDT, "adjust", BigDecimal.ZERO),
   ADJUST_DAILY_LIMIT("adjust.dailyLimit", Unit.USDT, "adjust", BigDecimal.ZERO),
-  NOTIFY_MARGIN_CALL_THROTTLE_MINUTES("notify.marginCallThrottleMinutes", Unit.MINUTES, "notify", BigDecimal.ONE);
+  NOTIFY_MARGIN_CALL_THROTTLE_MINUTES("notify.marginCallThrottleMinutes", Unit.MINUTES, "notify", BigDecimal.ONE),
+  /** 单个客户的持仓上限（USD 名义价值，含挂单）：在风控页改（权限 risk:user_limit），不在系统配置页 */
+  RISK_PER_USER_LIMIT("risk.perUserLimitUsd", Unit.USDT, "risk", BigDecimal.ONE, false),
+  /** 追保线（保证金水平 %，100 即 100%）：在交易参数页改（权限 params:edit），不在系统配置页 */
+  TRADING_MARGIN_CALL_LEVEL("trading.marginCallLevel", Unit.PERCENT, "trading", BigDecimal.ONE, false);
 
   /** 单位，和原型一致 */
   public enum Unit {
-    USDT, HOURS, MINUTES, COUNT, TEXT;
+    USDT, HOURS, MINUTES, COUNT, TEXT, PERCENT;
 
     public String api() {
       return name().toLowerCase();
@@ -47,12 +51,22 @@ public enum ConfigKey {
   public final String group;
   /** 数值的最小值（含）；文本为空 */
   public final BigDecimal min;
+  /**
+   * 是否在系统配置页显示和修改。有专门页面和权限点的（风控、交易参数）不在系统配置页，
+   * 否则有 config:edit 的人可以绕过 risk:user_limit、params:edit 去改
+   */
+  public final boolean configPage;
 
   ConfigKey(String key, Unit unit, String group, BigDecimal min) {
+    this(key, unit, group, min, true);
+  }
+
+  ConfigKey(String key, Unit unit, String group, BigDecimal min, boolean configPage) {
     this.key = key;
     this.unit = unit;
     this.group = group;
     this.min = min;
+    this.configPage = configPage;
   }
 
   public static Optional<ConfigKey> of(String key) {
@@ -67,7 +81,7 @@ public enum ConfigKey {
     try {
       BigDecimal d = new BigDecimal(v);
       if (d.compareTo(min) < 0) return Optional.empty();
-      if (unit == Unit.USDT) {
+      if (unit == Unit.USDT || unit == Unit.PERCENT) {
         if (d.scale() > 8 || d.compareTo(new BigDecimal("1000000000")) > 0) return Optional.empty();
         return Optional.of(d.stripTrailingZeros().toPlainString());
       }

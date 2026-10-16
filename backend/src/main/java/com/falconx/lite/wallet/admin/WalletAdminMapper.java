@@ -63,4 +63,6 @@ interface WalletAdminMapper {
   BucketRow completedSince(@Param("since") LocalDateTime since);
 
   BigDecimal totalDeposit(@Param("userId") long userId);
+
+  BucketRow creditedSince(@Param("since") LocalDateTime since);
 }

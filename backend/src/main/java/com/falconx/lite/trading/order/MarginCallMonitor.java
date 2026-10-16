@@ -108,7 +108,8 @@ class MarginCallMonitor {
     Optional<BigDecimal> level = level(userId);
     if (level.isEmpty()) return false;
     State s = mapper.marginCallState(userId);
-    boolean below = level.get().compareTo(props.line()) < 0;
+    BigDecimal lineLevel = line();
+    boolean below = level.get().compareTo(lineLevel) < 0;
     if (!below) {
       if (s != null && s.below) mapper.saveMarginCallState(userId, false, false, s.lastNotifiedAt, now);
       return false;
@@ -121,12 +122,18 @@ class MarginCallMonitor {
       return false;
     }
     String pct = level.get().multiply(HUNDRED).setScale(2, RoundingMode.DOWN).toPlainString();
-    String line = props.line().multiply(HUNDRED).stripTrailingZeros().toPlainString();
+    String line = lineLevel.multiply(HUNDRED).stripTrailingZeros().toPlainString();
     tx.executeWithoutResult(st -> {
       mapper.saveMarginCallState(userId, true, true, now, now);
       notify.toUser(userId, "MARGIN_CALL", Map.of("level", pct, "line", line));
     });
     log.info("追保预警 user={} 保证金水平 {}%", userId, pct);
     return true;
+  }
+
+  /** 追保线（小数）：交易参数页改的值优先（S16c，百分数），没有时用 application.yml */
+  BigDecimal line() {
+    BigDecimal pct = config.decimal(ConfigKey.TRADING_MARGIN_CALL_LEVEL, null);
+    return pct == null ? props.line() : pct.divide(HUNDRED, 6, RoundingMode.HALF_UP);
   }
 }

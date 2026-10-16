@@ -176,4 +176,74 @@
     AND user_id IN <foreach collection="ids" item="i" open="(" separator="," close=")">#{i}</foreach> GROUP BY user_id
   </select>
 
+  <!-- 后台（S16c） -->
+  <sql id="adminOrderWhere">
+    <where>
+      <if test="symbol != null">AND o.symbol = #{symbol}</if>
+      <if test="side != null">AND o.side = #{side}</if>
+      <if test="status != null">AND o.status = #{status}</if>
+      <if test="userIds != null">AND o.user_id IN <foreach collection="userIds" item="u" open="(" separator="," close=")">#{u}</foreach></if>
+    </where>
+  </sql>
+
+  <select id="adminOrders" resultType="com.falconx.lite.trading.order.OrderMapper$AdminOrderRow">
+    SELECT o.id, o.user_id, o.symbol, o.order_type, o.side, o.lots, o.leverage, o.limit_price, o.fill_price, o.take_profit, o.stop_loss, o.frozen_amount,
+      p.fee, o.status, o.created_at
+    FROM trading_order o LEFT JOIN trading_position p ON p.order_id = o.id
+    <include refid="adminOrderWhere"/> ORDER BY o.id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countAdminOrders" resultType="long">SELECT COUNT(*) FROM trading_order o <include refid="adminOrderWhere"/></select>
+
+  <sql id="adminPositionWhere">
+    WHERE status = 'OPEN'
+    <if test="symbol != null">AND symbol = #{symbol}</if>
+    <if test="side != null">AND side = #{side}</if>
+    <if test="userIds != null">AND user_id IN <foreach collection="userIds" item="u" open="(" separator="," close=")">#{u}</foreach></if>
+  </sql>
+
+  <select id="adminPositions" resultType="com.falconx.lite.trading.order.PositionRow">
+    SELECT <include refid="positionCols"/> FROM trading_position <include refid="adminPositionWhere"/> ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countAdminPositions" resultType="long">SELECT COUNT(*) FROM trading_position <include refid="adminPositionWhere"/></select>
+
+  <select id="positionById" resultType="com.falconx.lite.trading.order.PositionRow">
+    SELECT <include refid="positionCols"/> FROM trading_position WHERE id = #{id}
+  </select>
+
+  <select id="orderById" resultType="com.falconx.lite.trading.order.OrderRow">
+    SELECT <include refid="orderCols"/> FROM trading_order WHERE id = #{id}
+  </select>
+
+  <select id="openUsage" resultType="long">
+    SELECT (SELECT COUNT(*) FROM trading_position WHERE symbol = #{symbol} AND status = 'OPEN')
+      + (SELECT COUNT(*) FROM trading_order WHERE symbol = #{symbol} AND status = 'PENDING')
+  </select>
+
+  <select id="openPositionTotal" resultType="long">SELECT COUNT(*) FROM trading_position WHERE status = 'OPEN'</select>
+
+  <select id="ledgerTotalSince" resultType="java.math.BigDecimal">
+    SELECT COALESCE(SUM(amount), 0) FROM trading_ledger WHERE bucket = 'BALANCE' AND entry_type = #{type} AND created_at &gt;= #{since}
+  </select>
+
+  <!-- 客户端资金流水（S17 补充） -->
+  <sql id="userLedgerWhere">
+    FROM trading_ledger l JOIN trading_account a ON a.id = l.account_id
+    WHERE a.user_id = #{userId} AND l.bucket = 'BALANCE'
+      AND l.entry_type IN <foreach collection="types" item="t" open="(" separator="," close=")">#{t}</foreach>
+      <if test="since != null">AND l.created_at &gt;= #{since}</if>
+  </sql>
+
+  <select id="userLedger" resultType="com.falconx.lite.trading.order.OrderMapper$LedgerRow">
+    SELECT l.id, l.entry_type, l.amount, l.value_after, l.biz_type, l.biz_id, l.created_at <include refid="userLedgerWhere"/>
+    ORDER BY l.id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countUserLedger" resultType="long">SELECT COUNT(*) <include refid="userLedgerWhere"/></select>
+
+  <select id="ledgerRemarks" resultType="com.falconx.lite.trading.order.OrderMapper$LedgerRemark">
+    SELECT id, remark FROM trading_ledger WHERE id IN <foreach collection="ids" item="i" open="(" separator="," close=")">#{i}</foreach>
+  </select>
+
 </mapper>

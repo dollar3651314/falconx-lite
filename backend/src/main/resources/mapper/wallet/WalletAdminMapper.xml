@@ -69,4 +69,9 @@
   <select id="totalDeposit" resultType="java.math.BigDecimal">
     SELECT COALESCE(SUM(amount), 0) FROM wallet_deposit WHERE user_id = #{userId} AND status = 'CREDITED'
   </select>
+
+  <select id="creditedSince" resultType="com.falconx.lite.wallet.admin.WalletAdminMapper$BucketRow">
+    SELECT 'CREDITED' AS status, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM wallet_deposit
+    WHERE status = 'CREDITED' AND credited_at &gt;= #{since}
+  </select>
 </mapper>

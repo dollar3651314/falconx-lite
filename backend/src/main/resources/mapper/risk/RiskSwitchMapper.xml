@@ -68,4 +68,20 @@
   <insert id="insertEvent">
     INSERT INTO risk_event (kind, symbol, net_usd, threshold, operator_id) VALUES (#{kind}, #{symbol}, #{netUsd}, #{threshold}, #{operatorId})
   </insert>
+  <resultMap id="event" type="com.falconx.lite.risk.api.RiskApi$Event">
+    <constructor>
+      <arg column="id" javaType="_long"/>
+      <arg column="kind" javaType="string"/>
+      <arg column="symbol" javaType="string"/>
+      <arg column="net_usd" javaType="java.math.BigDecimal"/>
+      <arg column="threshold" javaType="java.math.BigDecimal"/>
+      <arg column="operator_id" javaType="java.lang.Long"/>
+      <arg column="created_at" javaType="java.time.LocalDateTime"/>
+    </constructor>
+  </resultMap>
+
+  <select id="events" resultMap="event">
+    SELECT id, kind, symbol, net_usd, threshold, operator_id, created_at FROM risk_event ORDER BY id DESC LIMIT #{limit}
+  </select>
+
 </mapper>
