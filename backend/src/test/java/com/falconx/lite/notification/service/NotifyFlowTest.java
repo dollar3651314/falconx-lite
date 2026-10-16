@@ -52,7 +52,7 @@ class NotifyFlowTest extends NotifyTestSupport {
   void 验证码邮件按邮箱发_中英文各一份_记录已发送() throws Exception {
     User u = register();
     MimeMessage m = mailsTo(u.email()).getFirst();
-    assertThat(m.getSubject()).isEqualTo("FalconX 验证码 | FalconX verification code");
+    assertThat(m.getSubject()).isEqualTo("Quick Come 验证码 | Quick Come verification code");
     assertThat(body(m)).contains("您的验证码是").contains("Your code is").contains("10 分钟内有效");
     assertThat(m.getFrom()[0].toString()).isEqualTo("noreply@falconx.test");
     assertThat(jdbc.queryForObject("SELECT status FROM notify_record WHERE recipient = ? AND template_code = 'EMAIL_CODE'", String.class, u.email())).isEqualTo("SENT");

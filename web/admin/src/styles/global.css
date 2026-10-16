@@ -72,7 +72,8 @@ body { overflow-x: hidden; }
   display: flex; align-items: center; gap: 14px;
   border-bottom: 1px solid var(--border); line-height: normal;
 }
-.logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: var(--primary-deep); flex: none; }
+.logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; letter-spacing: -0.01em; color: var(--text); flex: none; white-space: nowrap; }
+.logo .logo-mark { flex: none; }
 .app-header .logo { min-width: 0; }
 @media (min-width: 992px) { .app-header .logo { width: 168px; } }
 .logo small { font-size: 12px; font-weight: 600; color: var(--muted); }
