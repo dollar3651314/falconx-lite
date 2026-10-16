@@ -120,6 +120,14 @@ class RateLimitTest {
   }
 
   @Test
+  void 官网公开行情不需要登录_也受按IP限流约束() throws Exception {
+    String ip = ip();
+    for (int i = 0; i < 5; i++) assertThat(call(get("/api/public/quotes"), ip, null, null).getStatus()).isEqualTo(200);
+    assertLimited(call(get("/api/public/quotes"), ip, null, null));
+    assertThat(call(get("/api/public/quotes"), ip(), null, null).getStatus()).isEqualTo(200);
+  }
+
+  @Test
   void 同一IP的WebSocket握手每分钟超过上限返回429_普通接口单独计数() throws Exception {
     String ip = ip();
     for (int i = 0; i < 3; i++) assertThat(call(get("/api/ws/market"), ip, null, null).getStatus()).isNotEqualTo(429);

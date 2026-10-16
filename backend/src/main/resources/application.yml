@@ -81,6 +81,11 @@ falconx:
         1h: 8760
         4h: 4380
         1d: 3650
+    # 官网公开行情 GET /api/public/quotes（v2 需求 4.2，不需要登录）：只返回这些品种的卖价和当日涨跌幅，按这个顺序；
+    # 整份结果缓存 cache-ttl，所有访客共用。改品种只改这里（需求要求 8–12 个）
+    public-quotes:
+      symbols: [XAUUSD, XAGUSD, EURUSD, GBPUSD, USDJPY, USDCNH, NAS100, XTIUSD, BTCUSD, ETHUSD]
+      cache-ttl: 1s
   trading:
     # 单个用户的持仓上限（USD 名义价值，含挂单），沿用原型的 3,000,000；S16 改为后台可配置
     position-limit-usd: 3000000
@@ -243,7 +248,7 @@ logging:
 
 # 应用管理端点只在内网端口监听，Nginx 不转发（修复 fxsystem S3）。
 # 指标（v2 E10）：GET http://127.0.0.1:8081/actuator/prometheus（Prometheus 格式）、/actuator/metrics；自定义指标都以 fx_ 开头，
-# 见 部署方案/v1-部署方案.md 第 14 节。只在服务器本机（容器里）能访问，不对外
+# 见 部署方案/v1-部署方案.md 第 15 节。只在服务器本机（容器里）能访问，不对外
 management:
   server:
     port: ${FX_MANAGEMENT_PORT:8081}

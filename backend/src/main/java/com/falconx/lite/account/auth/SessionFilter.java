@@ -24,9 +24,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 class SessionFilter extends OncePerRequestFilter {
 
-  /** 不需要登录的接口 */
+  /** 不需要登录的接口。/api/public/quotes 是官网公开行情（v2，只读，只有几个品种的卖价和涨跌幅，见 market.web.PublicQuoteController） */
   static final Set<String> PUBLIC = Set.of(
-      "/api/health", "/api/auth/email-code", "/api/auth/register", "/api/auth/login", "/api/auth/logout", "/api/auth/password/reset");
+      "/api/health", "/api/auth/email-code", "/api/auth/register", "/api/auth/login", "/api/auth/logout", "/api/auth/password/reset",
+      "/api/public/quotes");
 
   private final SessionService sessions;
   private final AuthProperties props;

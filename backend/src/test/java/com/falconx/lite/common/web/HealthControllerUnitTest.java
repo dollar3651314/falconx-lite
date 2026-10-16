@@ -106,4 +106,35 @@ class HealthControllerUnitTest {
     assertThat(r.getStatusCode().value()).isEqualTo(503);
     assertThat(r.getBody()).containsEntry("status", "DOWN").containsEntry("alert", "OK");
   }
+
+  @Test
+  void 业务告警只给后台域名和服务器本机_客户端域名和官网带什么请求头都拿不到() {
+    JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    when(jdbc.queryForObject(anyString(), any(Class.class))).thenReturn(1);
+    RedisConnectionFactory redis = mock(RedisConnectionFactory.class);
+    when(redis.getConnection()).thenReturn(mock(RedisConnection.class));
+    com.falconx.lite.common.health.AlertCheck market = () -> java.util.List.of(
+        new com.falconx.lite.common.health.AlertCheck.Item("market", "x", "x", false, "x"));
+    var h = new HealthController(jdbc, redis, "v", "test", java.util.List.of(), java.util.List.of(market));
+
+    var direct = new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/health");
+    assertThat(h.health(direct).getBody()).as("服务器本机直连后端（部署脚本）").containsEntry("alert", "ALERT").containsKey("alerts");
+
+    var admin = new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/health");
+    admin.addHeader("X-Real-IP", "203.0.113.5");
+    admin.addHeader("X-Fx-Health-Alerts", "1");
+    assertThat(h.health(admin).getBody()).as("后台域名（Nginx 设了头）").containsEntry("alert", "ALERT");
+
+    var client = new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/health");
+    client.addHeader("X-Real-IP", "203.0.113.5");
+    var r = h.health(client);
+    assertThat(r.getStatusCode().value()).isEqualTo(200);
+    assertThat(r.getBody()).as("客户端域名、官网：只有存活信息").containsEntry("status", "UP").containsEntry("env", "test")
+        .doesNotContainKey("alert").doesNotContainKey("alerts");
+
+    var forged = new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/health");
+    forged.addHeader("X-Real-IP", "203.0.113.5");
+    forged.addHeader("X-Fx-Health-Alerts", "yes");
+    assertThat(h.health(forged).getBody()).as("只认 Nginx 设的值 1（客户端带的同名头会被 Nginx 清空）").doesNotContainKey("alerts");
+  }
 }

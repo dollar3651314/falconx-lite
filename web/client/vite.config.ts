@@ -49,9 +49,9 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        // 后台 /admin/ 是另一个应用、/api/ 是后端，客户端的 Service Worker 不能接管它们的导航请求
+        // 后台 /admin/ 是另一个应用、/api/ 是后端、原型站的 /site/ 是官网（v2），客户端的 Service Worker 不能接管它们的导航请求
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/admin/, /^\/api/],
+        navigateFallbackDenylist: [/^\/admin/, /^\/api/, /^\/site/],
         // 收到 Web Push 后显示系统通知、点击打开站内信（public/push-sw.js，S17）
         importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
