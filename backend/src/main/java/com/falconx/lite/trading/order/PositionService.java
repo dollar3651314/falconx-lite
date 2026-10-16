@@ -2,6 +2,7 @@ package com.falconx.lite.trading.order;
 
 import com.falconx.lite.common.error.BizException;
 import com.falconx.lite.common.error.ValidationException;
+import com.falconx.lite.common.id.Snowflake;
 import com.falconx.lite.market.api.MarketApi;
 import com.falconx.lite.market.api.MarketQuote;
 import com.falconx.lite.market.api.SymbolSpec;
@@ -37,8 +38,9 @@ class PositionService {
   private final TransactionTemplate tx;
   private final Clock clock;
   private final TradingEvents events;
+  private final Snowflake ids;
 
-  PositionService(OrderMapper mapper, LedgerApi ledger, MarketApi market, Funds funds, TransactionTemplate tx, Clock clock, TradingEvents events) {
+  PositionService(OrderMapper mapper, LedgerApi ledger, MarketApi market, Funds funds, TransactionTemplate tx, Clock clock, TradingEvents events, Snowflake ids) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.market = market;
@@ -46,6 +48,7 @@ class PositionService {
     this.tx = tx;
     this.clock = clock;
     this.events = events;
+    this.ids = ids;
   }
 
   /**
@@ -58,6 +61,7 @@ class PositionService {
     BigDecimal margin = OrderCalc.margin(notional, o.leverage);
     BigDecimal fee = OrderCalc.fee(notional, spec.feeRate());
     PositionRow p = new PositionRow();
+    p.publicNo = ids.next();
     p.userId = o.userId;
     p.orderId = o.id;
     p.symbol = spec.code();

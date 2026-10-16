@@ -15,7 +15,7 @@ afterEach(() => setScenario('normal'));
 describe('出金审核页（M6）', () => {
   it('显示待办卡片、列表和第一条的详情', async () => {
     renderAs(<WithdrawalsPage />);
-    expect(await screen.findByText('WD-20261014-000318')).toBeInTheDocument();
+    expect(await screen.findByText('103763725516804414')).toBeInTheDocument();
     expect(screen.getAllByText('待审核').length).toBeGreaterThan(1);
     expect(screen.getAllByText('张三').length).toBeGreaterThan(0);
     expect(screen.getByText('紧急取消（仅延迟期内可用 · 本单不适用）')).toBeInTheDocument();
@@ -23,7 +23,7 @@ describe('出金审核页（M6）', () => {
 
   it('拒绝时必须填写原因', async () => {
     renderAs(<WithdrawalsPage />);
-    await screen.findByText('WD-20261014-000318');
+    await screen.findByText('103763725516804414');
     fireEvent.click(screen.getByRole('button', { name: '拒绝' }));
     expect(await screen.findByText('拒绝时必须填写原因')).toBeInTheDocument();
   });

@@ -55,9 +55,11 @@ class E2eWithdraw implements WithdrawSender {
   static class Api {
 
     private final E2eWithdraw e2e;
+    private final WithdrawMapper mapper;
 
-    Api(E2eWithdraw e2e) {
+    Api(E2eWithdraw e2e, WithdrawMapper mapper) {
       this.e2e = e2e;
+      this.mapper = mapper;
     }
 
     @PostMapping("/api/e2e/wallet/withdrawals/advance")
@@ -67,9 +69,12 @@ class E2eWithdraw implements WithdrawSender {
       return ResponseEntity.noContent().build();
     }
 
+    /** id 是客户端和后台看到的对外编号（雪花 ID） */
     @PostMapping("/api/e2e/wallet/withdrawals/{id}/confirm")
     ResponseEntity<Map<String, String>> confirm(@PathVariable long id) {
-      e2e.confirmed.add(id);
+      Long internal = mapper.idByPublicNo(id);
+      if (internal == null) return ResponseEntity.notFound().build();
+      e2e.confirmed.add(internal);
       e2e.service.track();
       return ResponseEntity.ok(Map.of("id", String.valueOf(id)));
     }

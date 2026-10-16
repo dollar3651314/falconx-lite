@@ -31,15 +31,32 @@ revision() {
   docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$1"
 }
 
-# 等后端健康检查通过，并且返回的版本号等于要的提交号（最多 3 分钟）
+# 等后端健康检查通过，并且返回的版本号等于要的提交号（最多 3 分钟）。
+# 只看"应用活着"：HTTP 200、"status":"UP"（应用、数据库、Redis、模块配置）和 version。
+# 业务告警（"alert":"ALERT"、alerts 里的行情断流、扫块停滞、节点不通、邮件失败，v2 E8）不算失败：
+# 这些是外部服务的问题，换回旧版本也解决不了，不能因此回滚；它们另外发告警邮件。告警写进部署日志，方便对照
 wait_healthy() {
-  local want=$1 got _
+  local want=$1 body got _
   for _ in $(seq 1 90); do
-    got=$(curl -sf --max-time 3 http://127.0.0.1:8080/api/health | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' || true)
-    [ "$got" = "$want" ] && return 0
+    body=$(curl -sf --max-time 3 http://127.0.0.1:8080/api/health || true)
+    got=$(printf '%s' "$body" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')
+    if [ "$got" = "$want" ] && health_up "$body"; then
+      case "$body" in *'"alert":"ALERT"'*) log "注意：新版本已通过健康检查，但有业务告警（不影响更新）：$(alerts_of "$body")" ;; esac
+      return 0
+    fi
     sleep 2
   done
   return 1
+}
+
+# 健康检查的整体状态是 UP（JSON 里第一个 "status"；alerts 里的项不叫 status，不会混淆）
+health_up() {
+  case "$1" in *'"status":"UP"'*) return 0 ;; *) return 1 ;; esac
+}
+
+# 取出 alerts 里 DOWN 的项，例如 market node.TRC20（没有时为空）
+alerts_of() {
+  printf '%s' "$1" | sed -n 's/.*"alerts":{\([^}]*\)}.*/\1/p' | tr ',' '\n' | sed -n 's/^"\([^"]*\)":"DOWN"$/\1/p' | tr '\n' ' '
 }
 
 # 换到某个版本（两个镜像用同一个提交号）

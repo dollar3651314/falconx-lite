@@ -23,7 +23,7 @@ import { hasErrors, validateWhitelist, validateWithdraw } from '../lib/validator
 import { emit } from './bus';
 import { db } from './db';
 import { mutate, respond } from './delay';
-import { nextId } from './ids';
+import { nextId, snowflakeAt, snowflakeId } from './ids';
 import { availableNow } from './trading';
 import { pushNotification } from './user';
 
@@ -60,12 +60,12 @@ export function listDeposits(): Promise<DepositRecord[]> {
         .map((l, i) => {
           const network = (['ERC20', 'TRC20', 'BSC'].includes(l.ref) ? l.ref : 'TRC20') as Network;
           const n = CONFIRMATIONS[network].n;
-          return { id: `D${l.id}`, network, txHash: MOCK_TX(i), amount: l.amount, status: 'credited', confirmations: n, requiredConfirmations: n, time: l.time };
+          return { id: snowflakeAt(new Date(l.time).getTime(), 300 + i), network, txHash: MOCK_TX(i), amount: l.amount, status: 'credited', confirmations: n, requiredConfirmations: n, time: l.time };
         });
       const now = Date.now();
       const extra: DepositRecord[] = [
-        { id: 'Dpending', network: 'TRC20', txHash: MOCK_TX(90), amount: '500', status: 'pending', confirmations: 7, requiredConfirmations: CONFIRMATIONS.TRC20.n, time: new Date(now - 60_000).toISOString() },
-        { id: 'Dbelow', network: 'BSC', txHash: MOCK_TX(91), amount: '0.5', status: 'belowMin', confirmations: CONFIRMATIONS.BSC.n, requiredConfirmations: CONFIRMATIONS.BSC.n, time: new Date(now - 86_400_000).toISOString() },
+        { id: snowflakeAt(now - 60_000, 400), network: 'TRC20', txHash: MOCK_TX(90), amount: '500', status: 'pending', confirmations: 7, requiredConfirmations: CONFIRMATIONS.TRC20.n, time: new Date(now - 60_000).toISOString() },
+        { id: snowflakeAt(now - 86_400_000, 401), network: 'BSC', txHash: MOCK_TX(91), amount: '0.5', status: 'belowMin', confirmations: CONFIRMATIONS.BSC.n, requiredConfirmations: CONFIRMATIONS.BSC.n, time: new Date(now - 86_400_000).toISOString() },
       ];
       return [...extra, ...credited].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 50);
     },
@@ -170,7 +170,7 @@ export function submitWithdraw(req: WithdrawRequest): Promise<Withdrawal> {
     const addr = db.whitelist.find((w) => w.id === req.whitelistId)!;
     const now = Date.now();
     const w: Withdrawal = {
-      id: nextId('W'),
+      id: snowflakeId(),
       amount: toFixed(dec(req.amount), 2),
       fee: i.fees[addr.network],
       network: addr.network,

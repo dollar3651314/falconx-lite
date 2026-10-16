@@ -4,6 +4,7 @@ import com.falconx.lite.common.config.ConfigKey;
 import com.falconx.lite.common.config.SystemConfig;
 import com.falconx.lite.common.error.BizException;
 import com.falconx.lite.common.error.ValidationException;
+import com.falconx.lite.common.id.Snowflake;
 import com.falconx.lite.market.api.MarketApi;
 import com.falconx.lite.market.api.MarketQuote;
 import com.falconx.lite.market.api.SymbolSpec;
@@ -13,6 +14,7 @@ import com.falconx.lite.trading.api.Bucket;
 import com.falconx.lite.trading.api.LedgerApi;
 import com.falconx.lite.trading.api.LedgerCommand;
 import com.falconx.lite.trading.api.LedgerEntryType;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.List;
@@ -49,9 +51,11 @@ class OrderService {
   private final PositionService positionService;
   private final TradingEvents events;
   private final SystemConfig config;
+  private final Snowflake ids;
+  private final MeterRegistry metrics;
 
   OrderService(OrderMapper mapper, LedgerApi ledger, MarketApi market, RiskApi risk, TradingProperties props, TransactionTemplate tx, Clock clock, Funds funds,
-      PositionService positions, TradingEvents events, SystemConfig config) {
+      PositionService positions, TradingEvents events, SystemConfig config, Snowflake ids, MeterRegistry metrics) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.market = market;
@@ -63,6 +67,8 @@ class OrderService {
     this.positionService = positions;
     this.events = events;
     this.config = config;
+    this.ids = ids;
+    this.metrics = metrics;
   }
 
   /** 校验通过后的请求 */
@@ -111,6 +117,7 @@ class OrderService {
       if (need.compareTo(funds.available(acc, positions)) > 0) throw reject("INSUFFICIENT_BALANCE", "可用余额不足");
 
       OrderRow o = new OrderRow();
+      o.publicNo = ids.next();
       o.userId = userId;
       o.clientOrderId = req.clientOrderId();
       o.symbol = spec.code();
@@ -128,14 +135,16 @@ class OrderService {
         o.status = "PENDING";
         mapper.insertOrder(o);
         post(userId, Bucket.ORDER_FROZEN, need, LedgerEntryType.ORDER_FREEZE, o.id, "限价单冻结 " + spec.code());
-        return new PlaceOrder.Result("pending", String.valueOf(o.id), null);
+        return new PlaceOrder.Result("pending", String.valueOf(o.publicNo), null);
       }
       o.frozenAmount = BigDecimal.ZERO;
       o.status = "FILLED";
       mapper.insertOrder(o);
       positionService.openLocked(o, spec, price, rate);
-      return new PlaceOrder.Result("filled", String.valueOf(o.id), price.setScale(spec.digits()).toPlainString());
+      return new PlaceOrder.Result("filled", String.valueOf(o.publicNo), price.setScale(spec.digits()).toPlainString());
     });
+    // 指标（E10）：成功下单的笔数，按市价成交 / 限价挂单分开
+    metrics.counter("fx.orders.placed", "kind", result.kind()).increment();
     if ("filled".equals(result.kind())) {
       events.changed(userId, "positions", "account");
       events.trade(userId, "fill", spec.code(), null, result.price());
@@ -241,9 +250,9 @@ class OrderService {
   private PlaceOrder.Result resultOf(OrderRow o) {
     if ("MARKET".equals(o.orderType)) {
       int digits = market.symbol(o.symbol).map(SymbolSpec::digits).orElse(8);
-      return new PlaceOrder.Result("filled", String.valueOf(o.id), o.fillPrice == null ? null : o.fillPrice.setScale(digits, java.math.RoundingMode.HALF_UP).toPlainString());
+      return new PlaceOrder.Result("filled", String.valueOf(o.publicNo), o.fillPrice == null ? null : o.fillPrice.setScale(digits, java.math.RoundingMode.HALF_UP).toPlainString());
     }
-    return new PlaceOrder.Result("pending", String.valueOf(o.id), null);
+    return new PlaceOrder.Result("pending", String.valueOf(o.publicNo), null);
   }
 
   private static BizException reject(String code, String message) {

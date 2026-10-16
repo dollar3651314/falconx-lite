@@ -354,4 +354,59 @@ class DepositFlowTest {
     assertThat(list).contains("\"network\":\"TRC20\",\"txHash\":\"" + txHash + "\",\"amount\":\"25.5\",\"status\":\"pending\",\"confirmations\":6,\"requiredConfirmations\":19")
         .contains("\"txHash\":\"" + small + "\",\"amount\":\"0.5\",\"status\":\"belowMin\"");
   }
+
+  /** 可以模拟"连不上节点"的链替身 */
+  static class FlakyChain extends FakeChain {
+    volatile boolean down;
+
+    FlakyChain(long head) {
+      super(head);
+    }
+
+    @Override
+    public long headBlock() {
+      if (down) throw new com.falconx.lite.wallet.chain.NodeException.Unreachable("connect timed out", null);
+      return super.headBlock();
+    }
+  }
+
+  @Test
+  void 链节点连不上_健康检查的alerts变成DOWN_status和HTTP状态码不变_恢复后UP_AC2_20() throws Exception {
+    FlakyChain f = new FlakyChain(20000);
+    clients.register(Chain.TRC20, f);
+    jdbc.update("REPLACE INTO wallet_chain_cursor (chain, last_block) VALUES ('TRC20', 19999)");
+    deposits.run(Chain.TRC20);
+    String ok = mvc.perform(get("/api/health")).andReturn().getResponse().getContentAsString();
+    assertThat(ok).contains("\"node.TRC20\":\"UP\"").contains("\"scan.TRC20\":\"UP\"");
+    f.down = true;
+    for (int i = 0; i < 3; i++) {
+      try {
+        deposits.run(Chain.TRC20);
+      } catch (com.falconx.lite.wallet.chain.NodeException expected) {
+        // 定时任务里会记日志，继续下一轮
+      }
+    }
+    var r = mvc.perform(get("/api/health")).andReturn().getResponse();
+    assertThat(r.getStatus()).as("节点不通不能让部署脚本回滚").isEqualTo(200);
+    assertThat(r.getContentAsString()).contains("\"status\":\"UP\"").contains("\"alert\":\"ALERT\"").contains("\"node.TRC20\":\"DOWN\"")
+        .doesNotContain("connect timed out");
+    f.down = false;
+    deposits.run(Chain.TRC20);
+    assertThat(mvc.perform(get("/api/health")).andReturn().getResponse().getContentAsString()).contains("\"node.TRC20\":\"UP\"");
+  }
+
+  @Test
+  void 充值记录的编号是雪花ID字符串_不是内部id_AC2_22() throws Exception {
+    long uid = newUser();
+    String to = addresses.addressOf(uid, Chain.BSC).orElseThrow();
+    FakeChain f = chain(Chain.BSC, 30000);
+    String txHash = f.transfer(30000, BSC_USDT, to.toLowerCase(), new BigDecimal("3").movePointRight(18).toBigIntegerExact());
+    deposits.run(Chain.BSC);
+    long internal = jdbc.queryForObject("SELECT id FROM wallet_deposit WHERE tx_hash = ?", Long.class, txHash);
+    long no = jdbc.queryForObject("SELECT public_no FROM wallet_deposit WHERE tx_hash = ?", Long.class, txHash);
+    assertThat(no).isNotEqualTo(internal).isGreaterThan((1L << 53) - 1);
+    assertThat(com.falconx.lite.common.id.Snowflake.nodeOf(no)).isEqualTo(1);
+    var records = deposits.history(uid, 10);
+    assertThat(records).singleElement().extracting(DepositService.DepositRecord::no).isEqualTo(no);
+  }
 }

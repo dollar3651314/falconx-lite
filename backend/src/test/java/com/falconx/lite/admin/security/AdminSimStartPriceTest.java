@@ -140,7 +140,9 @@ class AdminSimStartPriceTest extends AdminTestSupport {
       assertThat(placed.getStatus()).as(placed.getContentAsString()).isEqualTo(200);
       long positionId = jdbc.queryForObject("SELECT id FROM trading_position WHERE user_id = ? AND symbol = ? AND status = 'OPEN'", Long.class, c.id(), code);
       assertThat(jdbc.queryForObject("SELECT open_price FROM trading_position WHERE id = ?", BigDecimal.class, positionId)).isEqualByComparingTo("123.51");
-      assertThat(call(post("/api/trading/positions/" + positionId + "/close"), c.cookie(), null).getStatus()).isEqualTo(200);
+      // 客户接口按对外编号（public_no）找持仓
+      long positionNo = jdbc.queryForObject("SELECT public_no FROM trading_position WHERE id = ?", Long.class, positionId);
+      assertThat(call(post("/api/trading/positions/" + positionNo + "/close"), c.cookie(), null).getStatus()).isEqualTo(200);
     } finally {
       dropSymbol(code);
     }

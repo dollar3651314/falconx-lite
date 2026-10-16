@@ -1,6 +1,7 @@
 package com.falconx.lite.account.auth;
 
 import com.falconx.lite.common.e2e.E2eGuard;
+import com.falconx.lite.common.trace.TraceIdFilter;
 import com.falconx.lite.common.web.CurrentUser;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -59,7 +60,7 @@ class SessionFilter extends OncePerRequestFilter {
       res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
       res.setContentType(MediaType.APPLICATION_JSON_VALUE);
       res.setCharacterEncoding(StandardCharsets.UTF_8.name());
-      res.getWriter().write("{\"code\":\"UNAUTHORIZED\",\"message\":\"未登录或登录已失效\",\"fields\":[]}");
+      res.getWriter().write("{\"code\":\"UNAUTHORIZED\",\"message\":\"未登录或登录已失效\",\"fields\":[]" + TraceIdFilter.jsonField() + "}");
       return;
     }
     CurrentUser.set(req, userId);

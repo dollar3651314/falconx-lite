@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 /** trading_order 一行（MyBatis 直接读写字段）。 */
 class OrderRow {
   Long id;
+  /** 对外编号（雪花 ID；V22 之前的旧数据等于 id）。接口里的订单号都是它 */
+  Long publicNo;
   long userId;
   String clientOrderId;
   String symbol;

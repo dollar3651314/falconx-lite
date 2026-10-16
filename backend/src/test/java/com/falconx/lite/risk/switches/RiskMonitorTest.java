@@ -59,9 +59,10 @@ class RiskMonitorTest {
   /** 直接写一条持仓（风控只看持仓表的合计） */
   void position(String symbol, String side, String lots) {
     jdbc.update("""
-        INSERT INTO trading_position (user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
+        INSERT INTO trading_position (public_no, user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
           margin, fee, maintenance_margin_rate, liquidation_price, status, opened_at)
-        VALUES (1, FLOOR(RAND() * 1000000000000), ?, ?, ?, 100, 0.66, 100000, 'USD', 1, 0, 1, 0, 0.001, 0.0001, 'OPEN', UTC_TIMESTAMP(3))""", symbol, side, new BigDecimal(lots));
+        VALUES (?, 1, FLOOR(RAND() * 1000000000000), ?, ?, ?, 100, 0.66, 100000, 'USD', 1, 0, 1, 0, 0.001, 0.0001, 'OPEN', UTC_TIMESTAMP(3))""",
+        com.falconx.lite.common.id.Snowflake.shared(1).next(), symbol, side, new BigDecimal(lots));
   }
 
   RiskApi.SymbolExposure aud() {

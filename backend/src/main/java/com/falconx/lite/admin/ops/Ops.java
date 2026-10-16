@@ -47,6 +47,20 @@ final class Ops {
     throw new ValidationException(List.of(new ValidationException.Field(field, "invalid")));
   }
 
+  /**
+   * 搜索框的内容是不是一个编号（纯数字，最多 19 位）：是就返回数字，后台按对外编号（雪花 ID）也找一遍；否则为空。
+   * 编号在接口里是字符串（超过 JavaScript 能精确表示的范围），这里在后端解析，不经过前端的数字类型。
+   */
+  static Long number(String keyword) {
+    String kw = blank(keyword);
+    if (kw == null || !kw.matches("\\d{1,19}")) return null;
+    try {
+      return Long.parseLong(kw);
+    } catch (NumberFormatException e) {
+      return null;
+    }
+  }
+
   static String lower(String s) {
     return s == null ? null : s.toLowerCase();
   }

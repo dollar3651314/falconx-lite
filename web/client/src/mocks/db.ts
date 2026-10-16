@@ -22,7 +22,10 @@ import type {
 } from '../api/types';
 import { dec, toFixed } from '../lib/decimal';
 import { estimateOrder } from '../lib/trading';
-import { hoursFromNow, minutesAgo, seeded } from './ids';
+import { hoursFromNow, minutesAgo, seeded, snowflakeAt } from './ids';
+
+/** 种子数据的对外编号：按「多少分钟前」生成雪花 ID 格式的字符串（和后端一样超过 JavaScript 安全整数，只当字符串） */
+const seedNo = (minutes: number, seq: number): string => snowflakeAt(Date.now() - minutes * 60_000, seq);
 import { quote, symbolInfo } from './market';
 
 export interface StoredNotification {
@@ -97,7 +100,7 @@ function seedHistory(): HistoryItem[] {
     // 模拟数据的盈亏只用于展示，用字符串保存
     const pnl = (pnlRaw * Number(lots) * Number(info.contractSize) * Number(q.quoteToUsd)).toFixed(2);
     out.push({
-      id: `H${10240 + i}`,
+      id: `${kind === 'cancelled' ? 'O' : 'P'}${seedNo(90 + i * 517, 100 + i)}`,
       symbol,
       side,
       lots,
@@ -201,7 +204,7 @@ function seedWithdrawals(): Withdrawal[] {
   const W = (i: number, amount: string, status: WithdrawStatus, network: Network, address: string, minutes: number, extra: Partial<Withdrawal> = {}): Withdrawal => {
     const createdAt = minutesAgo(minutes);
     return {
-      id: `W${7000 + i}`,
+      id: seedNo(minutes, 200 + i),
       amount,
       fee: network === 'ERC20' ? '5.00' : network === 'TRC20' ? '1.00' : '0.50',
       network,
@@ -231,18 +234,18 @@ function seedWithdrawals(): Withdrawal[] {
 
 export function seed(): Db {
   const positions = [
-    makePosition('P30001', 'XAUUSD', 'buy', '0.10', 50, '4120.85', 260, '4180.00', '4095.00'),
-    makePosition('P30002', 'EURUSD', 'sell', '1.00', 100, '1.16420', 720, undefined, '1.16900'),
-    makePosition('P30003', 'USDJPY', 'buy', '2.00', 200, '151.230', 1500, '153.000'),
-    makePosition('P30004', 'NAS100', 'buy', '1.50', 50, '24650.0', 2900, '25200.0'),
-    makePosition('P30005', 'ETHUSD', 'sell', '0.75', 20, '4120.00', 3600, undefined, '4300.00'),
-    makePosition('P30006', 'GER40', 'sell', '0.50', 100, '24420.5', 4100),
-    makePosition('P30007', 'XAGUSD', 'buy', '0.20', 100, '47.950', 5000),
+    makePosition(seedNo(260, 1), 'XAUUSD', 'buy', '0.10', 50, '4120.85', 260, '4180.00', '4095.00'),
+    makePosition(seedNo(720, 2), 'EURUSD', 'sell', '1.00', 100, '1.16420', 720, undefined, '1.16900'),
+    makePosition(seedNo(1500, 3), 'USDJPY', 'buy', '2.00', 200, '151.230', 1500, '153.000'),
+    makePosition(seedNo(2900, 4), 'NAS100', 'buy', '1.50', 50, '24650.0', 2900, '25200.0'),
+    makePosition(seedNo(3600, 5), 'ETHUSD', 'sell', '0.75', 20, '4120.00', 3600, undefined, '4300.00'),
+    makePosition(seedNo(4100, 6), 'GER40', 'sell', '0.50', 100, '24420.5', 4100),
+    makePosition(seedNo(5000, 7), 'XAGUSD', 'buy', '0.20', 100, '47.950', 5000),
   ];
   const orders = [
-    makeOrder('O40001', 'XAUUSD', 'buy', '0.20', 50, '4080.00', 95, '4160.00', '4040.00'),
-    makeOrder('O40002', 'GBPUSD', 'sell', '0.50', 100, '1.33800', 400),
-    makeOrder('O40003', 'SOLUSD', 'buy', '3.00', 20, '185.00', 1300),
+    makeOrder(seedNo(95, 11), 'XAUUSD', 'buy', '0.20', 50, '4080.00', 95, '4160.00', '4040.00'),
+    makeOrder(seedNo(400, 12), 'GBPUSD', 'sell', '0.50', 100, '1.33800', 400),
+    makeOrder(seedNo(1300, 13), 'SOLUSD', 'buy', '3.00', 20, '185.00', 1300),
   ];
   const orderFrozen = orders.reduce((s, o) => s + dec(o.frozenMargin), 0n);
   return {

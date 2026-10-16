@@ -26,4 +26,21 @@
     SELECT symbol, timeframe, open_time, open, high, low, close, ticks FROM market_kline
     WHERE symbol = #{symbol} AND timeframe = #{tf} ORDER BY open_time DESC LIMIT #{limit}
   </select>
+
+  <!-- K 线保留条数（v2 第 11.2 节，KlineRetention）：都走主键 (symbol, timeframe, open_time) -->
+  <select id="symbols" resultType="string">
+    SELECT DISTINCT symbol FROM market_kline
+  </select>
+
+  <select id="cutoff" resultType="java.lang.Long">
+    SELECT open_time FROM market_kline WHERE symbol = #{symbol} AND timeframe = #{tf} ORDER BY open_time DESC LIMIT 1 OFFSET #{keep}
+  </select>
+
+  <delete id="deleteUpTo">
+    DELETE FROM market_kline WHERE symbol = #{symbol} AND timeframe = #{tf} AND open_time &lt;= #{cutoff} ORDER BY open_time LIMIT #{limit}
+  </delete>
+
+  <select id="count" resultType="long">
+    SELECT COUNT(*) FROM market_kline WHERE symbol = #{symbol} AND timeframe = #{tf}
+  </select>
 </mapper>

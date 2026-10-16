@@ -69,8 +69,8 @@ class RiskOrderTest extends TradingTestSupport {
   @Test
   void 关闭自动强平后触及强平价不平_止盈照常() throws Exception {
     long uid = newUser("1000");
-    long liqOrder = Long.parseLong(orders.place(uid, market("XAUUSD", "buy", "0.10", 200)).id());
-    long tpOrder = Long.parseLong(orders.place(uid, new PlaceOrder("XAUUSD", "market", "sell", "0.10", 200, null, "4115.00", null, UUID.randomUUID().toString())).id());
+    long liqOrder = orderId(orders.place(uid, market("XAUUSD", "buy", "0.10", 200)).id());
+    long tpOrder = orderId(orders.place(uid, new PlaceOrder("XAUUSD", "market", "sell", "0.10", 200, null, "4115.00", null, UUID.randomUUID().toString())).id());
     risk.setAutoLiquidation(false, 1L);
     engine.setEnabled(true);
     // 多单强平价 4116.43；空单止盈 4115（看 ask）
