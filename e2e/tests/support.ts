@@ -2,7 +2,7 @@
  * 端到端测试的公共部分：分步执行（每步超时、失败时写明卡在哪一步）、调用 e2e 替身接口（/api/e2e/**，只在后端 e2e profile 下存在）、
  * 记录客户能收到的全部接口返回和推送（AC-23）以及所有网络请求的域名（AC-29）。
  */
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type BrowserContext, type Page } from '@playwright/test';
 
 /** 客户密码：8–64 位、含字母和数字 */
 export const CLIENT_PASSWORD = 'e2eTest1234';
@@ -163,3 +163,31 @@ export async function expectNoHorizontalScroll(page: Page, where: string): Promi
 
 /** 一张 1×1 的 PNG（KYC 证件照片用；后端按文件头识别 JPG/PNG） */
 export const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
+/**
+ * 记下页面里哪些 WebSocket 已经连上（Playwright 只报告"创建了连接"，不报告"连上了"）。只记录，不改变页面行为。
+ * 用途：客户端第一次连上交易推送时不会重新拉取数据（只有断线重连才会），连上之前发生的变化页面收不到推送（问题 D-2）。
+ * 测试在制造变化（出块入账）之前先等推送连上，避免把这个时间窗口当成失败。
+ */
+export async function trackSocketOpen(ctx: BrowserContext): Promise<void> {
+  await ctx.addInitScript(() => {
+    const Native = window.WebSocket;
+    const opened: string[] = [];
+    (window as unknown as { __e2eWsOpened: string[] }).__e2eWsOpened = opened;
+    window.WebSocket = class extends Native {
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        this.addEventListener('open', () => opened.push(String(url)));
+      }
+    };
+  });
+}
+
+/** 等页面的某个 WebSocket（地址以 path 结尾）连上 */
+export async function waitSocketOpen(page: Page, path: string): Promise<void> {
+  await expect
+    .poll(() => page.evaluate((p) => ((window as unknown as { __e2eWsOpened?: string[] }).__e2eWsOpened || []).some((u) => u.endsWith(p)), path), {
+      message: `等 ${path} 连上`,
+    })
+    .toBe(true);
+}

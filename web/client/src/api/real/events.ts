@@ -1,7 +1,9 @@
 /**
  * 交易推送 `WS /api/ws/trading`（需要登录，只推本人，`trading/order/TradingPush.java`）：
  * `account`、`positions`、`orders`、`trade`、`withdraw`、`deposit`、`notification`，格式和 types.ts 的 ServerEvent 一致。
- * 断线自动重连；重连后补发一次 account / positions / orders，让页面重新拉取断线期间可能漏掉的变化。
+ * 断线自动重连。**每次连上（包括第一次）**都补发一次 account / positions / orders，让页面重新拉取：
+ * 第一次连上之前（页面加载后、推送连上前）和断线期间发生的变化都收不到推送（D-2，部署形态端到端测试发现）。
+ * 资产页的充值记录收到 account 也会重新拉取。
  */
 import type { ServerEvent } from '../types';
 import { ReconnectingSocket } from '../ws';
@@ -25,8 +27,7 @@ export function handleTradingMessage(msg: unknown): void {
 
 const socket = new ReconnectingSocket('/api/ws/trading', {
   onMessage: handleTradingMessage,
-  onOpen: (_send, reconnect) => {
-    if (!reconnect) return;
+  onOpen: () => {
     emit({ type: 'account' });
     emit({ type: 'positions' });
     emit({ type: 'orders' });

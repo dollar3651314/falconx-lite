@@ -54,8 +54,22 @@ export async function adminLogin(page: Page): Promise<boolean> {
   return false;
 }
 
-/** 改一项系统配置（后台的系统配置接口，和系统配置页同一个接口；会写审计） */
+/**
+ * 改一项系统配置（后台的系统配置接口，和系统配置页同一个接口；会写审计）。
+ * 在后台页面里同源 fetch（和页面自己调接口一样走浏览器）：部署形态的假域名只有浏览器能解析，测试进程访问不到。
+ */
 export async function setConfig(page: Page, key: string, value: string): Promise<void> {
-  const r = await page.request.put(`/api/admin/configs/${encodeURIComponent(key)}`, { data: { value, reason: '端到端测试：不等冷静期和白名单生效时间' } });
-  expect(r.ok(), `设置 ${key}=${value} 返回 ${r.status()} ${await r.text()}`).toBeTruthy();
+  const r = await page.evaluate(
+    async ({ key, value }) => {
+      const res = await fetch(`/api/admin/configs/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value, reason: '端到端测试：不等冷静期和白名单生效时间' }),
+      });
+      return { ok: res.ok, status: res.status, text: await res.text() };
+    },
+    { key, value },
+  );
+  expect(r.ok, `设置 ${key}=${value} 返回 ${r.status} ${r.text}`).toBeTruthy();
 }
