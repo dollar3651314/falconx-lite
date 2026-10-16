@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -63,6 +64,12 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<ApiError> unreadable(HttpMessageNotReadableException e) {
+    return ResponseEntity.badRequest().body(ApiError.of("BAD_REQUEST", "请求格式不正确"));
+  }
+
+  /** 参数类型不对（例如路径里的 ID 不是数字）：客户端的错误，返回 400，不当成内部错误记 ERROR 日志（安全审查 SEC-05） */
+  @ExceptionHandler(TypeMismatchException.class)
+  public ResponseEntity<ApiError> typeMismatch(TypeMismatchException e) {
     return ResponseEntity.badRequest().body(ApiError.of("BAD_REQUEST", "请求格式不正确"));
   }
 

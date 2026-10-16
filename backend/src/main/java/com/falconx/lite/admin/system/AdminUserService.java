@@ -148,6 +148,14 @@ class AdminUserService {
     return audit.run("admin.reset_password", String.valueOf(id), true, r, () -> {
       require(id);
       if (roles.includesSuper(mapper.roleIdsOf(id)) && !actor.superAdmin()) throw new BizException("FORBIDDEN", "不能重置超级管理员的密码");
+      // 安全审查 SEC-04：重置后拿到临时密码就能登录成对方，所以对方的权限点必须都在自己的范围内（和分配角色的规则一致）
+      if (!actor.superAdmin()) {
+        for (long roleId : mapper.roleIdsOf(id)) {
+          for (Permission p : roles.permissionsOf(roleId)) {
+            if (!actor.has(p)) throw new BizException("PERMISSION_EXCEEDS_OWN", "不能重置权限超出自己的管理员的密码");
+          }
+        }
+      }
       String temp = Passwords.temporary();
       mapper.setPassword(id, Passwords.hash(temp), true);
       mapper.revokeSessions(id, now());

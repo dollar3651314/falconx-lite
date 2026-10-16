@@ -38,8 +38,8 @@ class AuthController {
   record CodeSent(int cooldownSeconds) {}
 
   @PostMapping("/api/auth/email-code")
-  CodeSent sendCode(@Valid @RequestBody SendCode r) {
-    return new CodeSent(auth.sendCode(r.email(), r.purpose()));
+  CodeSent sendCode(@Valid @RequestBody SendCode r, HttpServletRequest req) {
+    return new CodeSent(auth.sendCode(r.email(), r.purpose(), req.getRemoteAddr()));
   }
 
   @PostMapping("/api/auth/register")

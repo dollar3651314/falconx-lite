@@ -31,6 +31,11 @@
     VALUES (#{email}, #{purpose}, #{codeHash}, DATE_ADD(UTC_TIMESTAMP(3), INTERVAL #{ttlMinutes} MINUTE))
   </insert>
 
+  <select id="countEmailCodesSince" resultType="int">
+    SELECT COUNT(*) FROM account_email_code
+    WHERE email = #{email} AND purpose = #{purpose} AND created_at &gt; DATE_SUB(UTC_TIMESTAMP(3), INTERVAL #{hours} HOUR)
+  </select>
+
   <!-- 最新的一条；createdAt 用来判断 60 秒内不能重发。FOR UPDATE：同一邮箱的校验排队，尝试次数不会少算 -->
   <select id="latestEmailCode" resultType="com.falconx.lite.account.auth.Rows$EmailCodeRow">
     SELECT id, code_hash, attempts, expires_at &lt;= UTC_TIMESTAMP(3) AS expired, consumed_at IS NOT NULL AS consumed,
