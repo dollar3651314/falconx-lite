@@ -136,13 +136,10 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       const desk = await browser.newContext({ baseURL: CLIENT_URL, ignoreHTTPSErrors: DEPLOYED, viewport: { width: 1024, height: 800 }, locale: 'zh-CN', serviceWorkers: 'block', storageState: await client.storageState() });
       try {
         // 新库没有 K 线历史，"今日走势"一列只有"—"，比真实环境窄，查不出问题：这里给每个品种补一条走势（只影响这个上下文的显示）
-        await desk.route('**/api/market/sparklines', async (route) => {
-          const res = await route.fetch();
-          const real = (await res.json()) as Record<string, string[]>;
-          const symbols = (await (await desk.request.get('/api/market/symbols')).json()) as { code: string }[];
-          const fake = Object.fromEntries(symbols.map((s) => [s.code, real[s.code]?.length > 1 ? real[s.code] : Array.from({ length: 24 }, (_, i) => String(100 + Math.sin(i / 3) * 2))]));
-          await route.fulfill({ response: res, json: fake });
-        });
+        // 品种列表从已登录的浏览器页面里取，不用 route.fetch / request：部署形态的假域名（test-app.e2e.test）只有浏览器能解析，测试进程（Node）解析不了
+        const codes = await page.evaluate(async () => ((await (await fetch('/api/market/symbols')).json()) as { code: string }[]).map((s) => s.code));
+        const fake = Object.fromEntries(codes.map((c) => [c, Array.from({ length: 24 }, (_, i) => String(100 + Math.sin(i / 3) * 2))]));
+        await desk.route('**/api/market/sparklines', (route) => route.fulfill({ json: fake }));
         const d = await desk.newPage();
         await d.goto('/markets');
         await expect(d.locator('.mt-table svg.spark').first(), '走势图已显示').toBeVisible();
