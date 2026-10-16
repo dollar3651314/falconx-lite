@@ -9,7 +9,7 @@
  */
 import { expect, request as apiRequest, test, type BrowserContext, type Page } from '@playwright/test';
 import { adminLogin, cjk, confirmAndWait, setConfig } from './admin';
-import { CLIENT_PASSWORD, e2e, expectNoHorizontalScroll, PNG_1PX, Recorder, step, SYMBOL, trackSocketOpen, uniqueId, waitSocketOpen } from './support';
+import { CLIENT_PASSWORD, e2e, expectNoHorizontalScroll, PNG_1PX, Recorder, selectTab, step, SYMBOL, trackSocketOpen, uniqueId, waitSocketOpen } from './support';
 import { ADMIN_URL, CLIENT_URL, DEPLOYED, EXPECT_ENV_BANNER, STUB_URL } from './targets';
 
 const DEPOSIT = '1000';
@@ -212,7 +212,7 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
     await step('报价涨过止盈价：自动平仓（止盈）', async () => {
       await e2e.move(request, SYMBOL, bid * 1.007);
       await expect(page.getByText('暂无持仓')).toBeVisible();
-      await page.getByRole('tab', { name: '历史' }).click();
+      await selectTab(page, '历史');
       await expect(page.locator('.hist-row').filter({ hasText: SYMBOL }).getByText('止盈')).toBeVisible();
     });
 
@@ -225,7 +225,7 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await page.getByRole('button', { name: '确认平仓' }).click();
       await expect(page.getByText('已平仓')).toBeVisible();
       await expect(page.getByText('暂无持仓')).toBeVisible();
-      await page.getByRole('tab', { name: '历史' }).click();
+      await selectTab(page, '历史');
       await expect(page.locator('.hist-row').filter({ hasText: '手动平仓' })).toHaveCount(1);
     });
 

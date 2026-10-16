@@ -9,12 +9,21 @@
       "source": "/admin",
       "destination": "/admin/",
       "permanent": false
+    },
+    {
+      "source": "/site",
+      "destination": "/site/",
+      "permanent": false
     }
   ],
   "rewrites": [
     {
       "source": "/admin/(.*)",
       "destination": "/admin/index.html"
+    },
+    {
+      "source": "/site/(.*)",
+      "destination": "/site/index.html"
     },
     {
       "source": "/(.*)",

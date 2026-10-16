@@ -161,6 +161,19 @@ export async function expectNoHorizontalScroll(page: Page, where: string): Promi
   expect(w.scroll, `${where}：页面宽 ${w.scroll}px 超过窗口 ${w.client}px（有横向滚动）`).toBeLessThanOrEqual(w.client);
 }
 
+/**
+ * 切换到某个标签页，直到它真的被选中。
+ * 手机上提示条（toast）从顶部滑入，会盖住持仓页的标签栏：平仓推送的"止盈平仓"提示恰好在点击时出现，点击就落在提示条上，
+ * 标签没有切换（PR #46 的 CI 实际发生过）。真人会再点一次，这里同样重试，并检查 aria-selected。
+ */
+export async function selectTab(page: Page, name: string): Promise<void> {
+  const tab = page.getByRole('tab', { name });
+  await expect(async () => {
+    await tab.click({ timeout: 2_000 });
+    await expect(tab).toHaveAttribute('aria-selected', 'true', { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+}
+
 /** 一张 1×1 的 PNG（KYC 证件照片用；后端按文件头识别 JPG/PNG） */
 export const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 

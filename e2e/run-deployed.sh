@@ -9,7 +9,8 @@
 #   E2E_SKIP_BUILD=1   不重新构建 jar 和两个前端（用已有的 backend/target、web/*/dist），镜像照样重新打包
 #   E2E_MVN_ARGS       传给 Maven 的额外参数（例如本机离线时 -o）
 #   E2E_KEEP=1         测试结束后不停容器、不删临时目录（排查用；之后 docker compose -p falconx-e2e down -v 并手动删目录）
-#   E2E_APP_DOMAIN、E2E_ADMIN_DOMAIN  两个假域名（默认 test-app.e2e.test、test-admin.e2e.test；.test 是保留的顶级域名，不会解析到外网）
+#   E2E_APP_DOMAIN、E2E_ADMIN_DOMAIN、E2E_WWW_DOMAIN  三个假域名（默认 test-app.e2e.test、test-admin.e2e.test、test-www.e2e.test（官网）；
+#                      .test 是保留的顶级域名，不会解析到外网）
 # 密码（数据库、Redis、第一个超管）每次随机生成，只写进临时目录的 .env，结束时连同临时目录一起删除，不进仓库、不打印。
 # 日志：e2e/logs/deployed/（各容器日志、内存、耗时；不进仓库）。Playwright 报告同默认形态：e2e/playwright-report/。
 set -euo pipefail
@@ -20,6 +21,7 @@ REG=ghcr.io/dollar3651314/falconx-lite
 TAG=e2e-local
 APP_DOMAIN=${E2E_APP_DOMAIN:-test-app.e2e.test}
 ADMIN_DOMAIN=${E2E_ADMIN_DOMAIN:-test-admin.e2e.test}
+WWW_DOMAIN=${E2E_WWW_DOMAIN:-test-www.e2e.test}
 LOGS=$ROOT/e2e/logs/deployed
 START=$(date +%s)
 mkdir -p "$LOGS"
@@ -43,19 +45,19 @@ for p in 80 443 8080; do
 done
 [ -z "$busy" ] || die "本机端口${busy} 已被占用（部署形态要用 80、443 和 127.0.0.1:8080）。请先停掉占用的程序；本脚本不会去停别人的进程"
 
-# ---------- 1. 构建 jar 和两个前端（真实接口模式） ----------
+# ---------- 1. 构建 jar 和三个前端（客户端、后台、官网；真实接口模式） ----------
 if [ -z "${E2E_SKIP_BUILD:-}" ]; then
   say "构建后端 jar"
   # shellcheck disable=SC2086
   mvn -B -ntp -q ${E2E_MVN_ARGS:-} -f backend package -DskipTests
-  for app in client admin; do
+  for app in client admin site; do
     say "构建 web/$app（真实接口模式）"
     [ -d "web/$app/node_modules" ] || npm ci --prefix "web/$app" --no-audit --no-fund
     (unset VITE_API_MODE; npm run build --prefix "web/$app" > "$LOGS/build-$app.log" 2>&1) || { tail -40 "$LOGS/build-$app.log" >&2; exit 1; }
   done
 fi
 ls backend/target/falconx-lite-*.jar > /dev/null 2>&1 || die "没有 backend/target/falconx-lite-*.jar"
-for app in client admin; do [ -f "web/$app/dist/index.html" ] || die "没有 web/$app/dist（去掉 E2E_SKIP_BUILD 重跑）"; done
+for app in client admin site; do [ -f "web/$app/dist/index.html" ] || die "没有 web/$app/dist（去掉 E2E_SKIP_BUILD 重跑）"; done
 [ -d e2e/node_modules ] || npm ci --prefix e2e --no-audit --no-fund
 
 # ---------- 2. 构建两个镜像（和 CI 的 publish-staging 同样的 Dockerfile） ----------
@@ -104,6 +106,7 @@ mkdir -p "$TMP/state" "$TMP/data/mysql" "$TMP/data/redis" "$TMP/data/storage" "$
   cat > "$TMP/.env" << EOF
 APP_DOMAIN=$APP_DOMAIN
 ADMIN_DOMAIN=$ADMIN_DOMAIN
+WWW_DOMAIN=$WWW_DOMAIN
 MYSQL_ROOT_PASSWORD=$(rnd)
 FX_DB_PASSWORD=$(rnd)
 FX_REDIS_PASSWORD=$(rnd)
@@ -115,9 +118,9 @@ EOF
 printf 'IMAGE_TAG=%s\n' "$TAG" > "$TMP/state/image.env"
 # 和 server-setup.sh 一样：后端容器用 uid 10001 运行，证件照片目录要能写
 chown 10001 "$TMP/data/storage" 2> /dev/null || sudo -n chown 10001 "$TMP/data/storage" 2> /dev/null || chmod 777 "$TMP/data/storage"
-# 一张证书同时包含两个域名，路径和 Let's Encrypt 的一样（live/falconx/），只给这次测试用
+# 一张证书同时包含三个域名，路径和 Let's Encrypt 的一样（live/falconx/），只给这次测试用
 openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=$APP_DOMAIN" \
-  -addext "subjectAltName=DNS:$APP_DOMAIN,DNS:$ADMIN_DOMAIN" \
+  -addext "subjectAltName=DNS:$APP_DOMAIN,DNS:$ADMIN_DOMAIN,DNS:$WWW_DOMAIN" \
   -keyout "$TMP/certs/live/falconx/privkey.pem" -out "$TMP/certs/live/falconx/fullchain.pem" 2> /dev/null
 
 # ---------- 4. 启动（新库：每次都是新的数据目录） ----------
@@ -148,6 +151,7 @@ set +e
   E2E_MODE=deployed \
     E2E_CLIENT_URL="https://$APP_DOMAIN" \
     E2E_ADMIN_URL="https://$ADMIN_DOMAIN" \
+    E2E_SITE_URL="https://$WWW_DOMAIN" \
     E2E_STUB_URL=http://127.0.0.1:8080 \
     FX_ADMIN_INIT_USERNAME="$ADMIN_USER" \
     FX_ADMIN_INIT_PASSWORD="$ADMIN_INIT" \

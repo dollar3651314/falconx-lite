@@ -50,6 +50,11 @@ falconx:
     # 没有对应外汇品种的币种：港币按联系汇率（1 USD = 7.78 HKD）
     fixed-usd-rates:
       HKD: 0.12853470
+    # 官网公开行情 GET /api/public/quotes（v2 需求 4.2，不需要登录）：只返回这些品种的卖价和当日涨跌幅，按这个顺序；
+    # 整份结果缓存 cache-ttl，所有访客共用。改品种只改这里（需求要求 8–12 个）
+    public-quotes:
+      symbols: [XAUUSD, XAGUSD, EURUSD, GBPUSD, USDJPY, USDCNH, NAS100, XTIUSD, BTCUSD, ETHUSD]
+      cache-ttl: 1s
   trading:
     # 单个用户的持仓上限（USD 名义价值，含挂单），沿用原型的 3,000,000；S16 改为后台可配置
     position-limit-usd: 3000000
