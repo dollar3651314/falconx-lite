@@ -32,6 +32,10 @@ interface ReconMapper {
 
   List<WalletReconApi.Issue> issues(@Param("status") String status, @Param("limit") int limit);
 
+  List<WalletReconApi.Issue> issuePage(@Param("status") String status, @Param("offset") int offset, @Param("limit") int limit);
+
+  long countIssues(@Param("status") String status);
+
   WalletReconApi.Issue lockIssue(@Param("id") long id);
 
   /** 只改"待处理"的（修复 F5：现有系统把这个条件写反了） */

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 后台查看客户和 KYC（只读）。只有 account 模块使用。 -->
+<mapper namespace="com.falconx.lite.account.admin.CustomerAdminMapper">
+
+  <!-- 客户 + 资料 + 最近一次 KYC 申请 -->
+  <sql id="customerSelect">
+    SELECT u.id, u.email, u.status, u.frozen_reason, u.created_at, u.last_login_at,
+      p.first_name, p.middle_name, p.last_name, p.birth_date, p.nationality,
+      COALESCE(k.status, 'NONE') AS kyc_status, k.doc_type, k.doc_number, k.reviewed_at AS kyc_reviewed_at, k.reject_reason AS kyc_reject_reason
+    FROM account_user u
+    LEFT JOIN account_profile p ON p.user_id = u.id
+    LEFT JOIN account_kyc_application k ON k.id = (SELECT MAX(k2.id) FROM account_kyc_application k2 WHERE k2.user_id = u.id)
+  </sql>
+
+  <sql id="customerWhere">
+    <where>
+      <if test="status != null">AND u.status = #{status}</if>
+      <if test="kycStatus != null">AND COALESCE(k.status, 'NONE') = #{kycStatus}</if>
+      <if test="keyword != null">
+        AND (u.email LIKE CONCAT('%', #{keyword}, '%') OR CONCAT_WS(' ', p.first_name, p.middle_name, p.last_name) LIKE CONCAT('%', #{keyword}, '%')
+        <if test="id != null">OR u.id = #{id}</if>)
+      </if>
+    </where>
+  </sql>
+
+  <select id="customers" resultType="com.falconx.lite.account.admin.CustomerAdminMapper$CustomerRow">
+    <include refid="customerSelect"/> <include refid="customerWhere"/> ORDER BY u.id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countCustomers" resultType="long">
+    SELECT COUNT(*) FROM account_user u
+    LEFT JOIN account_profile p ON p.user_id = u.id
+    LEFT JOIN account_kyc_application k ON k.id = (SELECT MAX(k2.id) FROM account_kyc_application k2 WHERE k2.user_id = u.id)
+    <include refid="customerWhere"/>
+  </select>
+
+  <select id="byIds" resultType="com.falconx.lite.account.admin.CustomerAdminMapper$CustomerRow">
+    <include refid="customerSelect"/> WHERE u.id IN <foreach collection="ids" item="i" open="(" separator="," close=")">#{i}</foreach>
+  </select>
+
+  <update id="setFrozenReason">UPDATE account_user SET frozen_reason = #{reason} WHERE id = #{id}</update>
+
+  <sql id="kycSelect">
+    SELECT k.id, k.user_id, u.email, p.first_name, p.middle_name, p.last_name, p.nationality, p.birth_date, k.doc_type, k.doc_number,
+      k.front_key, k.back_key, k.selfie_key, k.status, k.submitted_at, k.reviewer_id, k.reviewed_at, k.reject_reason
+    FROM account_kyc_application k JOIN account_user u ON u.id = k.user_id LEFT JOIN account_profile p ON p.user_id = k.user_id
+  </sql>
+
+  <sql id="kycWhere">
+    <where>
+      <if test="status != null">AND k.status = #{status}</if>
+      <if test="keyword != null">
+        AND (u.email LIKE CONCAT('%', #{keyword}, '%') OR CONCAT_WS(' ', p.first_name, p.middle_name, p.last_name) LIKE CONCAT('%', #{keyword}, '%')
+        <if test="id != null">OR k.user_id = #{id} OR k.id = #{id}</if>)
+      </if>
+    </where>
+  </sql>
+
+  <select id="kycs" resultType="com.falconx.lite.account.admin.CustomerAdminMapper$KycRow">
+    <include refid="kycSelect"/> <include refid="kycWhere"/> ORDER BY k.id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countKycs" resultType="long">
+    SELECT COUNT(*) FROM account_kyc_application k JOIN account_user u ON u.id = k.user_id LEFT JOIN account_profile p ON p.user_id = k.user_id
+    <include refid="kycWhere"/>
+  </select>
+
+  <select id="kyc" resultType="com.falconx.lite.account.admin.CustomerAdminMapper$KycRow">
+    <include refid="kycSelect"/> WHERE k.id = #{id}
+  </select>
+
+  <select id="pendingKyc" resultType="long">SELECT COUNT(*) FROM account_kyc_application WHERE status = 'PENDING'</select>
+</mapper>

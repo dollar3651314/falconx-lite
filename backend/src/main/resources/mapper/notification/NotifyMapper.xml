@@ -4,7 +4,7 @@
 <mapper namespace="com.falconx.lite.notification.service.NotifyMapper">
 
   <select id="template" resultType="com.falconx.lite.notification.service.Rows$TemplateRow">
-    SELECT code, audience, kind, name_zh, name_en, title_zh, title_en, body_zh, body_en, variables, channels, built_in, enabled
+    SELECT code, audience, kind, name_zh, name_en, title_zh, title_en, body_zh, body_en, variables, channels, built_in, enabled, updated_at
     FROM notify_template WHERE code = #{code}
   </select>
 
@@ -93,4 +93,30 @@
     DELETE FROM notify_push_sub WHERE user_id = #{userId} AND id NOT IN (
       SELECT id FROM (SELECT id FROM notify_push_sub WHERE user_id = #{userId} ORDER BY created_at DESC, id DESC LIMIT #{max}) keep)
   </delete>
+
+  <!-- 后台（S16b） -->
+  <select id="templates" resultType="com.falconx.lite.notification.service.Rows$TemplateRow">
+    SELECT code, audience, kind, name_zh, name_en, title_zh, title_en, body_zh, body_en, variables, channels, built_in, enabled, updated_at
+    FROM notify_template ORDER BY FIELD(audience, 'USER', 'ANY', 'STAFF'), code
+  </select>
+
+  <update id="updateTemplate">
+    UPDATE notify_template SET title_zh = #{titleZh}, body_zh = #{bodyZh}, title_en = #{titleEn}, body_en = #{bodyEn}, enabled = #{enabled}
+    WHERE code = #{code}
+  </update>
+
+  <sql id="recordWhere">
+    <where>
+      <if test="channel != null">AND channel = #{channel}</if>
+      <if test="status != null">AND status = #{status}</if>
+      <if test="userIds != null">AND user_id IN <foreach collection="userIds" item="u" open="(" separator="," close=")">#{u}</foreach></if>
+    </where>
+  </sql>
+
+  <select id="records" resultType="com.falconx.lite.notification.service.Rows$RecordRow">
+    SELECT id, user_id, recipient, source, template_code, channel, title, status, error, operator_id, created_at
+    FROM notify_record <include refid="recordWhere"/> ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countRecords" resultType="long">SELECT COUNT(*) FROM notify_record <include refid="recordWhere"/></select>
 </mapper>

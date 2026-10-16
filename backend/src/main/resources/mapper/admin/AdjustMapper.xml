@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 后台调余额记录。只有 admin 模块使用。 -->
+<mapper namespace="com.falconx.lite.admin.ops.AdjustMapper">
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO admin_balance_adjust (admin_id, user_id, amount, reason, created_at) VALUES (#{adminId}, #{userId}, #{amount}, #{reason}, #{createdAt})
+  </insert>
+
+  <select id="usedSince" resultType="java.math.BigDecimal">
+    SELECT COALESCE(SUM(ABS(amount)), 0) FROM admin_balance_adjust WHERE admin_id = #{adminId} AND created_at &gt;= #{since}
+  </select>
+</mapper>

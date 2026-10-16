@@ -178,6 +178,16 @@ class ReconService implements WalletReconApi {
   }
 
   @Override
+  public List<Issue> issues(String status, int offset, int limit) {
+    return mapper.issuePage(status == null || status.isBlank() ? null : status, Math.max(0, offset), Math.min(Math.max(limit, 1), 500));
+  }
+
+  @Override
+  public long countIssues(String status) {
+    return mapper.countIssues(status == null || status.isBlank() ? null : status);
+  }
+
+  @Override
   public void resolve(long issueId, long adminId, String note) {
     if (note == null || note.isBlank()) throw new ValidationException(List.of(new ValidationException.Field("note", "required")));
     if (note.length() > 500) throw new ValidationException(List.of(new ValidationException.Field("note", "tooLong")));

@@ -81,6 +81,15 @@
     SELECT <include refid="issueCols"/> FROM wallet_recon_issue WHERE status = #{status} ORDER BY id DESC LIMIT #{limit}
   </select>
 
+  <select id="issuePage" resultMap="issue">
+    SELECT <include refid="issueCols"/> FROM wallet_recon_issue <where><if test="status != null">status = #{status}</if></where>
+    ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countIssues" resultType="long">
+    SELECT COUNT(*) FROM wallet_recon_issue <where><if test="status != null">status = #{status}</if></where>
+  </select>
+
   <select id="lockIssue" resultMap="issue">
     SELECT <include refid="issueCols"/> FROM wallet_recon_issue WHERE id = #{id} FOR UPDATE
   </select>

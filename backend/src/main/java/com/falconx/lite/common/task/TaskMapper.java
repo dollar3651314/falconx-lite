@@ -27,4 +27,10 @@ interface TaskMapper {
   Task find(@Param("id") long id);
 
   List<Task> findByIds(@Param("ids") List<Long> ids);
+
+  List<TaskItem> list(@Param("taskType") String taskType, @Param("status") String status, @Param("offset") int offset, @Param("limit") int limit);
+
+  long count(@Param("taskType") String taskType, @Param("status") String status);
+
+  int retry(@Param("id") long id);
 }

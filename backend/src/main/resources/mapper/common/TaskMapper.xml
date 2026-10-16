@@ -52,4 +52,26 @@
     WHERE id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
     ORDER BY id
   </select>
+  <!-- 后台任务列表（S16b） -->
+  <sql id="listWhere">
+    <where>
+      <if test="taskType != null">AND task_type = #{taskType}</if>
+      <if test="status != null">AND status = #{status}</if>
+    </where>
+  </sql>
+
+  <select id="list" resultType="com.falconx.lite.common.task.TaskItem">
+    SELECT id, task_type, status, attempts, max_attempts, next_run_at, last_error,
+      JSON_UNQUOTE(JSON_EXTRACT(payload, '$.recordId')) AS biz_ref, created_at, updated_at
+    FROM common_task <include refid="listWhere"/> ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="count" resultType="long">SELECT COUNT(*) FROM common_task <include refid="listWhere"/></select>
+
+  <!-- 手动重试：只有失败的能重试；次数清零，立即可领取 -->
+  <update id="retry">
+    UPDATE common_task SET status = 'PENDING', attempts = 0, next_run_at = UTC_TIMESTAMP(3), locked_at = NULL, locked_by = NULL
+    WHERE id = #{id} AND status = 'FAILED'
+  </update>
+
 </mapper>
