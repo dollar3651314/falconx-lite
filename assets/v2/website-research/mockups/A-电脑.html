@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quick Come 官网 · 方向 A · 电脑版</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans CJK SC','Hiragino Sans GB','WenQuanYi Zen Hei',sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;line-height:1.5}
+.num{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono','DejaVu Sans Mono',monospace;letter-spacing:-0.01em}
+a{color:inherit;text-decoration:none}
+.tag-sample{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px dashed currentColor;opacity:.9}
+.tbd{border:1px dashed currentColor;border-radius:8px;padding:10px 14px;opacity:.85}
+.risk-bar{font-size:12px;padding:6px 16px;text-align:center}
+[data-sym]{transition:background-color .6s}
+:root{--bg:#0d1117;--s1:#131a24;--s2:#0f151e;--s3:#1b2533;--border:#222c3a;--hair:#1a2230;--text:#e6edf3;--muted:#a3b0c2;--subtle:#8b98a9;--cyan:#22d3ee;--primary:#0891b2;--up:#22c55e;--down:#f43f5e;--up-soft:rgba(34,197,94,.16);--down-soft:rgba(244,63,94,.16)}
+body{background:var(--bg);color:var(--text)}
+.risk-bar{background:var(--s2);color:var(--subtle);border-bottom:1px solid var(--hair)}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:18px;letter-spacing:-.01em}
+.mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#22d3ee,#0891b2);color:#04121a;display:grid;place-items:center;font-weight:900;font-size:15px}
+.up{color:var(--up)}.down{color:var(--down)}
+.chip{display:inline-block;min-width:76px;text-align:center;padding:4px 8px;border-radius:6px;font-weight:700;color:#fff}
+.chip.up{background:#16a34a}.chip.down{background:#e11d48}
+.flash-up{background:var(--up-soft)!important}.flash-down{background:var(--down-soft)!important}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;border-radius:8px;font-weight:700;font-size:15px}
+.btn.pri{background:var(--primary);color:#fff}.btn.sec{border:1px solid var(--border);color:var(--text);background:var(--s1)}
+.btn-mini{display:inline-block;padding:4px 12px;border-radius:6px;border:1px solid var(--border);font-size:12px;color:var(--cyan)}
+.card{background:var(--s1);border:1px solid var(--border);border-radius:12px}
+.sec-title{font-size:26px;font-weight:800;letter-spacing:-.01em}
+.sec-sub{color:var(--muted);margin-top:6px}
+.tag-sample{color:#fbbf24}
+
+.wrap{width:1200px;margin:0 auto}
+header{height:64px;border-bottom:1px solid var(--hair);background:rgba(13,17,23,.92)}
+header .wrap{display:flex;align-items:center;height:100%;gap:36px}
+header nav{display:flex;gap:26px;color:var(--muted);font-size:14px;flex:1}
+header .right{display:flex;align-items:center;gap:12px}
+.lang{font-size:13px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:4px 8px}
+.lang b{color:var(--text)}
+.hero{padding:56px 0 64px;background:radial-gradient(800px 360px at 80% 20%,rgba(34,211,238,.10),transparent 60%)}
+.hero .wrap{display:grid;grid-template-columns:1fr 560px;gap:56px;align-items:center}
+h1{font-size:52px;line-height:1.15;font-weight:800;letter-spacing:-.02em}
+h1 em{font-style:normal;color:var(--cyan)}
+.hero p{color:var(--muted);font-size:17px;margin:18px 0 28px;max-width:520px}
+.cta{display:flex;gap:12px}
+.points{display:flex;gap:22px;margin-top:28px;color:var(--subtle);font-size:13px}
+.points span::before{content:'✓ ';color:var(--up)}
+.board{padding:14px 0 6px}
+.board-head{display:flex;align-items:center;justify-content:space-between;padding:0 18px 10px}
+.board-head h3{font-size:15px;display:flex;align-items:center;gap:8px}
+.live{width:8px;height:8px;border-radius:50%;background:var(--up);box-shadow:0 0 0 4px rgba(34,197,94,.18)}
+.tabs{display:flex;gap:6px;padding:0 18px 10px;font-size:13px}
+.tabs span{padding:4px 10px;border-radius:6px;color:var(--muted)}.tabs span.on{background:var(--s3);color:var(--text)}
+.q-head,.q-row{display:grid;grid-template-columns:1.5fr 90px 1fr 100px;align-items:center;padding:0 18px;gap:12px}
+.q-head{font-size:12px;color:var(--subtle);height:30px;border-top:1px solid var(--hair)}
+.q-row{height:44px;border-top:1px solid var(--hair);cursor:pointer}
+.q-name b{font-size:14px}.q-name span{color:var(--subtle);font-size:12px;margin-left:8px}
+.q-px{text-align:right;font-size:15px;font-weight:600}.q-chg{text-align:right}
+.board-foot{display:flex;justify-content:space-between;padding:10px 18px 4px;font-size:12px;color:var(--subtle);border-top:1px solid var(--hair)}
+.board-foot a{color:var(--cyan)}
+section{padding:72px 0;border-top:1px solid var(--hair)}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:28px}
+.grid4 .card,.grid3 .card,.grid5 .card{padding:22px}
+.ico{width:36px;height:36px;border-radius:8px;background:rgba(34,211,238,.12);color:var(--cyan);display:grid;place-items:center;font-weight:800;margin-bottom:14px}
+.card h4{font-size:16px;margin-bottom:6px}.card p{color:var(--muted);font-size:14px}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:28px}
+.grid5 .card h4{display:flex;justify-content:space-between}.grid5 .card h4 i{font-style:normal;color:var(--cyan);font-size:13px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px;counter-reset:s}
+.step{position:relative;padding:22px 22px 22px 74px}
+.step::before{counter-increment:s;content:counter(s);position:absolute;left:22px;top:22px;width:36px;height:36px;border-radius:50%;border:1px solid var(--cyan);color:var(--cyan);display:grid;place-items:center;font-weight:800}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+.license{margin-top:16px;color:#fbbf24;font-size:14px}
+.faq{margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.faq .card{padding:16px 20px;display:flex;justify-content:space-between;font-weight:600}
+.faq .card.open{grid-column:1/3;display:block}.faq .card.open p{font-weight:400;margin-top:8px}
+.faq .card span{color:var(--subtle)}
+.final{text-align:center}
+footer{background:var(--s2);border-top:1px solid var(--border);padding:36px 0;color:var(--subtle);font-size:13px}
+footer .links{display:flex;gap:24px;margin:16px 0;color:var(--muted)}
+footer .tbd{margin-top:12px;color:#fbbf24;display:inline-block}
+</style></head>
+<body>
+<div class="risk-bar">风险提示：差价合约是复杂的金融产品，因杠杆作用，亏损可能迅速扩大，你可能损失全部保证金。请确认你了解其运作方式，并能承受… <a style="text-decoration:underline">风险披露</a></div>
+<header><div class="wrap"><a class="logo"><span class="mark">Q</span><span class="word">Quick Come</span></a><nav><a>行情</a><a>交易品种</a><a>平台</a><a>资金安全</a><a>帮助中心</a></nav>
+<div class="right"><span class="lang"><b>中</b> / EN</span><a class="btn sec" style="height:36px;padding:0 16px">登录</a><a class="btn pri" style="height:36px;padding:0 16px">免费注册</a></div></div></header>
+<div class="hero"><div class="wrap">
+  <div><h1>快人一步，<br><em>交易全球行情</em></h1><p>用 USDT 交易黄金、外汇、指数、原油和加密货币差价合约。手机打开就能交易，不用下载。</p>
+  <div class="cta"><a class="btn pri" style="height:50px;padding:0 30px">免费注册</a><a class="btn sec" style="height:50px;padding:0 30px">登录</a></div>
+  <div class="points"><span>USDT 充值和提现</span><span>约 50 个热门品种</span><span>手机、电脑都能用</span></div></div>
+  <div class="card board">
+    <div class="board-head"><h3><i class="live"></i>实时行情</h3><span class="tag-sample">示例行情</span></div>
+    <div class="tabs"><span class="on">热门</span><span class="">贵金属</span><span class="">外汇</span><span class="">指数</span><span class="">加密货币</span></div>
+    <div class="q-head"><span>品种</span><span>今日走势</span><span style="text-align:right">卖价</span><span style="text-align:right">今日涨跌</span></div>
+    <div class="q-row flash-up" data-sym="XAUUSD" data-v="4126.35" data-d="2">
+  <div class="q-name"><b>XAUUSD</b><span>黄金</span></div>
+  <div class="q-spark"><svg class="spark" width="90" height="22" viewBox="0 0 90 22"><path d="M0.0,17.0 L3.9,11.9 L7.8,13.5 L11.7,17.2 L15.7,19.5 L19.6,16.0 L23.5,18.7 L27.4,20.0 L31.3,16.0 L35.2,17.2 L39.1,15.2 L43.0,10.8 L47.0,5.2 L50.9,4.3 L54.8,5.9 L58.7,5.8 L62.6,5.8 L66.5,4.2 L70.4,6.2 L74.3,2.2 L78.3,5.7 L82.2,2.0 L86.1,6.4 L90.0,7.8" fill="none" stroke="#22c55e" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>4,126.35</div>
+  <div class="q-chg num up"><span class="chip up">+0.62%</span></div>
+  
+</div><div class="q-row" data-sym="XAGUSD" data-v="48.625" data-d="3">
+  <div class="q-name"><b>XAGUSD</b><span>白银</span></div>
+  <div class="q-spark"><svg class="spark" width="90" height="22" viewBox="0 0 90 22"><path d="M0.0,20.0 L3.9,18.1 L7.8,15.6 L11.7,14.6 L15.7,12.2 L19.6,13.6 L23.5,10.9 L27.4,11.4 L31.3,11.5 L35.2,12.9 L39.1,11.3 L43.0,8.3 L47.0,5.2 L50.9,6.1 L54.8,7.5 L58.7,6.7 L62.6,6.0 L66.5,5.2 L70.4,5.0 L74.3,2.4 L78.3,2.0 L82.2,4.3 L86.1,2.7 L90.0,2.8" fill="none" stroke="#22c55e" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>48.625</div>
+  <div class="q-chg num up"><span class="chip up">+1.12%</span></div>
+  
+</div><div class="q-row" data-sym="EURUSD" data-v="1.1642" data-d="5">
+  <div class="q-name"><b>EURUSD</b><span>欧元/美元</span></div>
+  <div class="q-spark"><svg class="spark" width="90" height="22" viewBox="0 0 90 22"><path d="M0.0,12.5 L3.9,10.8 L7.8,10.9 L11.7,14.1 L15.7,13.8 L19.6,11.8 L23.5,10.2 L27.4,10.7 L31.3,14.5 L35.2,17.9 L39.1,14.6 L43.0,18.3 L47.0,13.0 L50.9,16.6 L54.8,20.0 L58.7,17.3 L62.6,15.3 L66.5,14.0 L70.4,11.5 L74.3,6.6 L78.3,2.0 L82.2,3.0 L86.1,3.5 L90.0,2.7" fill="none" stroke="#22c55e" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>1.16420</div>
+  <div class="q-chg num up"><span class="chip up">+0.18%</span></div>
+  
+</div><div class="q-row flash-down" data-sym="GBPUSD" data-v="1.33185" data-d="5">
+  <div class="q-name"><b>GBPUSD</b><span>英镑/美元</span></div>
+  <div class="q-spark"><svg class="spark" width="90" height="22" viewBox="0 0 90 22"><path d="M0.0,2.0 L3.9,2.9 L7.8,7.8 L11.7,7.3 L15.7,11.4 L19.6,15.6 L23.5,17.8 L27.4,19.0 L31.3,18.0 L35.2,14.4 L39.1,11.6 L43.0,15.0 L47.0,20.0 L50.9,17.5 L54.8,13.6 L58.7,11.0 L62.6,9.3 L66.5,9.2 L70.4,6.0 L74.3,10.8 L78.3,13.0 L82.2,12.5 L86.1,16.9 L90.0,16.3" fill="none" stroke="#f43f5e" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>1.33185</div>
+  <div class="q-chg num down"><span class="chip down">-0.21%</span></div>
+  
+</div><div class="q-row" data-sym="USDJPY" data-v="151.842" data-d="3">
+  <div class="q-name"><b>USDJPY</b><span>美元/日元</span></div>
+  <div class="q-spark"><svg class="spark" width="90" height="22" viewBox="0 0 90 22"><path d="M0.0,16.6 L3.9,17.5 L7.8,16.6 L11.7,18.8 L15.7,16.9 L19.6,16.3 L23.5,19.2 L27.4,19.0 L31.3,20.0 L35.2,17.3 L39.1,13.9 L43.0,15.0 L47.0,17.8 L50.9,16.6 L54.8,13.6 L58.7,10.0 L62.6,7.2 L66.5,6.4 L70.4,8.4 L74.3,10.8 L78.3,9.0 L82.2,6.0 L86.1,4.0 L90.0,2.0" fill="none" stroke="#22c55e" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>151.842</div>
+  <div class="q-chg num up"><span class="chip up">+0.35%</span></div>
+  
+</div><div class="q-row" data-sym="USDCNH" data-v="7.1325" data-d="5">
+  <div class="q-name"><b>USDCNH</b><span>美元/离岸人民币</span></div>
+  <div class="q-spark"><svg class="spark" width="90" height="22" viewBox="0 0 90 22"><path d="M0.0,2.4 L3.9,5.0 L7.8,7.7 L11.7,7.2 L15.7,8.6 L19.6,5.9 L23.5,4.9 L27.4,5.3 L31.3,3.0 L35.2,2.0 L39.1,5.3 L43.0,6.5 L47.0,9.8 L50.9,10.9 L54.8,9.4 L58.7,12.3 L62.6,9.7 L66.5,9.7 L70.4,11.0 L74.3,13.6 L78.3,16.6 L82.2,19.1 L86.1,20.0 L90.0,18.2" fill="none" stroke="#f43f5e" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>7.13250</div>
+  <div class="q-chg num down"><span class="chip down">-0.06%</span></div>
+  
+</div><div class="q-row" data-sym="NAS100" data-v="24812.6" data-d="1">
+  <div class="q-name"><b>NAS100</b><span>纳指 100</span></div>
+  <div class="q-spark"><svg class="spark" width="90" height="22" viewBox="0 0 90 22"><path d="M0.0,6.1 L3.9,11.2 L7.8,8.0 L11.7,11.6 L15.7,5.4 L19.6,5.7 L23.5,6.0 L27.4,4.8 L31.3,3.7 L35.2,2.0 L39.1,5.7 L43.0,5.1 L47.0,9.7 L50.9,13.0 L54.8,10.0 L58.7,12.4 L62.6,16.9 L66.5,15.6 L70.4,14.1 L74.3,16.6 L78.3,15.9 L82.2,15.8 L86.1,20.0 L90.0,14.0" fill="none" stroke="#22c55e" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>24,812.6</div>
+  <div class="q-chg num up"><span class="chip up">+0.84%</span></div>
+  
+</div><div class="q-row" data-sym="XTIUSD" data-v="61.82" data-d="2">
+  <div class="q-name"><b>XTIUSD</b><span>美国原油</span></div>
+  <div class="q-spark"><svg class="spark" width="90" height="22" viewBox="0 0 90 22"><path d="M0.0,6.2 L3.9,3.3 L7.8,5.9 L11.7,5.2 L15.7,4.8 L19.6,2.0 L23.5,6.1 L27.4,6.0 L31.3,9.7 L35.2,10.6 L39.1,13.9 L43.0,13.5 L47.0,18.0 L50.9,14.5 L54.8,14.2 L58.7,15.9 L62.6,19.6 L66.5,19.7 L70.4,17.5 L74.3,20.0 L78.3,16.8 L82.2,15.2 L86.1,13.3 L90.0,18.1" fill="none" stroke="#f43f5e" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>61.82</div>
+  <div class="q-chg num down"><span class="chip down">-1.35%</span></div>
+  
+</div><div class="q-row flash-down" data-sym="BTCUSD" data-v="112480.5" data-d="1">
+  <div class="q-name"><b>BTCUSD</b><span>比特币</span></div>
+  <div class="q-spark"><svg class="spark" width="90" height="22" viewBox="0 0 90 22"><path d="M0.0,4.2 L3.9,3.4 L7.8,2.0 L11.7,4.0 L15.7,5.7 L19.6,7.0 L23.5,5.7 L27.4,5.4 L31.3,4.3 L35.2,5.5 L39.1,6.7 L43.0,6.0 L47.0,8.3 L50.9,7.6 L54.8,7.9 L58.7,8.2 L62.6,9.6 L66.5,9.7 L70.4,12.4 L74.3,13.4 L78.3,14.7 L82.2,17.4 L86.1,18.0 L90.0,20.0" fill="none" stroke="#f43f5e" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>112,480.5</div>
+  <div class="q-chg num down"><span class="chip down">-0.92%</span></div>
+  
+</div><div class="q-row" data-sym="ETHUSD" data-v="4086.2" data-d="2">
+  <div class="q-name"><b>ETHUSD</b><span>以太坊</span></div>
+  <div class="q-spark"><svg class="spark" width="90" height="22" viewBox="0 0 90 22"><path d="M0.0,5.4 L3.9,5.3 L7.8,6.3 L11.7,5.6 L15.7,3.7 L19.6,2.4 L23.5,2.6 L27.4,2.0 L31.3,3.1 L35.2,5.5 L39.1,6.7 L43.0,4.9 L47.0,8.1 L50.9,8.6 L54.8,9.8 L58.7,9.2 L62.6,10.6 L66.5,10.7 L70.4,13.0 L74.3,13.9 L78.3,12.9 L82.2,14.8 L86.1,17.9 L90.0,20.0" fill="none" stroke="#f43f5e" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>4,086.20</div>
+  <div class="q-chg num down"><span class="chip down">-1.41%</span></div>
+  
+</div>
+    <div class="board-foot"><span>点击任一品种，注册后即可交易</span><a>查看全部 50 个品种 →</a></div>
+  </div>
+</div></div>
+<section><div class="wrap"><div class="sec-title">为什么选择 Quick Come</div><div class="sec-sub">为 USDT 用户设计的差价合约交易平台</div>
+<div class="grid4"><div class="card"><div class="ico">¥</div><h4>一个 USDT 账户</h4><p>充值 USDT 就能交易全部品种，盈亏、手续费都按 USDT 结算，不用换汇。</p></div><div class="card"><div class="ico">%</div><h4>报价透明</h4><p>买价、卖价、点差一目了然；下单前显示保证金、手续费和预估强平价。</p></div><div class="card"><div class="ico">▣</div><h4>手机优先</h4><p>为手机重新设计的下单流程，三次点击完成下单；可添加到主屏幕，像 App 一样打开。</p></div><div class="card"><div class="ico">⛨</div><h4>风险可控</h4><p>逐仓保证金、止盈止损、追保提醒，单笔亏损不会影响其他持仓。</p></div></div></div></section>
+<section><div class="wrap"><div class="sec-title">热门品种</div><div class="sec-sub">贵金属、外汇、指数、能源、加密货币，一个账户全部可交易</div>
+<div class="grid5"><div class="card"><h4>贵金属<i>→</i></h4><p>XAUUSD 黄金 · XAGUSD 白银</p></div><div class="card"><h4>外汇<i>→</i></h4><p>EURUSD · GBPUSD · USDJPY · USDCNH</p></div><div class="card"><h4>指数<i>→</i></h4><p>NAS100 纳指 · US30 道指 · GER40 德指</p></div><div class="card"><h4>能源<i>→</i></h4><p>XTIUSD 美国原油</p></div><div class="card"><h4>加密货币<i>→</i></h4><p>BTCUSD 比特币 · ETHUSD 以太坊</p></div></div></div></section>
+<section><div class="wrap"><div class="sec-title">三步开始交易</div>
+<div class="steps"><div class="card step"><h4>注册</h4><p>用邮箱注册，1 分钟完成</p></div><div class="card step"><h4>充值</h4><p>向你的专属地址转入 USDT，支持 ERC20 / TRC20 / BSC，最小 1 USDT</p></div><div class="card step"><h4>交易</h4><p>选品种、选手数，一键买入或卖出</p></div></div>
+<div style="margin-top:24px"><a class="btn pri">免费注册</a></div></div></section>
+<section><div class="wrap"><div class="sec-title">资金和安全</div>
+<div class="grid3"><div class="card"><div class="ico">⇣</div><h4>专属充值地址</h4><p>每个账户独立的 USDT 充值地址，到账自动入账。</p></div><div class="card"><div class="ico">✓</div><h4>提现多重确认</h4><p>只能提到白名单地址；新地址有冷静期；每笔提现人工审核。</p></div><div class="card"><div class="ico">⚑</div><h4>身份认证</h4><p>完成身份认证（KYC）后才能提现，保护账户安全。</p></div></div>
+<div class="tbd license">监管与牌照信息：待提供（Amos 提供后填写，不编写任何牌照或监管信息）</div></div></section>
+<section><div class="wrap"><div class="sec-title">常见问题</div>
+<div class="faq"><div class="card open">什么是差价合约（CFD）？<p class="muted" style="color:var(--muted)">差价合约是一种按价格涨跌结算盈亏的合约，你不持有实物资产，可以买涨也可以卖跌。杠杆会同时放大盈利和亏损。</p></div><div class="card">支持哪些充值网络？最少充多少？<span>＋</span></div><div class="card">提现需要多久？<span>＋</span></div><div class="card">交易时间是什么时候？<span>＋</span></div><div class="card">手机上怎么使用？<span>＋</span></div></div></div></section>
+<section class="final"><div class="wrap"><div class="sec-title">现在注册，开始交易</div><div class="sec-sub">注册免费，充值最小 1 USDT</div><div style="margin-top:22px"><a class="btn pri" style="height:50px;padding:0 36px">免费注册</a></div></div></section>
+<footer><div class="wrap"><a class="logo"><span class="mark">Q</span><span class="word">Quick Come</span></a><div class="links"><a>服务条款</a><a>隐私政策</a><a>风险披露</a><a>联系我们</a></div>
+<p>风险提示：差价合约是复杂的金融产品，因杠杆作用，亏损可能迅速扩大，你可能损失全部保证金。请确认你了解其运作方式，并能承受相应风险。本网站信息不构成投资建议。</p><div class="tbd">公司信息：待提供 · 监管与牌照信息：待提供</div><p style="margin-top:14px">© 2026 Quick Come</p></div></footer><script>
+(function(){
+  if (location.search.indexOf('static') >= 0) return;
+  document.documentElement.classList.add('anim');
+  document.querySelectorAll('.flash-up,.flash-down').forEach(function(e){e.classList.remove('flash-up','flash-down');});
+  var rows = Array.prototype.slice.call(document.querySelectorAll('[data-sym]'));
+  setInterval(function(){
+    for (var k = 0; k < 3; k++) {
+      var r = rows[Math.floor(Math.random() * rows.length)]; if (!r) return;
+      var px = r.querySelector('[data-px]'), d = +r.getAttribute('data-d'), v = +r.getAttribute('data-v');
+      var up = Math.random() > 0.5, nv = v * (1 + (up ? 1 : -1) * Math.random() * 0.0004);
+      r.setAttribute('data-v', nv);
+      px.textContent = nv.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
+      r.classList.remove('flash-up','flash-down'); void r.offsetWidth; r.classList.add(up ? 'flash-up' : 'flash-down');
+      (function(el){ setTimeout(function(){ el.classList.remove('flash-up','flash-down'); }, 600); })(r);
+    }
+  }, 1000);
+})();
+</script></body></html>
