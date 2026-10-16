@@ -61,6 +61,21 @@ function Overview() {
   );
 }
 
+/**
+ * "充值"按钮：充值卡片就在本页下方，手机上常常已经在屏幕里，只跳锚点看起来"没有反应"。
+ * 所以滚到卡片、闪一下边框，并把焦点放到第一个网络按钮上。
+ */
+function showDeposit() {
+  const card = document.getElementById('dep-card');
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  card.classList.remove('flash');
+  void card.offsetWidth; // 重新触发动画
+  card.classList.add('flash');
+  window.setTimeout(() => card.classList.remove('flash'), 1400);
+  card.querySelector<HTMLButtonElement>('[role="radio"]')?.focus({ preventScroll: true });
+}
+
 export default function Assets() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -73,10 +88,10 @@ export default function Assets() {
         <div>
           <Overview />
           <nav className="acts" aria-label={t('assets.actions')}>
-            <a href="#dep-title" className="on">
+            <button type="button" className="on" onClick={showDeposit}>
               <Icon name="deposit" size={16} strokeWidth={2.2} />
               {t('assets.deposit')}
-            </a>
+            </button>
             <button type="button" onClick={() => navigate('/assets/withdraw')}>
               <Icon name="withdraw" size={16} strokeWidth={2.2} />
               {t('assets.withdraw')}

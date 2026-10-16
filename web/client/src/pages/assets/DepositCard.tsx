@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getDepositAddresses, listDeposits } from '../../api/wallet';
 import type { DepositRecord, Network } from '../../api/types';
+import { isWalletNotReady } from '../../api/errors';
 import { useToast } from '../../app/contexts';
 import { AsyncView, EmptyState } from '../../components/AsyncView';
 import { Icon } from '../../components/Icon';
@@ -41,7 +42,7 @@ export function DepositCard() {
   const s = useAsync(getDepositAddresses, 'deposit');
   const [net, setNet] = useState<Network | null>(null);
   return (
-    <section className="card" aria-labelledby="dep-title">
+    <section className="card" id="dep-card" aria-labelledby="dep-title">
       <div className="card-head">
         <h2 id="dep-title">{t('deposit.chooseNetwork')}</h2>
         <span className="muted small">{t('deposit.onlyUsdt')}</span>
@@ -56,6 +57,9 @@ export function DepositCard() {
       </div>
       {!net ? (
         <p className="pick-first">{t('deposit.pickFirst')}</p>
+      ) : isWalletNotReady(s.error) && !s.data ? (
+        // 服务器还没有配置区块链（例如测试环境没接测试网）：说明"暂未开通"，不显示成"加载失败 + 重试"
+        <EmptyState compact title={t('deposit.notOpenTitle')} hint={t('deposit.notOpenHint')} />
       ) : (
         <AsyncView state={s} rows={4}>
           {(list) => {
