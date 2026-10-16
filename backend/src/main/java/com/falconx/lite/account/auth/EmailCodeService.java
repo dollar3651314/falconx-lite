@@ -40,7 +40,7 @@ class EmailCodeService {
    */
   @Transactional
   int send(String email, Purpose purpose) {
-    EmailCodeRow last = mapper.latestEmailCode(email, purpose.name());
+    EmailCodeRow last = mapper.latestEmailCodeForSend(email, purpose.name());
     if (last != null && last.ageSeconds() < props.codeResendSeconds()) {
       throw new RetryLaterException("CODE_TOO_FREQUENT", "发送太频繁，请稍后再试", props.codeResendSeconds() - last.ageSeconds());
     }
