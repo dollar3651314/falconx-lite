@@ -114,6 +114,16 @@ export interface Quote {
 }
 
 export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
+/** 图表周期：K 线的 6 个周期，加上 Tick 图（逐笔价格） */
+export type ChartPeriod = Timeframe | 'tick';
+
+/** 一笔报价（Tick 图用）：GET /api/market/ticks 返回最近 500 笔，之后用推送的报价往后接 */
+export interface Tick {
+  /** 毫秒级 Unix 时间戳 */
+  time: number;
+  bid: string;
+  ask: string;
+}
 
 export interface Kline {
   /** 秒级 Unix 时间戳（UTC） */
