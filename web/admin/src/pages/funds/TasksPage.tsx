@@ -1,5 +1,5 @@
 /**
- * 任务表：出金广播、出金确认检查、邮件、推送任务的状态和重试；失败的可以手动重试。
+ * 任务表：邮件、推送任务的状态和重试；失败的可以手动重试。
  * 处理中超时会被自动回收（修复现有 Outbox 卡在"发送中"的问题）。
  */
 import { useState } from 'react';
@@ -19,7 +19,8 @@ import { taskTone } from '../../utils/status';
 import { shortTime } from '../../utils/display';
 
 type Filters = Omit<TaskQuery, 'page' | 'pageSize'>;
-const TYPES = ['withdraw_broadcast', 'withdraw_confirm', 'email', 'push'] as const;
+// 只有邮件和推送（提现的广播和确认不走任务表，后台方案第 8 节）
+const TYPES = ['email', 'push'] as const;
 const STATUSES = ['pending', 'processing', 'success', 'failed'] as const;
 
 export function TasksPage() {

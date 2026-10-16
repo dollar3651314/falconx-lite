@@ -90,7 +90,7 @@ class MarketAdmin implements MarketAdminApi {
     if (p.minLots() != null) r.minLots = positive(c, "minLots", p.minLots(), r.minLots);
     if (p.maxLots() != null) r.maxLots = positive(c, "maxLots", p.maxLots(), r.maxLots);
     if (p.lotStep() != null) r.lotStep = positive(c, "lotStep", p.lotStep(), r.lotStep);
-    if (p.feeRate() != null) r.feeRate = rate(c, "feeRate", p.feeRate(), r.feeRate, new BigDecimal("0.01"));
+    if (p.feeRate() != null) r.feeRate = rate(c, "openFeeRate", p.feeRate(), r.feeRate, new BigDecimal("0.01"));
     if (p.maintenanceMarginRate() != null) r.maintenanceMarginRate = rate(c, "maintenanceMarginRate", p.maintenanceMarginRate(), r.maintenanceMarginRate,
         new BigDecimal("0.5"));
     if (p.markup() != null) {

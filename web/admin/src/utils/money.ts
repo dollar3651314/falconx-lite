@@ -100,7 +100,9 @@ export function formatRatePercent(rate: string | null | undefined, decimals = 3)
 }
 
 /** 整数比例：|part| / whole × 100，四舍五入到整数（用于敞口使用率），whole 为 0 时返回 0 */
-export function usagePercent(part: string, whole: string): number {
+export function usagePercent(part: string | null | undefined, whole: string | null | undefined): number {
+  // 阈值为空（不监控）时按 0 处理
+  if (part === null || part === undefined || whole === null || whole === undefined) return 0;
   const p = toScaled(part, 0);
   const w = toScaled(whole, 0);
   if (p === null || w === null || w === 0n) return 0;

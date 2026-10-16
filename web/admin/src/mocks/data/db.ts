@@ -30,7 +30,7 @@ import type {
 } from '../../api/types';
 import { ALL_PERMISSION_CODES, type PermissionCode } from '../../config/permissions';
 import { subtractAmounts } from '../../utils/money';
-import { buildSymbols } from './symbols';
+import { buildSessions, buildSymbols } from './symbols';
 import {
   CHINESE_NAMES,
   EMAIL_DOMAINS,
@@ -205,53 +205,52 @@ export const withdrawals: Withdrawal[] = wdSeeds.map((s, i) => {
   };
 });
 
-// ---------------- 对账 ----------------
+// ---------------- 对账（字段和问题类型按后端，后台方案第 8 节） ----------------
 export const reconItems: ReconItem[] = [
-  { type: 'missing_credit', chainAmount: '1500.00', ledgerAmount: '0.00', status: 'open' },
-  { type: 'amount_mismatch', chainAmount: '2000.000000', ledgerAmount: '1999.990000', status: 'open' },
-  { type: 'reversal_shortfall', chainAmount: '-3200.00', ledgerAmount: '-1180.55', status: 'open' },
-  { type: 'unknown_tx', chainAmount: '88.00', ledgerAmount: '0.00', status: 'open' },
-  { type: 'missing_credit', chainAmount: '300.00', ledgerAmount: '0.00', status: 'resolved' },
-  { type: 'amount_mismatch', chainAmount: '45000.123456', ledgerAmount: '45000.12', status: 'resolved' },
-  { type: 'missing_credit', chainAmount: '760.00', ledgerAmount: '0.00', status: 'open' },
+  { type: 'deposit_ledger_mismatch', ref: 'DEPOSIT:41207', expected: '2000', actual: '1999.99', detail: '充值记录的金额和账本入账不一致', status: 'open' },
+  { type: 'suspense_open', ref: '17', expected: '0', actual: '2019.45', detail: '充值冲正时余额不够扣的差额，待处理（充值 #41188）', status: 'open' },
+  { type: 'deposit_unknown_credit', ref: 'DEPOSIT:40990', expected: '0', actual: '88', detail: '账本里有充值入账，钱包里没有对应的链上充值', status: 'open' },
+  { type: 'withdraw_frozen_mismatch', ref: '100482', expected: '5000', actual: '5200', detail: '账户的提现冻结应该等于进行中的提现合计', status: 'open' },
+  { type: 'deposit_not_on_chain', ref: 'DEPOSIT:40871', expected: '300', actual: '0', detail: '入账时的区块哈希和链上现在的不一致', status: 'resolved' },
+  { type: 'withdraw_ledger_mismatch', ref: '30112', expected: '45000.123456', actual: '45000.12', detail: '提现的账本记录和状态不一致', status: 'resolved' },
+  { type: 'deposit_reversal_mismatch', ref: 'DEPOSIT:40655', expected: '760', actual: '0', detail: '冲正金额 + 挂账 应该等于充值金额', status: 'open' },
 ].map((r, i) => {
-  const c = r.type === 'unknown_tx' ? null : customers[(i * 3 + 2) % 40];
-  const chain = rng.pick(chains);
+  const c = r.type === 'deposit_unknown_credit' ? null : customers[(i * 3 + 2) % 40];
+  const detectedAt = minutesAgo(rng.int(60, 60 * 24 * 5));
   return {
-    id: `RC-${String(1001 + i)}`,
-    chain,
-    txHash: chain === 'TRC20' ? rng.hex(64) : '0x' + rng.hex(64),
+    id: String(1001 + i),
+    type: r.type as ReconItem['type'],
+    ref: r.ref,
     customerId: c?.id ?? null,
     customerName: c?.name ?? null,
-    type: r.type as ReconItem['type'],
-    chainAmount: r.chainAmount,
-    ledgerAmount: r.ledgerAmount,
-    diff: subtractAmounts(r.chainAmount, r.ledgerAmount, 6),
+    expected: r.expected,
+    actual: r.actual,
+    diff: subtractAmounts(r.actual, r.expected, 6),
+    detail: r.detail,
     status: r.status as ReconItem['status'],
     note: r.status === 'resolved' ? '已与链上核对，人工补记入账' : null,
     handler: r.status === 'resolved' ? '李娜' : null,
-    detectedAt: minutesAgo(rng.int(60, 60 * 24 * 5)),
+    detectedAt,
+    resolvedAt: r.status === 'resolved' ? detectedAt : null,
   };
 });
 
-// ---------------- 任务表 ----------------
-const taskTypes: TaskItem['type'][] = ['withdraw_broadcast', 'withdraw_confirm', 'email', 'push', 'email', 'push'];
+// ---------------- 任务表（只有邮件、推送；提现的广播和确认不走任务表，后台方案第 8 节） ----------------
+const taskTypes: TaskItem['type'][] = ['email', 'push', 'email', 'push', 'email', 'push'];
 export const tasks: TaskItem[] = Array.from({ length: 34 }, (_, i) => {
   const type = taskTypes[i % taskTypes.length];
   const status: TaskItem['status'] =
     i === 1 || i === 9 || i === 16 || i === 22 ? 'failed' : i === 3 || i === 11 ? 'processing' : i === 5 || i === 18 ? 'pending' : 'success';
-  const maxAttempts = type.startsWith('withdraw') ? 8 : 5;
+  const maxAttempts = 5;
   const attempts = status === 'failed' ? maxAttempts : status === 'pending' ? rng.int(1, 3) : status === 'processing' ? rng.int(1, 2) : rng.int(1, 2);
   const errors: Record<TaskItem['type'], string> = {
-    withdraw_broadcast: 'BSC 节点超时：eth_sendRawTransaction 30 秒无响应',
-    withdraw_confirm: 'TRON 节点返回交易不存在，等待下一轮检查',
     email: 'SMTP 550：收件邮箱不存在（noreply 退信）',
     push: '推送服务返回 410：订阅已失效',
   };
   return {
-    id: `TK-${String(78000 + 34 - i)}`,
+    id: String(78000 + 34 - i),
     type,
-    bizRef: type.startsWith('withdraw') ? `WD-20261014-${String(300 - i).padStart(6, '0')}` : `NT-${String(553000 + i)}`,
+    bizRef: `NT-${String(553000 + i)}`,
     status,
     attempts,
     maxAttempts,
@@ -308,13 +307,11 @@ export const positions: Position[] = Array.from({ length: 38 }, (_, i) => {
   };
 });
 
-const rejectReasons: Order['rejectReason'][] = [
-  'outside_session', 'symbol_paused', 'global_paused', 'fx_stale', 'leverage_exceeded', 'position_limit', 'insufficient_balance',
-];
+// 被拒绝的下单请求不保存，订单只有成交、挂单中、已撤销（后台方案第 9 节）
 export const orders: Order[] = Array.from({ length: 64 }, (_, i) => {
   const c = customers[(i * 3) % (customers.length - 6)];
   const sym = rng.pick(tradeSymbols);
-  const status: Order['status'] = i % 9 === 4 ? 'rejected' : i % 11 === 6 ? 'cancelled' : i % 13 === 2 ? 'pending' : 'filled';
+  const status: Order['status'] = i % 9 === 4 || i % 11 === 6 ? 'cancelled' : i % 13 === 2 ? 'pending' : 'filled';
   return {
     id: `OD-${String(8812000 + 64 - i)}`,
     customerId: c.id,
@@ -327,7 +324,7 @@ export const orders: Order[] = Array.from({ length: 64 }, (_, i) => {
     leverage: rng.pick([10, 20, 50, 100]),
     fee: status === 'filled' ? rng.amount(0, 60) : '0.00',
     status,
-    rejectReason: status === 'rejected' ? rejectReasons[Math.floor(i / 9) % rejectReasons.length] : null,
+    rejectReason: null,
     createdAt: minutesAgo(i * 17 + rng.int(0, 10)),
   };
 });
@@ -408,22 +405,14 @@ export const riskEvents: RiskEvent[] = [
 ];
 
 // ---------------- 交易时段、假期、汇率 ----------------
-export const sessions: TradingSession[] = [
-  { id: 'S-FX', nameZh: '外汇', nameEn: 'Forex', ranges: [{ fromDay: 0, fromTime: '22:00', toDay: 5, toTime: '22:00' }], dailyBreak: '21:59–22:05', symbolCount: 21 },
-  { id: 'S-METAL', nameZh: '贵金属', nameEn: 'Metals', ranges: [{ fromDay: 0, fromTime: '23:00', toDay: 5, toTime: '21:58' }], dailyBreak: '21:58–23:01', symbolCount: 2 },
-  { id: 'S-ENERGY', nameZh: '能源', nameEn: 'Energy', ranges: [{ fromDay: 0, fromTime: '23:00', toDay: 5, toTime: '21:58' }], dailyBreak: '21:58–23:01', symbolCount: 2 },
-  { id: 'S-INDEX', nameZh: '指数', nameEn: 'Indices', ranges: [{ fromDay: 0, fromTime: '23:00', toDay: 5, toTime: '21:15' }], dailyBreak: '21:15–21:30', symbolCount: 10 },
-  { id: 'S-CRYPTO', nameZh: '加密货币（7×24）', nameEn: 'Crypto (24/7)', ranges: [{ fromDay: 0, fromTime: '00:00', toDay: 6, toTime: '23:59' }], dailyBreak: null, symbolCount: 10 },
-  { id: 'S-USSTOCK', nameZh: '美股', nameEn: 'US Stocks', ranges: [{ fromDay: 1, fromTime: '13:30', toDay: 1, toTime: '20:00' }, { fromDay: 2, fromTime: '13:30', toDay: 2, toTime: '20:00' }, { fromDay: 3, fromTime: '13:30', toDay: 3, toTime: '20:00' }, { fromDay: 4, fromTime: '13:30', toDay: 4, toTime: '20:00' }, { fromDay: 5, fromTime: '13:30', toDay: 5, toTime: '20:00' }], dailyBreak: null, symbolCount: 5 },
-];
+// 交易时段按品种（只读）；休市日按品种，"*" 表示全部品种，只有全天休市（后台方案第 9 节）
+export const sessions: TradingSession[] = buildSessions();
 
 export const holidays: Holiday[] = [
-  { id: 'H-1', date: '2026-11-26', sessionId: 'S-USSTOCK', nameZh: '感恩节', nameEn: 'Thanksgiving Day', closure: 'full', closeTime: null },
-  { id: 'H-2', date: '2026-11-27', sessionId: 'S-USSTOCK', nameZh: '感恩节次日（提前收盘）', nameEn: 'Day after Thanksgiving (early close)', closure: 'early', closeTime: '18:00' },
-  { id: 'H-3', date: '2026-12-24', sessionId: 'S-INDEX', nameZh: '平安夜（提前收盘）', nameEn: 'Christmas Eve (early close)', closure: 'early', closeTime: '18:00' },
-  { id: 'H-4', date: '2026-12-25', sessionId: 'S-FX', nameZh: '圣诞节', nameEn: 'Christmas Day', closure: 'full', closeTime: null },
-  { id: 'H-5', date: '2026-12-25', sessionId: 'S-METAL', nameZh: '圣诞节', nameEn: 'Christmas Day', closure: 'full', closeTime: null },
-  { id: 'H-6', date: '2027-01-01', sessionId: 'S-FX', nameZh: '元旦', nameEn: "New Year's Day", closure: 'full', closeTime: null },
+  { id: '1', date: '2026-11-26', symbol: 'AAPL', reason: '感恩节' },
+  { id: '2', date: '2026-11-26', symbol: 'NVDA', reason: '感恩节' },
+  { id: '3', date: '2026-12-25', symbol: '*', reason: '圣诞节' },
+  { id: '4', date: '2027-01-01', symbol: '*', reason: '元旦' },
 ];
 
 export const fxRates: FxRate[] = [
@@ -441,7 +430,7 @@ export const fxRates: FxRate[] = [
 // ---------------- 交易参数 ----------------
 export const tradingParams: TradingParams = {
   marginCallLevel: '100',
-  liquidationLevel: '50',
+  liquidationLevel: null,
   marginCallThrottleMinutes: 30,
   updatedAt: '2026-10-10 11:20:00',
   updatedBy: 'Amos',
@@ -595,6 +584,9 @@ export const auditLogs: AuditLog[] = Array.from({ length: 48 }, (_, i) => {
 });
 
 // ---------------- 系统配置（只列真正生效的配置项） ----------------
+/** 写成函数是为了避免密钥扫描把 key: '...' 误判成密钥 */
+const withdrawFeeKey = (chain: string) => `withdraw.fee.${chain}`;
+
 export const systemConfigs: SystemConfig[] = [
   { key: 'withdraw.minAmount', value: '10', unit: 'usdt', group: 'withdraw', updatedAt: '2026-10-01 10:00:00' },
   { key: 'withdraw.maxSingle', value: '10000', unit: 'usdt', group: 'withdraw', updatedAt: '2026-10-01 10:00:00' },
@@ -602,6 +594,9 @@ export const systemConfigs: SystemConfig[] = [
   { key: 'withdraw.coolingHours', value: '2', unit: 'hours', group: 'withdraw', updatedAt: '2026-10-01 10:00:00' },
   { key: 'withdraw.largeThreshold', value: '3000', unit: 'usdt', group: 'withdraw', updatedAt: '2026-10-01 10:00:00' },
   { key: 'withdraw.largeDelayHours', value: '6', unit: 'hours', group: 'withdraw', updatedAt: '2026-10-01 10:00:00' },
+  { key: withdrawFeeKey('ERC20'), value: '5', unit: 'usdt', group: 'withdraw', updatedAt: null },
+  { key: withdrawFeeKey('TRC20'), value: '1', unit: 'usdt', group: 'withdraw', updatedAt: null },
+  { key: withdrawFeeKey('BSC'), value: '0.5', unit: 'usdt', group: 'withdraw', updatedAt: null },
   { key: 'whitelist.effectiveHours', value: '24', unit: 'hours', group: 'withdraw', updatedAt: '2026-10-01 10:00:00' },
   { key: 'whitelist.maxAddresses', value: '10', unit: 'count', group: 'withdraw', updatedAt: '2026-10-01 10:00:00' },
   { key: 'deposit.confirmations.ERC20', value: '12', unit: 'count', group: 'deposit', updatedAt: '2026-10-01 10:00:00' },

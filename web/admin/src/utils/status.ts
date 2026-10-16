@@ -11,4 +11,4 @@ export const taskTone: Record<string, PillTone> = { pending: 'pend', processing:
 export const orderTone: Record<string, PillTone> = { filled: 'ok', pending: 'pend', cancelled: 'muted', rejected: 'danger' };
 export const exposureTone: Record<string, PillTone> = { normal: 'ok', near: 'warn', auto_blocked: 'danger', manual_paused: 'pend' };
 export const reconTone: Record<string, PillTone> = { open: 'pend', resolved: 'ok' };
-export const notifyTone: Record<string, PillTone> = { sent: 'ok', failed: 'danger', skipped: 'muted' };
+export const notifyTone: Record<string, PillTone> = { pending: 'pend', sent: 'ok', failed: 'danger', skipped: 'muted' };

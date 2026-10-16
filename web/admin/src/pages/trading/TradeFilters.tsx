@@ -40,7 +40,7 @@ export function TradeFilters({ onChange, withStatus }: { onChange: (f: TradeFilt
             placeholder={t('common.all')}
             value={draft.status}
             onChange={(v) => setDraft({ ...draft, status: v })}
-            options={(['filled', 'pending', 'cancelled', 'rejected'] as const).map((s) => ({ value: s, label: t(`orderStatus.${s}`) }))}
+            options={(['filled', 'pending', 'cancelled'] as const).map((s) => ({ value: s, label: t(`orderStatus.${s}`) }))}
           />
         </FilterItem>
       ) : null}

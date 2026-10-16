@@ -6,11 +6,16 @@ import { useState, useSyncExternalStore } from 'react';
 import { Button, Card, Radio, Space, Typography } from 'antd';
 import { ExperimentOutlined, CloseOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { proto, type Scenario } from '../api';
+import { IS_MOCK, proto, type Scenario } from '../api';
 
 const SCENARIOS: Scenario[] = ['normal', 'empty', 'slow', 'error'];
 
+/** 只在 mock 模式（原型预览站）下显示 */
 export function ScenarioPanel() {
+  return IS_MOCK ? <ScenarioPanelInner /> : null;
+}
+
+function ScenarioPanelInner() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const scenario = useSyncExternalStore(proto.subscribeScenario, proto.getScenario, proto.getScenario);

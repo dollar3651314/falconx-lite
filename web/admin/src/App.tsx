@@ -5,7 +5,7 @@ import { useAuth } from './auth/AuthContext';
 import { AppLayout } from './components/AppLayout';
 import { RequirePerm } from './components/RequirePerm';
 import { APP_ROUTES } from './config/routes';
-import { flattenMenu } from './config/menu';
+import { flattenMenu, visibleMenu } from './config/menu';
 import { LoginPage } from './pages/LoginPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -17,8 +17,9 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   const { session, me, loading } = useAuth();
   const location = useLocation();
   const { t } = useTranslation();
-  if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  if (session.mustChangePassword && location.pathname !== '/change-password') return <Navigate to="/change-password" replace />;
+  // 真实模式打开页面时先问后端是否已登录，问完之前不跳登录页
+  if (!session && !loading) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (session?.mustChangePassword && location.pathname !== '/change-password') return <Navigate to="/change-password" replace />;
   if (loading || !me) {
     return (
       <div className="full-center" role="status">
@@ -31,10 +32,10 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
-/** 首页：跳到第一个有权限的菜单 */
+/** 首页：跳到第一个能看到的菜单（真实模式按 /api/admin/me 返回的菜单顺序） */
 function HomeRedirect() {
-  const { can } = useAuth();
-  const first = flattenMenu().find((m) => can(m.permission));
+  const { can, me } = useAuth();
+  const first = flattenMenu(visibleMenu(me?.menus, can)).find((m) => m.path);
   return <Navigate to={first?.path ?? '/dashboard'} replace />;
 }
 

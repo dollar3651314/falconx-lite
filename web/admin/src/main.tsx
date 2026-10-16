@@ -5,6 +5,13 @@ import { Providers } from './Providers';
 import { App } from './App';
 import './i18n';
 import './styles/global.css';
+import { IS_MOCK } from './api/mode';
+
+// 真实模式没有原型横幅，布局不再给它留高度
+if (!IS_MOCK) {
+  document.documentElement.classList.add('no-proto');
+  document.title = 'FalconX 管理后台';
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

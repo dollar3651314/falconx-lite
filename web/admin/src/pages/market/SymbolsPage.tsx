@@ -1,13 +1,15 @@
 /**
- * 品种列表（第一版 50 个）和编辑：报价映射、合约大小、最小手数、最大杠杆、维持保证金率、开仓手续费率、
- * 多空隔夜费率（没有费率的标红：不收隔夜费）、统一加点、热门标记、启用/暂停。
+ * 品种列表（第一版 50 个）和编辑：最小 / 最大手数、手数步长、最大杠杆、维持保证金率、开仓手续费率、
+ * 多空隔夜费率（没有费率的标红：不收隔夜费）、统一加点、热门标记、排序、启用/停用。
+ * 字段按后端（后台方案第 9 节）：没有报价映射（S20 接 LP 时再定）和按点数的加点；合约大小只读。
+ * 改维持保证金率、手续费率只影响以后开的仓；有持仓或挂单的品种不能停用。
  */
 import { useState } from 'react';
 import { Alert, Button, Drawer, Form, Input, InputNumber, Select, Space, Switch, Tooltip } from 'antd';
 import { EditOutlined, FireFilled, WarningFilled } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { listSymbols, setSymbolEnabled, updateSymbol } from '../../api';
-import type { SymbolQuery, TradingSymbol } from '../../api/types';
+import type { SymbolPatch, SymbolQuery, TradingSymbol } from '../../api/types';
 import { CATEGORIES } from '../../config/constants';
 import { usePagedList } from '../../hooks/usePagedList';
 import { useHighRisk } from '../../hooks/useConfirmDialogs';
@@ -18,23 +20,28 @@ import { DataTable } from '../../components/DataTable';
 import { PermButton } from '../../components/PermButton';
 import { Pill } from '../../components/Pill';
 import { Num } from '../../components/Num';
-import { formatAmount, formatRatePercent } from '../../utils/money';
+import { compareAmounts, formatAmount, formatRatePercent } from '../../utils/money';
 import { localName } from '../../utils/display';
 import { isValidRate } from '../../utils/validators';
 
 type Filters = Omit<SymbolQuery, 'page' | 'pageSize'>;
 
+/** 手数：正数，最多 8 位小数（后端口径） */
+const LOTS_RE = /^(0\.\d{1,8}|[1-9]\d*(\.\d{1,8})?)$/;
+
 interface EditValues {
-  lpSymbol: string;
   contractSize: string;
   minLots: string;
+  maxLots: string;
+  lotStep: string;
   maxLeverage: number;
   maintenanceMarginRate: string;
   openFeeRate: string;
   swapLong: string;
   swapShort: string;
-  spreadPoints: number;
+  markup: string;
   hot: boolean;
+  sortOrder: number;
 }
 
 function SwapCell({ value }: { value: string | null }) {
@@ -70,8 +77,16 @@ export function SymbolsPage() {
     } catch {
       return;
     }
-    const patch: Partial<TradingSymbol> = {
-      ...v,
+    const patch: SymbolPatch = {
+      minLots: v.minLots.trim(),
+      maxLots: v.maxLots.trim(),
+      lotStep: v.lotStep.trim(),
+      maxLeverage: v.maxLeverage,
+      maintenanceMarginRate: v.maintenanceMarginRate.trim(),
+      openFeeRate: v.openFeeRate.trim(),
+      markup: v.markup.trim(),
+      hot: v.hot,
+      sortOrder: v.sortOrder,
       swapLong: v.swapLong.trim() === '' ? null : v.swapLong.trim(),
       swapShort: v.swapShort.trim() === '' ? null : v.swapShort.trim(),
     };
@@ -165,16 +180,24 @@ export function SymbolsPage() {
             ),
           },
           { title: t('symbols.category'), dataIndex: 'category', render: (v: string) => t(`category.${v}`) },
-          { title: t('symbols.lpSymbol'), dataIndex: 'lpSymbol', render: (v: string) => <Num>{v}</Num> },
           { title: t('symbols.contractSize'), dataIndex: 'contractSize', align: 'right', render: (v: string) => <Num>{formatAmount(v, { decimals: 0 })}</Num> },
-          { title: t('symbols.minLots'), dataIndex: 'minLots', align: 'right', render: (v: string) => <Num>{v}</Num> },
+          { title: t('symbols.lotsRange'), key: 'lots', align: 'right', render: (_, r) => <Num>{r.minLots} – {r.maxLots} / {r.lotStep}</Num> },
           { title: t('symbols.maxLeverage'), dataIndex: 'maxLeverage', align: 'right', render: (v: number) => <Num>{v}x</Num> },
           { title: t('symbols.mmr'), dataIndex: 'maintenanceMarginRate', align: 'right', render: (v: string) => <Num>{formatRatePercent(v, 2)}</Num> },
           { title: t('symbols.fee'), dataIndex: 'openFeeRate', align: 'right', render: (v: string) => <Num>{formatRatePercent(v, 3)}</Num> },
           { title: t('symbols.swapLong'), dataIndex: 'swapLong', align: 'right', render: (v: string | null) => <SwapCell value={v} /> },
           { title: t('symbols.swapShort'), dataIndex: 'swapShort', align: 'right', render: (v: string | null) => <SwapCell value={v} /> },
-          { title: t('symbols.spread'), dataIndex: 'spreadPoints', align: 'right', render: (v: number) => <Num>{v}</Num> },
-          { title: t('symbols.enabled'), dataIndex: 'enabled', render: (v: boolean) => <Pill tone={v ? 'ok' : 'pend'}>{v ? t('symbols.on') : t('symbols.off')}</Pill> },
+          { title: t('symbols.spread'), dataIndex: 'markup', align: 'right', render: (v: string) => <Num>{v}</Num> },
+          {
+            title: t('symbols.enabled'),
+            dataIndex: 'enabled',
+            render: (v: boolean, r) => (
+              <Space size={4}>
+                <Pill tone={v ? 'ok' : 'pend'}>{v ? t('symbols.on') : t('symbols.off')}</Pill>
+                {r.openPaused ? <Pill tone="danger">{t('symbols.openPaused')}</Pill> : null}
+              </Space>
+            ),
+          },
           {
             title: t('common.actions'),
             key: 'op',
@@ -211,13 +234,29 @@ export function SymbolsPage() {
       >
         {editing ? (
           <Form form={form} layout="vertical" name="symbol-edit" requiredMark>
-            <Form.Item name="lpSymbol" label={t('symbols.lpSymbol')} extra={t('symbols.lpHint')} rules={[{ required: true, whitespace: true, message: t('validation.required') }]}>
-              <Input />
+            <Form.Item name="contractSize" label={t('symbols.contractSize')} extra={t('symbols.contractReadOnly')}>
+              <Input disabled />
             </Form.Item>
-            <Form.Item name="contractSize" label={t('symbols.contractSize')} extra={t('symbols.contractHint')} rules={[{ required: true, pattern: /^\d+(\.\d+)?$/, message: t('validation.positiveNumber') }]}>
+            <Form.Item name="minLots" label={t('symbols.minLots')} rules={[{ required: true, pattern: LOTS_RE, message: t('validation.lotsFormat') }]}>
               <Input inputMode="decimal" />
             </Form.Item>
-            <Form.Item name="minLots" label={t('symbols.minLots')} rules={[{ required: true, pattern: /^0\.\d{1,2}$|^[1-9]\d*(\.\d{1,2})?$/, message: t('validation.lotsFormat') }]}>
+            <Form.Item
+              name="maxLots"
+              label={t('symbols.maxLots')}
+              dependencies={['minLots']}
+              rules={[
+                { required: true, pattern: LOTS_RE, message: t('validation.lotsFormat') },
+                ({ getFieldValue }) => ({
+                  validator: (_r, v: string | undefined) =>
+                    !v || !LOTS_RE.test(v) || !LOTS_RE.test(getFieldValue('minLots') ?? '') || compareAmounts(v, getFieldValue('minLots'), 8) >= 0
+                      ? Promise.resolve()
+                      : Promise.reject(new Error(t('validation.maxLotsBelowMin'))),
+                }),
+              ]}
+            >
+              <Input inputMode="decimal" />
+            </Form.Item>
+            <Form.Item name="lotStep" label={t('symbols.lotStep')} rules={[{ required: true, pattern: LOTS_RE, message: t('validation.lotsFormat') }]}>
               <Input inputMode="decimal" />
             </Form.Item>
             <Form.Item name="maxLeverage" label={t('symbols.maxLeverage')} extra={t('symbols.leverageHint')} rules={[{ required: true, type: 'integer', min: 1, max: 1000, message: t('validation.leverageRange') }]}>
@@ -235,11 +274,14 @@ export function SymbolsPage() {
             <Form.Item name="swapShort" label={t('symbols.swapShort')} extra={t('symbols.swapEditHint')} rules={[rateRule(false)]}>
               <Input inputMode="decimal" placeholder={t('symbols.swapMissing')} />
             </Form.Item>
-            <Form.Item name="spreadPoints" label={t('symbols.spread')} extra={t('symbols.spreadHint')} rules={[{ required: true, type: 'integer', min: 0, max: 10000, message: t('validation.spreadRange') }]}>
-              <InputNumber style={{ width: '100%' }} min={0} max={10000} precision={0} />
+            <Form.Item name="markup" label={t('symbols.spread')} extra={t('symbols.markupHint')} rules={[{ required: true, pattern: /^\d+(\.\d{1,8})?$/, message: t('validation.nonNegativeNumber') }]}>
+              <Input inputMode="decimal" />
             </Form.Item>
             <Form.Item name="hot" label={t('symbols.hot')} valuePropName="checked" extra={t('symbols.hotHint')}>
               <Switch />
+            </Form.Item>
+            <Form.Item name="sortOrder" label={t('symbols.sortOrder')} extra={t('symbols.sortOrderHint')} rules={[{ required: true, type: 'integer', min: 0, max: 100000, message: t('validation.positiveInteger') }]}>
+              <InputNumber style={{ width: '100%' }} min={0} max={100000} precision={0} />
             </Form.Item>
           </Form>
         ) : null}

@@ -12,6 +12,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { DataTable } from '../../components/DataTable';
 import { Pill } from '../../components/Pill';
 import { Num } from '../../components/Num';
+import { fullTime } from '../../utils/display';
 
 export function FxPage() {
   const { t } = useTranslation();
@@ -43,8 +44,13 @@ export function FxPage() {
           { title: t('fx.pair'), dataIndex: 'pair', render: (v: string) => <b className="num">{v}</b> },
           { title: t('fx.rate'), dataIndex: 'rate', align: 'right', render: (v: string) => <Num>{v}</Num> },
           { title: t('fx.source'), dataIndex: 'source' },
-          { title: t('fx.updatedAt'), dataIndex: 'updatedAt', render: (v: string) => <Num>{v}</Num> },
-          { title: t('fx.age'), dataIndex: 'ageSeconds', align: 'right', render: (v: number) => <Num className={v > 60 ? 'down strong' : ''}>{t('fx.seconds', { count: v })}</Num> },
+          { title: t('fx.updatedAt'), dataIndex: 'updatedAt', render: (v: string | null) => <Num>{fullTime(v)}</Num> },
+          {
+            title: t('fx.age'),
+            dataIndex: 'ageSeconds',
+            align: 'right',
+            render: (v: number | null) => (v === null ? '—' : <Num className={v > 60 ? 'down strong' : ''}>{t('fx.seconds', { count: v })}</Num>),
+          },
           { title: t('fx.status'), dataIndex: 'status', render: (v: string) => <Pill tone={v === 'ok' ? 'ok' : 'danger'}>{t(`fx.st.${v}`)}</Pill> },
           {
             title: t('fx.affected'),

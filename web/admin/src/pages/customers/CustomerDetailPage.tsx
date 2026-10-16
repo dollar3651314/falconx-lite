@@ -19,10 +19,10 @@ import { Amount, Num } from '../../components/Num';
 import { customerTone, kycTone } from '../../utils/status';
 import { formatAmount, subtractAmounts } from '../../utils/money';
 import { adjustAmountProblems } from '../../utils/validators';
-import { shortTime } from '../../utils/display';
+import { fullTime, shortTime } from '../../utils/display';
 
 export function CustomerDetailPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const customerId = Number(id);
@@ -164,12 +164,12 @@ export function CustomerDetailPage() {
               <Descriptions.Item label={t('customers.id')}><Num>{c.id}</Num></Descriptions.Item>
               <Descriptions.Item label={t('customers.email')}>{c.email}</Descriptions.Item>
               <Descriptions.Item label={t('customers.nationality')}>{c.nationality}</Descriptions.Item>
-              <Descriptions.Item label={t('customers.firstName')}>{c.firstName}</Descriptions.Item>
+              <Descriptions.Item label={t('customers.firstName')}>{c.firstName || '—'}</Descriptions.Item>
               <Descriptions.Item label={t('customers.middleName')}>{c.middleName || '—'}</Descriptions.Item>
-              <Descriptions.Item label={t('customers.lastName')}>{c.lastName}</Descriptions.Item>
-              <Descriptions.Item label={t('customers.birthDate')}><Num>{c.birthDate}</Num></Descriptions.Item>
-              <Descriptions.Item label={t('customers.registeredAt')}><Num>{c.registeredAt}</Num></Descriptions.Item>
-              <Descriptions.Item label={t('customers.lastLogin')}>{c.lastLoginAt ? <Num>{c.lastLoginAt}</Num> : t('customers.neverLogin')}</Descriptions.Item>
+              <Descriptions.Item label={t('customers.lastName')}>{c.lastName || '—'}</Descriptions.Item>
+              <Descriptions.Item label={t('customers.birthDate')}><Num>{c.birthDate ?? '—'}</Num></Descriptions.Item>
+              <Descriptions.Item label={t('customers.registeredAt')}><Num>{fullTime(c.registeredAt)}</Num></Descriptions.Item>
+              <Descriptions.Item label={t('customers.lastLogin')}>{c.lastLoginAt ? <Num>{fullTime(c.lastLoginAt)}</Num> : t('customers.neverLogin')}</Descriptions.Item>
             </Descriptions>
           </div>
 
@@ -184,7 +184,7 @@ export function CustomerDetailPage() {
               </Descriptions.Item>
               <Descriptions.Item label={t('kyc.docType')}>{c.kyc.docType ? t(`kyc.doc.${c.kyc.docType}`) : '—'}</Descriptions.Item>
               <Descriptions.Item label={t('kyc.docNumber')}>{c.kyc.docNumber ? <Num>{c.kyc.docNumber}</Num> : '—'}</Descriptions.Item>
-              <Descriptions.Item label={t('kyc.reviewedAt')}>{c.kyc.reviewedAt ? <Num>{c.kyc.reviewedAt}</Num> : '—'}</Descriptions.Item>
+              <Descriptions.Item label={t('kyc.reviewedAt')}>{c.kyc.reviewedAt ? <Num>{fullTime(c.kyc.reviewedAt)}</Num> : '—'}</Descriptions.Item>
               {c.kyc.rejectReason ? <Descriptions.Item label={t('kyc.rejectReason')}>{c.kyc.rejectReason}</Descriptions.Item> : null}
             </Descriptions>
           </div>
@@ -217,8 +217,8 @@ export function CustomerDetailPage() {
               dataSource={c.ledger}
               emptyText={t('customers.noLedger')}
               columns={[
-                { title: t('customers.time'), dataIndex: 'time', render: (v: string) => <Num>{v}</Num> },
-                { title: t('customers.ledgerType'), dataIndex: 'type', render: (v: string) => t(`ledger.${v}`) },
+                { title: t('customers.time'), dataIndex: 'time', render: (v: string) => <Num>{fullTime(v)}</Num> },
+                { title: t('customers.ledgerType'), dataIndex: 'type', render: (v: string) => (i18n.exists(`ledger.${v}`) ? t(`ledger.${v}`) : v) },
                 { title: t('customers.amount'), dataIndex: 'amount', align: 'right', render: (v: string) => <Amount value={v} signed /> },
                 { title: t('customers.balanceAfter'), dataIndex: 'balanceAfter', align: 'right', render: (v: string) => <Amount value={v} /> },
                 { title: t('customers.ref'), dataIndex: 'ref', render: (v: string) => <Num>{v}</Num> },

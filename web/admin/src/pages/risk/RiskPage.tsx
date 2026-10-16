@@ -20,10 +20,13 @@ import { Pill } from '../../components/Pill';
 import { Num } from '../../components/Num';
 import { exposureTone } from '../../utils/status';
 import { formatAmount, usagePercent } from '../../utils/money';
-import { localName, shortTime } from '../../utils/display';
+import { fullTime, localName, shortTime } from '../../utils/display';
 import { isPositiveInteger } from '../../utils/validators';
 
-function UsageBar({ net, threshold }: { net: string; threshold: string }) {
+function UsageBar({ net, threshold }: { net: string; threshold: string | null }) {
+  const { t } = useTranslation();
+  // 阈值为空：这个品种不监控净敞口
+  if (!threshold) return <span className="muted">{t('risk.notMonitored')}</span>;
   const u = usagePercent(net, threshold);
   const cls = u >= 100 ? 'over' : u >= 80 ? 'warn' : '';
   return (
@@ -43,12 +46,22 @@ export function RiskPage() {
   const { data, loading, error, reload } = useApi(fetcher);
   const hr = useHighRisk();
 
-  const thresholdField = (name: string, label: string) => (
+  /** optional：阈值可以留空（不监控，后台方案第 9 节）；单客户持仓上限必填 */
+  const thresholdField = (name: string, label: string, optional = false) => (
     <Form.Item
       name={name}
       label={label}
-      required
-      rules={[{ validator: (_r, v: string | undefined) => (isPositiveInteger(v ?? '') ? Promise.resolve() : Promise.reject(new Error(t('validation.positiveInteger')))) }]}
+      required={!optional}
+      extra={optional ? t('risk.thresholdEmptyHint') : undefined}
+      rules={[
+        {
+          validator: (_r, v: string | null | undefined) => {
+            const text = String(v ?? '').trim();
+            if (optional && !text) return Promise.resolve();
+            return isPositiveInteger(text) ? Promise.resolve() : Promise.reject(new Error(t('validation.positiveInteger')));
+          },
+        },
+      ]}
     >
       <Input inputMode="numeric" suffix="USD" />
     </Form.Item>
@@ -87,8 +100,8 @@ export function RiskPage() {
       title: t('risk.editThreshold', { symbol: e.symbol }),
       description: t('risk.thresholdDesc', { current: formatAmount(e.thresholdUsd, { decimals: 0 }) }),
       initialValues: { threshold: e.thresholdUsd },
-      extra: thresholdField('threshold', t('risk.newThreshold')),
-      onConfirm: (v) => setSymbolThreshold(e.symbol, String(v.threshold).trim(), v.reason),
+      extra: thresholdField('threshold', t('risk.newThreshold'), true),
+      onConfirm: (v) => setSymbolThreshold(e.symbol, String(v.threshold ?? '').trim(), v.reason),
       onDone: reload,
     });
 
@@ -98,8 +111,8 @@ export function RiskPage() {
       title: t('risk.editPlatformThreshold'),
       description: t('risk.platformThresholdDesc', { current: formatAmount(data.settings.platformThresholdUsd, { decimals: 0 }) }),
       initialValues: { threshold: data.settings.platformThresholdUsd },
-      extra: thresholdField('threshold', t('risk.newThreshold')),
-      onConfirm: (v) => setPlatformThreshold(String(v.threshold).trim(), v.reason),
+      extra: thresholdField('threshold', t('risk.newThreshold'), true),
+      onConfirm: (v) => setPlatformThreshold(String(v.threshold ?? '').trim(), v.reason),
       onDone: reload,
     });
 
@@ -115,9 +128,10 @@ export function RiskPage() {
     });
 
   const eventText = (e: RiskEvent) =>
-    t(`riskEvent.${e.type}`, {
+    t(i18n.exists(`riskEvent.${e.type}`) ? `riskEvent.${e.type}` : 'riskEvent.other', {
+      type: e.type,
       symbol: e.symbol ?? '',
-      value: e.value && /^\d+$/.test(e.value) ? formatAmount(e.value, { decimals: 0 }) : e.value ?? '',
+      value: e.value && /^-?\d+(\.\d+)?$/.test(e.value) ? formatAmount(e.value, { decimals: 0 }) : e.value ?? '',
       threshold: e.threshold ? formatAmount(e.threshold, { decimals: 0 }) : '',
       reason: e.reason ?? '',
     });
@@ -129,7 +143,7 @@ export function RiskPage() {
     <>
       <PageHeader
         title={t('risk.title')}
-        sub={s ? t('risk.sub', { time: s.updatedAt.slice(11) }) : t('risk.subLoading')}
+        sub={s ? t('risk.sub', { time: fullTime(s.updatedAt).slice(11) }) : t('risk.subLoading')}
         extra={
           <Button icon={<ReloadOutlined />} onClick={reload} loading={loading}>
             {t('common.refresh')}

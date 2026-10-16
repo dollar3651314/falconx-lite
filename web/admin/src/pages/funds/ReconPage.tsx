@@ -1,31 +1,32 @@
 /**
- * 入金对账：列出链上和账上不一致的记录，标记已处理（必填备注）。修复 fxsystem F5。
+ * 对账：列出钱包记录、账本、链上三方不一致的问题，标记已处理（必填说明）。修复 fxsystem F5。
+ * 问题类型和字段按后端（后台方案第 8 节）：7 种类型，字段 type、ref、expected、actual、diff、detail；后端只支持按状态筛选。
  */
 import { useState } from 'react';
-import { Alert, Select, Tooltip, Typography } from 'antd';
+import { Alert, Select } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { listRecon, resolveRecon } from '../../api';
 import type { ReconItem, ReconQuery } from '../../api/types';
-import { CHAINS } from '../../config/constants';
 import { usePagedList } from '../../hooks/usePagedList';
 import { useNoteDialog } from '../../hooks/useConfirmDialogs';
 import { PageHeader } from '../../components/PageHeader';
 import { FilterBar, FilterItem } from '../../components/FilterBar';
 import { DataTable } from '../../components/DataTable';
 import { PermButton } from '../../components/PermButton';
-import { ChainTag, Pill } from '../../components/Pill';
+import { Pill } from '../../components/Pill';
 import { Amount, Num } from '../../components/Num';
 import { reconTone } from '../../utils/status';
-import { shortHash, shortTime } from '../../utils/display';
+import { shortTime } from '../../utils/display';
 
 type Filters = Omit<ReconQuery, 'page' | 'pageSize'>;
 const INITIAL: Filters = { status: 'open' };
 
 export function ReconPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const list = usePagedList<ReconItem, Filters>(listRecon, INITIAL);
   const [draft, setDraft] = useState<Filters>(INITIAL);
   const note = useNoteDialog();
+  const typeLabel = (v: string) => (i18n.exists(`reconType.${v}`) ? t(`reconType.${v}`) : v);
 
   return (
     <>
@@ -43,9 +44,6 @@ export function ReconPage() {
             options={(['open', 'resolved'] as const).map((s) => ({ value: s, label: t(`reconStatus.${s}`) }))}
           />
         </FilterItem>
-        <FilterItem label={t('funds.chain')}>
-          <Select aria-label={t('funds.chain')} allowClear style={{ width: 100 }} placeholder={t('common.all')} value={draft.chain} onChange={(v) => setDraft({ ...draft, chain: v })} options={CHAINS.map((c) => ({ value: c, label: c }))} />
-        </FilterItem>
       </FilterBar>
       <DataTable<ReconItem>
         rowKey="id"
@@ -60,23 +58,21 @@ export function ReconPage() {
         emptyText={t('recon.empty')}
         columns={[
           { title: t('recon.id'), dataIndex: 'id', render: (v: string) => <Num>{v}</Num> },
-          { title: t('recon.type'), dataIndex: 'type', render: (v: string) => t(`reconType.${v}`) },
-          { title: t('funds.chain'), dataIndex: 'chain', render: (v: string) => <ChainTag chain={v} /> },
           {
-            title: t('deposits.txHash'),
-            dataIndex: 'txHash',
-            render: (v: string) => (
-              <Tooltip title={v}>
-                <Typography.Text className="num" copyable={{ text: v, tooltips: [t('common.copy'), t('common.copied')] }}>
-                  {shortHash(v, 8, 6)}
-                </Typography.Text>
-              </Tooltip>
+            title: t('recon.type'),
+            dataIndex: 'type',
+            render: (v: string, r) => (
+              <div className="user-cell">
+                <b>{typeLabel(v)}</b>
+                {r.detail ? <small className="ellipsis" style={{ maxWidth: 260 }} title={r.detail}>{r.detail}</small> : null}
+              </div>
             ),
           },
+          { title: t('recon.ref'), dataIndex: 'ref', render: (v: string) => <Num>{v}</Num> },
           { title: t('funds.user'), key: 'u', render: (_, r) => (r.customerName ? <span className="ellipsis" style={{ maxWidth: 180 }} title={r.customerName}>{r.customerName}</span> : <span className="muted">{t('recon.unknownCustomer')}</span>) },
-          { title: t('recon.chainAmount'), dataIndex: 'chainAmount', align: 'right', render: (v: string) => <Amount value={v} decimals={6} /> },
-          { title: t('recon.ledgerAmount'), dataIndex: 'ledgerAmount', align: 'right', render: (v: string) => <Amount value={v} decimals={6} /> },
-          { title: t('recon.diff'), dataIndex: 'diff', align: 'right', render: (v: string) => <Amount value={v} decimals={6} signed strong /> },
+          { title: t('recon.expected'), dataIndex: 'expected', align: 'right', render: (v: string | null) => <Amount value={v} decimals={6} /> },
+          { title: t('recon.actual'), dataIndex: 'actual', align: 'right', render: (v: string | null) => <Amount value={v} decimals={6} /> },
+          { title: t('recon.diff'), dataIndex: 'diff', align: 'right', render: (v: string | null) => <Amount value={v} decimals={6} signed strong /> },
           { title: t('recon.detectedAt'), dataIndex: 'detectedAt', render: (v: string) => <Num>{shortTime(v)}</Num> },
           { title: t('recon.status'), dataIndex: 'status', render: (v: string) => <Pill tone={reconTone[v]}>{t(`reconStatus.${v}`)}</Pill> },
           { title: t('recon.note'), dataIndex: 'note', render: (v: string | null, r) => (v ? <span title={v}>{r.handler} · <span className="ellipsis" style={{ maxWidth: 200 }}>{v}</span></span> : '—') },

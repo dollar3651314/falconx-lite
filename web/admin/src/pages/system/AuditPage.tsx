@@ -14,6 +14,7 @@ import { DataTable } from '../../components/DataTable';
 import { Pill } from '../../components/Pill';
 import { Num } from '../../components/Num';
 import { auditDiff, type DiffRow } from '../../utils/audit';
+import { fullTime } from '../../utils/display';
 
 type Filters = Omit<AuditQuery, 'page' | 'pageSize'>;
 
@@ -53,7 +54,7 @@ export function AuditPage() {
         pageSize={list.pageSize}
         onPageChange={list.onPageChange}
         columns={[
-          { title: t('audit.time'), dataIndex: 'time', render: (v: string) => <Num>{v}</Num> },
+          { title: t('audit.time'), dataIndex: 'time', render: (v: string) => <Num>{fullTime(v)}</Num> },
           { title: t('audit.admin'), dataIndex: 'adminName' },
           { title: t('audit.action'), dataIndex: 'action', render: (v: string, r) => <span className="nowrap">{actionLabel(v)} {r.highRisk ? <Pill tone="danger">{t('highRisk.tag')}</Pill> : null}</span> },
           { title: t('audit.target'), dataIndex: 'target', render: (v: string) => <Num>{v}</Num> },
@@ -67,7 +68,7 @@ export function AuditPage() {
         {detail ? (
           <>
             <Descriptions size="small" column={1} bordered>
-              <Descriptions.Item label={t('audit.time')}><Num>{detail.time}</Num></Descriptions.Item>
+              <Descriptions.Item label={t('audit.time')}><Num>{fullTime(detail.time)}</Num></Descriptions.Item>
               <Descriptions.Item label={t('audit.admin')}>{detail.adminName}</Descriptions.Item>
               <Descriptions.Item label={t('audit.ip')}><Num>{detail.ip}</Num></Descriptions.Item>
               <Descriptions.Item label={t('audit.action')}>{actionLabel(detail.action)}</Descriptions.Item>

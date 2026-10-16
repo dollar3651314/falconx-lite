@@ -1,6 +1,8 @@
 /**
- * 后台接口的数据类型。按将来的真实接口设计：金额一律是十进制字符串，时间是 "YYYY-MM-DD HH:mm:ss"（UTC+8）。
- * Admin API types. Amounts are decimal strings; timestamps are "YYYY-MM-DD HH:mm:ss" strings.
+ * 后台接口的数据类型，字段和后端 `backend/src/main/java/com/falconx/lite/admin/` 返回的 record 一致。
+ * 金额一律是十进制字符串。时间：真实接口是 ISO UTC 字符串（如 "2026-10-14T01:12:33Z"），模拟数据是 "YYYY-MM-DD HH:mm:ss"（UTC+8），
+ * 页面统一用 utils/display 的 fullTime / shortTime 显示成 UTC+8。
+ * Admin API types. Amounts are decimal strings; real timestamps are ISO UTC, mock ones "YYYY-MM-DD HH:mm:ss".
  */
 
 export type Chain = 'ERC20' | 'TRC20' | 'BSC';
@@ -19,23 +21,39 @@ export interface PageQuery {
   pageSize: number;
 }
 
-/** 接口错误：reasonKey 是翻译键，界面显示具体原因，不显示错误代码 */
+/** 后端字段错误（`{field, code}`，code 如 required、invalid、tooLong、weak） */
+export interface FieldError {
+  field: string;
+  code: string;
+}
+
+/**
+ * 接口错误：reasonKey 是翻译键，界面显示具体原因，不显示错误代码。
+ * 真实接口另带 HTTP 状态、后端错误码和字段错误（字段错误由 utils/errors 翻译成"哪个字段、什么问题"）。
+ */
 export class ApiError extends Error {
   readonly reasonKey: string;
   readonly params?: Record<string, string | number>;
-  constructor(reasonKey: string, params?: Record<string, string | number>) {
+  readonly status?: number;
+  readonly code?: string;
+  readonly fields?: FieldError[];
+  constructor(reasonKey: string, params?: Record<string, string | number>, extra?: { status?: number; code?: string; fields?: FieldError[] }) {
     super(reasonKey);
     this.name = 'ApiError';
     this.reasonKey = reasonKey;
     this.params = params;
+    this.status = extra?.status;
+    this.code = extra?.code;
+    this.fields = extra?.fields;
   }
 }
 
 // ---------- 认证 / 身份 ----------
 export type RoleCode = 'super_admin' | 'operations' | 'risk' | string;
 
+/** 登录结果。真实接口不返回令牌（令牌只在 HttpOnly Cookie 里，后台方案第 7 节）；模拟层带一个演示用的 token */
 export interface AdminSession {
-  token: string;
+  token?: string;
   adminId: number;
   username: string;
   displayName: string;
@@ -54,12 +72,22 @@ export interface DashboardStats {
   openPositions: number;
   platformPnl: string;
   platformNetExposure: string;
-  platformThreshold: string;
+  /** 为空表示没有设置平台阈值 */
+  platformThreshold: string | null;
   pendingKyc: number;
   pendingWithdrawals: number;
   failedTasks: number;
   openReconciliations: number;
   updatedAt: string;
+}
+
+/** 当前管理员（GET /api/admin/me）。menus 是后端按权限点和"是否显示"过滤后的菜单；模拟层不返回，按本地菜单配置显示 */
+export interface CurrentAdmin {
+  admin: AdminUser;
+  roles: Role[];
+  permissions: string[];
+  isSuperAdmin: boolean;
+  menus?: MenuNode[];
 }
 
 export interface MenuBadges {
@@ -90,7 +118,8 @@ export interface CustomerQuery extends PageQuery {
   kycStatus?: KycStatus;
 }
 
-export type LedgerType = 'deposit' | 'withdraw' | 'fee' | 'pnl' | 'swap' | 'adjust' | 'refund';
+/** 资金流水类型；真实接口里没有对应的账本类型用小写原名（如 order_freeze） */
+export type LedgerType = 'deposit' | 'withdraw' | 'fee' | 'pnl' | 'swap' | 'adjust' | 'refund' | string;
 
 export interface LedgerEntry {
   id: string;
@@ -112,8 +141,9 @@ export interface Position {
   currentPrice: string;
   leverage: number;
   margin: string;
+  /** 真实接口（客户详情）在没有报价时为空，页面用 Amount 显示成"—" */
   pnl: string;
-  /** 保证金水平（百分比字符串，如 "182.5"） */
+  /** 保证金水平（百分比字符串，如 "182.5"）；真实接口没有报价时为空 */
   marginLevel: string;
   liquidationPrice: string;
   stopLoss: string | null;
@@ -122,10 +152,10 @@ export interface Position {
 }
 
 export interface CustomerDetail extends CustomerSummary {
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  birthDate: string;
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
+  birthDate: string | null;
   frozenReason: string | null;
   kyc: {
     status: KycStatus;
@@ -255,30 +285,41 @@ export interface WithdrawalSummary {
   completedToday: { count: number; amount: string };
 }
 
-export type ReconType = 'missing_credit' | 'amount_mismatch' | 'reversal_shortfall' | 'unknown_tx';
+/** 对账问题类型：按后端的 7 种（数据库设计第 16 节、后台方案第 8 节），不再用原型的 4 种 */
+export type ReconType =
+  | 'deposit_ledger_mismatch'
+  | 'deposit_unknown_credit'
+  | 'deposit_reversal_mismatch'
+  | 'deposit_not_on_chain'
+  | 'suspense_open'
+  | 'withdraw_ledger_mismatch'
+  | 'withdraw_frozen_mismatch';
 
+/** 对账问题（后台方案第 8 节）：ref 是关联的业务编号，expected 应有、actual 实际、diff = actual - expected */
 export interface ReconItem {
   id: string;
-  chain: Chain;
-  txHash: string;
+  type: ReconType | string;
+  ref: string;
   customerId: number | null;
   customerName: string | null;
-  type: ReconType;
-  chainAmount: string;
-  ledgerAmount: string;
-  diff: string;
+  expected: string | null;
+  actual: string | null;
+  diff: string | null;
+  /** 后端生成的说明（中文） */
+  detail: string | null;
   status: 'open' | 'resolved';
   note: string | null;
   handler: string | null;
   detectedAt: string;
+  resolvedAt: string | null;
 }
 
 export interface ReconQuery extends PageQuery {
   status?: ReconItem['status'];
-  chain?: Chain;
 }
 
-export type TaskType = 'withdraw_broadcast' | 'withdraw_confirm' | 'email' | 'push';
+/** 任务类型：只有邮件和推送（提现的广播和确认不走任务表，后台方案第 8 节） */
+export type TaskType = 'email' | 'push';
 export type TaskStatus = 'pending' | 'processing' | 'success' | 'failed';
 
 export interface TaskItem {
@@ -301,7 +342,8 @@ export interface TaskQuery extends PageQuery {
 
 // ---------- 交易监控 ----------
 export type OrderType = 'market' | 'limit';
-export type OrderStatus = 'filled' | 'pending' | 'cancelled' | 'rejected';
+/** 订单状态：被拒绝的下单请求后端不保存，所以没有 rejected（后台方案第 9 节） */
+export type OrderStatus = 'filled' | 'pending' | 'cancelled';
 export type RejectReason =
   | 'outside_session'
   | 'symbol_paused'
@@ -360,7 +402,8 @@ export interface SymbolExposure {
   longUsd: string;
   shortUsd: string;
   netUsd: string;
-  thresholdUsd: string;
+  /** 为空表示这个品种不监控净敞口 */
+  thresholdUsd: string | null;
   status: ExposureStatus;
 }
 
@@ -368,7 +411,8 @@ export interface RiskSettings {
   globalPause: boolean;
   autoLiquidation: boolean;
   platformNetUsd: string;
-  platformThresholdUsd: string;
+  /** 为空表示不监控平台总净敞口 */
+  platformThresholdUsd: string | null;
   /** 平台总净敞口超过阈值后自动禁止全部新开仓 */
   platformBlocked: boolean;
   perUserLimitUsd: string;
@@ -399,31 +443,51 @@ export interface RiskEvent {
   reason: string | null;
 }
 
+/** 风控看板（后端字段是 symbols，这里叫 exposures，在 api/real.ts 转换） */
+export interface RiskOverview {
+  settings: RiskSettings;
+  exposures: SymbolExposure[];
+  events: RiskEvent[];
+}
+
 // ---------- 品种与行情 ----------
 export type SymbolCategory = 'forex_major' | 'forex_cross' | 'cnh' | 'metal' | 'index' | 'energy' | 'crypto' | 'stock';
 
+/**
+ * 品种（字段按后端，后台方案第 9 节）：没有原型的 lpSymbol、spreadPoints、sessionId；
+ * 有 markup（统一加点，价格单位）、maxLots、lotStep、openPaused（风控暂停开仓）、sortOrder。
+ */
 export interface TradingSymbol {
   code: string;
   nameZh: string;
   nameEn: string;
   category: SymbolCategory;
   quoteCurrency: string;
-  lpSymbol: string;
   contractSize: string;
   minLots: string;
+  maxLots: string;
+  lotStep: string;
   maxLeverage: number;
   maintenanceMarginRate: string;
   openFeeRate: string;
-  /** 隔夜费率（每日，按名义价值），null 表示未配置：不收隔夜费，后台标红 */
+  /** 隔夜费率（每日，按名义价值），null 表示未配置：不收隔夜费，后台标红（真实接口里多空都是 0 即未配置） */
   swapLong: string | null;
   swapShort: string | null;
-  spreadPoints: number;
+  /** 统一加点（价格单位），只在行情入口加一次 */
+  markup: string;
   digits: number;
   hot: boolean;
   enabled: boolean;
-  sessionId: string;
-  updatedAt: string;
+  /** 风控暂停开仓（在风控页操作） */
+  openPaused: boolean;
+  sortOrder: number;
+  updatedAt: string | null;
 }
+
+/** 改品种参数：合约大小、报价货币、小数位不能改 */
+export type SymbolPatch = Partial<
+  Pick<TradingSymbol, 'nameZh' | 'nameEn' | 'maxLeverage' | 'minLots' | 'maxLots' | 'lotStep' | 'openFeeRate' | 'maintenanceMarginRate' | 'markup' | 'swapLong' | 'swapShort' | 'hot' | 'sortOrder'>
+>;
 
 export interface SymbolQuery extends PageQuery {
   category?: SymbolCategory;
@@ -432,45 +496,52 @@ export interface SymbolQuery extends PageQuery {
   missingSwap?: boolean;
 }
 
+/** 一个品种一周的交易时段（UTC，只读，后台方案第 9 节）；day 1 = 周一 … 7 = 周日 */
 export interface TradingSession {
-  id: string;
-  nameZh: string;
-  nameEn: string;
-  /** 每行一个时段描述，如 "周日 22:00 – 周五 22:00" 由前端翻译星期 */
-  ranges: { fromDay: number; fromTime: string; toDay: number; toTime: string }[];
-  dailyBreak: string | null;
-  symbolCount: number;
+  symbol: string;
+  ranges: { day: number; open: string; close: string }[];
 }
 
+/** 休市日：按品种（"*" 表示全部品种），只有全天休市 */
 export interface Holiday {
   id: string;
   date: string;
-  sessionId: string;
-  nameZh: string;
-  nameEn: string;
-  closure: 'full' | 'early';
-  closeTime: string | null;
+  symbol: string;
+  reason: string | null;
+}
+
+export interface HolidayInput {
+  symbol: string;
+  date: string;
+  reason?: string;
 }
 
 export interface FxRate {
+  /** 后端另带货币代码 */
+  currency?: string;
   pair: string;
   rate: string;
   source: string;
-  updatedAt: string;
-  ageSeconds: number;
+  updatedAt: string | null;
+  ageSeconds: number | null;
   status: 'ok' | 'stale';
   affectedSymbols: string[];
 }
 
 // ---------- 交易参数 ----------
+/** 交易参数：追保线和追保通知间隔；强平按品种维持保证金率逐仓处理，没有账户级强平线（G6），liquidationLevel 总是空 */
 export interface TradingParams {
   /** 追保线（保证金水平 %） */
   marginCallLevel: string;
-  /** 强平线（保证金水平 %） */
-  liquidationLevel: string;
+  liquidationLevel: string | null;
   marginCallThrottleMinutes: number;
-  updatedAt: string;
-  updatedBy: string;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface TradingParamsInput {
+  marginCallLevel: string;
+  marginCallThrottleMinutes: number;
 }
 
 // ---------- 通知 ----------
@@ -494,13 +565,14 @@ export interface NotifyTemplate {
 
 export interface NotifyRecord {
   id: string;
-  customerId: number;
+  /** 按邮箱发的（风控人员等）没有客户号，customerName 是收件人 */
+  customerId: number | null;
   customerName: string;
   source: 'template' | 'manual';
   templateCode: string | null;
   channel: NotifyChannel;
   title: string;
-  status: 'sent' | 'failed' | 'skipped';
+  status: 'pending' | 'sent' | 'failed' | 'skipped';
   error: string | null;
   operator: string | null;
   time: string;
@@ -531,6 +603,12 @@ export interface AdminUser {
   mustChangePassword: boolean;
   lastLoginAt: string | null;
   createdAt: string;
+}
+
+/** 新建管理员、重置密码的结果：临时密码只返回这一次（后台方案第 7 节），页面在弹窗里显示一次 */
+export interface TemporaryPassword {
+  id: number;
+  temporaryPassword: string;
 }
 
 export interface AdminInput {
@@ -603,5 +681,6 @@ export interface SystemConfig {
   value: string;
   unit: 'usdt' | 'hours' | 'minutes' | 'count' | 'percent' | 'text';
   group: 'withdraw' | 'deposit' | 'security' | 'adjust' | 'notify';
-  updatedAt: string;
+  /** 从没改过时为空 */
+  updatedAt: string | null;
 }

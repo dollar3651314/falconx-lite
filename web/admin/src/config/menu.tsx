@@ -97,6 +97,57 @@ export function flattenMenu(items: MenuItemDef[] = MENU, parent?: MenuItemDef): 
   return items.flatMap((item) => (item.children ? flattenMenu(item.children, item) : [{ ...item, parent }]));
 }
 
+/** 菜单节点（和 GET /api/admin/me 返回的 menus 字段一致） */
+export interface ServerMenuNode {
+  key: string;
+  path: string | null;
+  labelKey: string;
+  permission: string | null;
+  order: number;
+  visible: boolean;
+  children?: ServerMenuNode[];
+}
+
+function localDef(key: string, items: MenuItemDef[] = MENU): MenuItemDef | undefined {
+  for (const m of items) {
+    if (m.key === key) return m;
+    const c = m.children ? localDef(key, m.children) : undefined;
+    if (c) return c;
+  }
+  return undefined;
+}
+
+/**
+ * 当前管理员能看到的菜单。
+ * - 真实模式：用 /api/admin/me 返回的 menus（后端已按权限点、顺序、是否显示过滤，AC-32），图标和角标取本地配置；
+ * - 原型模式（没有 menus）：本地菜单按权限点过滤。
+ * 两种情况都再按权限点检查一遍叶子；分组下一个都看不到时整个分组不显示。
+ */
+export function visibleMenu(serverMenus: ServerMenuNode[] | undefined, can: (perm: string | undefined) => boolean): MenuItemDef[] {
+  const filter = (items: MenuItemDef[]): MenuItemDef[] =>
+    items.flatMap((m) => {
+      if (m.children) {
+        const children = filter(m.children);
+        return children.length ? [{ ...m, children }] : [];
+      }
+      return m.path && can(m.permission) ? [m] : [];
+    });
+  if (!serverMenus) return filter(MENU);
+  const toDef = (n: ServerMenuNode): MenuItemDef => {
+    const local = localDef(n.key);
+    return {
+      key: n.key,
+      labelKey: n.labelKey,
+      icon: local?.icon,
+      badge: local?.badge,
+      path: n.path ?? undefined,
+      permission: (n.permission ?? undefined) as PermissionCode | undefined,
+      children: n.children?.length ? n.children.map(toDef) : undefined,
+    };
+  };
+  return filter(serverMenus.filter((n) => n.visible).map(toDef));
+}
+
 /** 根据当前路径找到对应菜单（详情页按前缀归到列表菜单） */
 export function findMenuByPath(pathname: string): (MenuItemDef & { parent?: MenuItemDef }) | undefined {
   const leaves = flattenMenu();
