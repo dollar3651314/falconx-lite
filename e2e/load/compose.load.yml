@@ -1,0 +1,24 @@
+# AC-13 压测专用覆盖文件（测试报告/v1-压测报告-AC13.md）。只由 e2e/load/run-ac13.sh 使用，叠在另外两个文件后面：
+#   docker compose -p falconx-load -f deploy/kit/docker-compose.yml -f e2e/compose.deployed.yml -f e2e/load/compose.load.yml ...
+# 目的：在本机复刻测试服务器（2 核 2G）。测试环境的 deploy/kit/docker-compose.yml 一行不改：
+# 镜像、内存上限、MySQL 和 Redis 参数、JVM 参数（镜像里）都沿用；e2e profile 和模拟报价源来自 e2e/compose.deployed.yml。
+# 这里只加压测需要的：
+# - 所有容器绑在同 2 个 CPU 核上（cpuset 0,1），模拟 2 核服务器；压测程序用 taskset 绑在其他核上，不抢应用的 CPU。
+# - 端口换成只在本机监听的 18443（Nginx）和 18080（后端，测试代码调替身接口用），不占用 80、443、8080（避免和部署形态的端到端测试冲突）。
+# - 发验证码按 IP 每小时 30 次的限制调大：压测在一台机器上注册几十个客户，全部来自同一个 IP。只在压测里调大。
+# 和 e2e/compose.deployed.yml 一样，绝不能用在测试环境或生产（约定 18）。
+services:
+  web:
+    cpuset: "0,1"
+    ports: !override
+      - "127.0.0.1:18443:443"
+  app:
+    cpuset: "0,1"
+    ports: !override
+      - "127.0.0.1:18080:8080"
+    environment:
+      FALCONX_AUTH_CODEIPHOURLYLIMIT: "100000"
+  mysql:
+    cpuset: "0,1"
+  redis:
+    cpuset: "0,1"

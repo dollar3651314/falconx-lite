@@ -36,7 +36,17 @@
     WHERE email = #{email} AND purpose = #{purpose} AND created_at &gt; DATE_SUB(UTC_TIMESTAMP(3), INTERVAL #{hours} HOUR)
   </select>
 
-  <!-- 最新的一条；createdAt 用来判断 60 秒内不能重发。FOR UPDATE：同一邮箱的校验排队，尝试次数不会少算 -->
+  <!-- 发验证码时看最新一条（判断 60 秒内不能重发），**不加锁**：新邮箱查不到记录时 FOR UPDATE 会锁住索引间隙，
+       两个新邮箱同时发验证码，各自的插入互相等对方的间隙锁，MySQL 死锁、接口 500（压测 LT-1）。
+       不加锁的代价：同一邮箱同一瞬间连发两次可能都成功，最多多发一封，仍受每天上限和按 IP 限次约束 -->
+  <select id="latestEmailCodeForSend" resultType="com.falconx.lite.account.auth.Rows$EmailCodeRow">
+    SELECT id, code_hash, attempts, expires_at &lt;= UTC_TIMESTAMP(3) AS expired, consumed_at IS NOT NULL AS consumed,
+      TIMESTAMPDIFF(SECOND, created_at, UTC_TIMESTAMP(3)) AS age_seconds
+    FROM account_email_code
+    WHERE email = #{email} AND purpose = #{purpose} ORDER BY id DESC LIMIT 1
+  </select>
+
+  <!-- 校验时用：最新的一条，FOR UPDATE 让同一邮箱的校验排队，尝试次数不会少算（校验不插入，不会死锁） -->
   <select id="latestEmailCode" resultType="com.falconx.lite.account.auth.Rows$EmailCodeRow">
     SELECT id, code_hash, attempts, expires_at &lt;= UTC_TIMESTAMP(3) AS expired, consumed_at IS NOT NULL AS consumed,
       TIMESTAMPDIFF(SECOND, created_at, UTC_TIMESTAMP(3)) AS age_seconds

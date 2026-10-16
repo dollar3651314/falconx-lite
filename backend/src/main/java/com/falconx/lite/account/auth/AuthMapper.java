@@ -27,6 +27,9 @@ interface AuthMapper {
 
   int insertEmailCode(@Param("email") String email, @Param("purpose") String purpose, @Param("codeHash") String codeHash, @Param("ttlMinutes") int ttlMinutes);
 
+  /** 发验证码时用，不加锁（见 XML 注释，压测 LT-1） */
+  EmailCodeRow latestEmailCodeForSend(@Param("email") String email, @Param("purpose") String purpose);
+
   EmailCodeRow latestEmailCode(@Param("email") String email, @Param("purpose") String purpose);
 
   /** 最近 hours 小时内给这个邮箱发过几次这种用途的验证码 */
