@@ -29,6 +29,9 @@ interface AuthMapper {
 
   EmailCodeRow latestEmailCode(@Param("email") String email, @Param("purpose") String purpose);
 
+  /** 最近 hours 小时内给这个邮箱发过几次这种用途的验证码 */
+  int countEmailCodesSince(@Param("email") String email, @Param("purpose") String purpose, @Param("hours") int hours);
+
   int incrementCodeAttempts(@Param("id") long id);
 
   int consumeCode(@Param("id") long id);

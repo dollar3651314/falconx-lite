@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 邮箱验证码：6 位数字，10 分钟有效，60 秒内不能重发，最多试 5 次，用过即作废。库里只存哈希。
+ * 同一邮箱同一用途 24 小时内最多发 {@code codeDailyLimit} 次（安全审查 SEC-03）：每个验证码只能试 5 次，但不限次数地换新验证码就能一直猜下去，
+ * 重置密码的验证码猜中就能接管账号。按 IP 的限制在 {@link SendCodeLimiter}。
  */
 @Service
 class EmailCodeService {
@@ -34,6 +36,7 @@ class EmailCodeService {
   void send(String email, Purpose purpose) {
     EmailCodeRow last = mapper.latestEmailCode(email, purpose.name());
     if (last != null && last.ageSeconds() < props.codeResendSeconds()) throw new BizException("CODE_TOO_FREQUENT", "发送太频繁，请稍后再试");
+    if (mapper.countEmailCodesSince(email, purpose.name(), 24) >= props.codeDailyLimit()) throw new BizException("CODE_TOO_FREQUENT", "发送太频繁，请稍后再试");
     String code = Secrets.newCode();
     mapper.insertEmailCode(email, purpose.name(), hash(email, purpose, code), props.codeTtlMinutes());
     mail.send(email, "EMAIL_CODE", Map.of("code", code, "purpose", purpose.name()));

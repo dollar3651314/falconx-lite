@@ -13,6 +13,9 @@ falconx:
     code-ttl-minutes: 10
     code-resend-seconds: 60
     code-max-attempts: 5
+    # 安全审查 SEC-03：同一邮箱同一用途 24 小时最多发 10 次验证码；同一 IP 每小时最多请求 30 次（大陆移动网络很多人共用一个出口 IP，留足余量）
+    code-daily-limit: 10
+    code-ip-hourly-limit: 30
     cookie-name: fx_session
     cookie-secure: ${FX_COOKIE_SECURE:true}
   # 行情（技术方案/v1-数据库设计.md 第 8 节）。质量守卫阈值沿用现有系统（功能地图 M-05、M-06）
