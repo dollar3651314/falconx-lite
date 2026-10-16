@@ -22,6 +22,7 @@ final class Rows {
     String channels;
     boolean builtIn;
     boolean enabled;
+    LocalDateTime updatedAt;
 
     boolean has(String channel) {
       for (String c : channels.split(",")) if (c.trim().equals(channel)) return true;

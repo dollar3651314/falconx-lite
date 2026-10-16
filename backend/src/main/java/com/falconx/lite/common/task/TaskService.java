@@ -65,6 +65,23 @@ public class TaskService {
     return mapper.recoverStuck(timeoutSeconds);
   }
 
+  /** 后台任务列表（S16b）；taskType、status 为空表示不筛选 */
+  @Transactional(readOnly = true)
+  public List<TaskItem> list(String taskType, TaskStatus status, int offset, int limit) {
+    return mapper.list(taskType, status == null ? null : status.name(), offset, limit);
+  }
+
+  @Transactional(readOnly = true)
+  public long count(String taskType, TaskStatus status) {
+    return mapper.count(taskType, status == null ? null : status.name());
+  }
+
+  /** 后台手动重试：只有失败的能重试，次数清零后重新排队。返回是否重试了 */
+  @Transactional
+  public boolean retry(long id) {
+    return mapper.retry(id) == 1;
+  }
+
   @Transactional(readOnly = true)
   public Task find(long id) {
     return mapper.find(id);

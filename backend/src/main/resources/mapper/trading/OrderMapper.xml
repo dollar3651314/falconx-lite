@@ -160,4 +160,20 @@
     WHERE m.below = 1 AND NOT EXISTS (SELECT 1 FROM trading_position p WHERE p.user_id = m.user_id AND p.status = 'OPEN')
   </update>
 
+  <!-- 后台（S16b） -->
+  <select id="balanceLedger" resultType="com.falconx.lite.trading.order.OrderMapper$LedgerRow">
+    SELECT l.id, l.entry_type, l.amount, l.value_after, l.biz_type, l.biz_id, l.created_at
+    FROM trading_ledger l JOIN trading_account a ON a.id = l.account_id
+    WHERE a.user_id = #{userId} AND l.bucket = 'BALANCE' ORDER BY l.id DESC LIMIT #{limit}
+  </select>
+
+  <select id="balances" resultType="com.falconx.lite.trading.order.OrderMapper$UserAmount">
+    SELECT user_id, balance AS amount FROM trading_account WHERE user_id IN <foreach collection="ids" item="i" open="(" separator="," close=")">#{i}</foreach>
+  </select>
+
+  <select id="openPositionCounts" resultType="com.falconx.lite.trading.order.OrderMapper$UserAmount">
+    SELECT user_id, COUNT(*) AS amount FROM trading_position WHERE status = 'OPEN'
+    AND user_id IN <foreach collection="ids" item="i" open="(" separator="," close=")">#{i}</foreach> GROUP BY user_id
+  </select>
+
 </mapper>

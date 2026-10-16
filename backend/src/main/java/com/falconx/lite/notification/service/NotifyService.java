@@ -263,6 +263,75 @@ class NotifyService implements NotifyApi, NotifyAdminApi {
     }
   }
 
+  // ---------- 后台（S16b） ----------
+
+  private static NotifyAdminApi.Template template(Rows.TemplateRow t) {
+    List<String> vars = t.variables == null || t.variables.isBlank() ? List.of() : java.util.Arrays.stream(t.variables.split(",")).map(String::strip).toList();
+    List<NotifyChannel> chs = java.util.Arrays.stream(t.channels.split(",")).map(c -> NotifyChannel.valueOf(c.strip())).toList();
+    return new NotifyAdminApi.Template(t.code, t.audience, t.kind, t.nameZh, t.nameEn, t.titleZh, t.bodyZh, t.titleEn, t.bodyEn, vars, chs, t.builtIn,
+        t.enabled, t.updatedAt);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<NotifyAdminApi.Template> templates() {
+    return mapper.templates().stream().map(NotifyService::template).toList();
+  }
+
+  private static final java.util.regex.Pattern VAR = java.util.regex.Pattern.compile("\\{([A-Za-z0-9_]+)}");
+
+  @Override
+  @Transactional
+  public NotifyAdminApi.Template updateTemplate(String code, String titleZh, String bodyZh, String titleEn, String bodyEn, Boolean enabled) {
+    Rows.TemplateRow t = mapper.template(code);
+    if (t == null) throw new com.falconx.lite.common.error.BizException("NOT_FOUND", "模板不存在");
+    java.util.Set<String> allowed = new java.util.HashSet<>(template(t).variables());
+    ValidationException.Collector c = new ValidationException.Collector();
+    String tz = text(c, "titleZh", titleZh, t.titleZh, 200, allowed);
+    String bz = text(c, "bodyZh", bodyZh, t.bodyZh, 1000, allowed);
+    String te = text(c, "titleEn", titleEn, t.titleEn, 200, allowed);
+    String be = text(c, "bodyEn", bodyEn, t.bodyEn, 1000, allowed);
+    boolean en = enabled == null ? t.enabled : enabled;
+    if (t.builtIn && !en) throw new com.falconx.lite.common.error.BizException("BUILT_IN_CANNOT_DISABLE", "内置模板不能停用");
+    c.throwIfAny();
+    mapper.updateTemplate(code, tz, bz, te, be, en);
+    return template(mapper.template(code));
+  }
+
+  /** 为空不改；不能为空白、不能超长、只能用模板列出的变量 */
+  private static String text(ValidationException.Collector c, String field, String value, String old, int max, java.util.Set<String> allowed) {
+    if (value == null) return old;
+    String v = value.strip();
+    if (v.isEmpty()) {
+      c.add(field, "required");
+      return old;
+    }
+    if (v.length() > max) {
+      c.add(field, "tooLong");
+      return old;
+    }
+    java.util.regex.Matcher m = VAR.matcher(v);
+    while (m.find()) {
+      if (!allowed.contains(m.group(1))) {
+        c.add(field, "unknownVariable");
+        return old;
+      }
+    }
+    return v;
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public NotifyAdminApi.Page<NotifyAdminApi.Record> records(NotifyChannel channel, String status, java.util.Collection<Long> userIds, int offset, int limit) {
+    if (userIds != null && userIds.isEmpty()) return new NotifyAdminApi.Page<>(List.of(), 0);
+    String ch = channel == null ? null : channel.name();
+    List<NotifyAdminApi.Record> items = mapper.records(ch, status, userIds, offset, limit).stream()
+        .map(r -> new NotifyAdminApi.Record(r.id, r.userId, r.recipient, r.source, r.templateCode, NotifyChannel.valueOf(r.channel), r.title, r.status, r.error,
+            r.operatorId, r.createdAt))
+        .toList();
+    return new NotifyAdminApi.Page<>(items, mapper.countRecords(ch, status, userIds));
+  }
+
   // ---------- 客户端读取 ----------
 
   @Transactional(readOnly = true)

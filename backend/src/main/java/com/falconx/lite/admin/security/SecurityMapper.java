@@ -78,4 +78,14 @@ interface SecurityMapper {
     String afterJson;
     LocalDateTime createdAt;
   }
+
+  class NameRow {
+    long id;
+    String displayName;
+  }
+
+  List<NameRow> names(@Param("ids") java.util.Collection<Long> ids);
+
+  /** 锁住管理员这一行（同一个管理员的调余额排队，当天累计额度不会被并发绕过） */
+  Long lockAdmin(@Param("id") long id);
 }

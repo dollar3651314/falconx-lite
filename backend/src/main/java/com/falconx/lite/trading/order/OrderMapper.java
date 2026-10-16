@@ -77,4 +77,27 @@ interface OrderMapper {
 
   /** 没有持仓的客户恢复为"在线上" */
   int clearMarginCallWithoutPositions(@Param("now") LocalDateTime now);
+
+  /** 后台：余额流水（trading_ledger） */
+  class LedgerRow {
+    long id;
+    String entryType;
+    java.math.BigDecimal amount;
+    java.math.BigDecimal valueAfter;
+    String bizType;
+    String bizId;
+    LocalDateTime createdAt;
+  }
+
+  /** 后台：按用户的金额或个数 */
+  class UserAmount {
+    long userId;
+    java.math.BigDecimal amount;
+  }
+
+  List<LedgerRow> balanceLedger(@Param("userId") long userId, @Param("limit") int limit);
+
+  List<UserAmount> balances(@Param("ids") java.util.Collection<Long> ids);
+
+  List<UserAmount> openPositionCounts(@Param("ids") java.util.Collection<Long> ids);
 }

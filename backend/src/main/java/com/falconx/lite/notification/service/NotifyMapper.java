@@ -52,4 +52,15 @@ interface NotifyMapper {
 
   /** 超过 max 台设备时删掉最早的 */
   int trimPushSubs(@Param("userId") long userId, @Param("max") int max);
+
+  /** 后台（S16b） */
+  List<Rows.TemplateRow> templates();
+
+  void updateTemplate(@Param("code") String code, @Param("titleZh") String titleZh, @Param("bodyZh") String bodyZh, @Param("titleEn") String titleEn,
+      @Param("bodyEn") String bodyEn, @Param("enabled") boolean enabled);
+
+  List<Rows.RecordRow> records(@Param("channel") String channel, @Param("status") String status, @Param("userIds") java.util.Collection<Long> userIds,
+      @Param("offset") int offset, @Param("limit") int limit);
+
+  long countRecords(@Param("channel") String channel, @Param("status") String status, @Param("userIds") java.util.Collection<Long> userIds);
 }

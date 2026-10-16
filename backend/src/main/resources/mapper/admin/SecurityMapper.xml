@@ -64,4 +64,9 @@
     VALUES (#{adminId}, #{adminName}, #{ip}, #{action}, #{target}, #{highRisk}, #{result}, #{reason}, #{beforeJson}, #{afterJson}, #{createdAt})
   </insert>
 
+  <select id="names" resultType="com.falconx.lite.admin.security.SecurityMapper$NameRow">
+    SELECT id, display_name FROM admin_user WHERE id IN <foreach collection="ids" item="i" open="(" separator="," close=")">#{i}</foreach>
+  </select>
+
+  <select id="lockAdmin" resultType="long">SELECT id FROM admin_user WHERE id = #{id} FOR UPDATE</select>
 </mapper>

@@ -22,6 +22,11 @@ public interface WalletReconApi {
   /** 按状态列出问题（OPEN 待处理 / RESOLVED 已处理），最新的在前 */
   List<Issue> issues(String status, int limit);
 
+  /** 分页（后台，S16b）；status 为空表示全部 */
+  List<Issue> issues(String status, int offset, int limit);
+
+  long countIssues(String status);
+
   /**
    * 标记为已处理（修复 F5：只有"待处理"的才能标记，已处理的再标记会报错），必须写处理说明。
    * 挂账类问题处理后，对应的挂账也标为已处理。

@@ -3,6 +3,7 @@ package com.falconx.lite.market.config;
 import com.falconx.lite.market.api.SymbolSpec;
 import com.falconx.lite.market.config.SymbolMapper.HolidayRow;
 import com.falconx.lite.market.config.SymbolMapper.SessionRow;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -25,12 +26,14 @@ import org.springframework.stereotype.Component;
 public class SymbolCatalog {
 
   private final SymbolMapper mapper;
+  private final Clock clock;
   private volatile Map<String, SymbolSpec> symbols = Map.of();
   private volatile Map<String, List<int[]>[]> sessions = Map.of();
   private volatile Set<String> holidays = Set.of();
 
-  SymbolCatalog(SymbolMapper mapper) {
+  SymbolCatalog(SymbolMapper mapper, Clock clock) {
     this.mapper = mapper;
+    this.clock = clock;
     reload();
   }
 
@@ -45,7 +48,8 @@ public class SymbolCatalog {
       week[r.dayOfWeek()].add(new int[] {r.openMinute(), r.closeMinute()});
     }
     Set<String> h = new HashSet<>();
-    for (HolidayRow r : mapper.holidays()) h.add(r.symbol() + "|" + r.tradeDate());
+    // 按注入的时钟取"昨天起"的休市日（以前用数据库的当前日期，和代码里其他地方用的时钟不一致：测试时钟固定时，真实日期一过就读不到测试用的休市日）
+    for (HolidayRow r : mapper.holidays(LocalDate.now(clock).minusDays(1))) h.add(r.symbol() + "|" + r.tradeDate());
     symbols = s;
     sessions = sess;
     holidays = h;
