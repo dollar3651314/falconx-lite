@@ -34,6 +34,7 @@ public class GlobalExceptionHandler {
       Map.entry("PASSWORD_CHANGE_REQUIRED", HttpStatus.FORBIDDEN),
       Map.entry("LOGIN_LOCKED", HttpStatus.TOO_MANY_REQUESTS),
       Map.entry("CODE_TOO_FREQUENT", HttpStatus.TOO_MANY_REQUESTS),
+      Map.entry("RATE_LIMITED", HttpStatus.TOO_MANY_REQUESTS),
       Map.entry("EMAIL_TAKEN", HttpStatus.CONFLICT),
       Map.entry("NOT_FOUND", HttpStatus.NOT_FOUND));
 

@@ -609,6 +609,7 @@
     "emailTaken": "This email is already registered",
     "codeInvalid": "Invalid or expired code",
     "codeTooFrequent": "Too many requests. Please wait for the countdown to finish",
+    "rateLimited": "Too many requests. Please try again later",
     "passwordWrong": "Current password is incorrect",
     "kycRequired": "Please complete identity verification first",
     "whitelistFull": "Up to 10 whitelisted addresses",

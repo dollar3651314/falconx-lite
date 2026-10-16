@@ -7,6 +7,14 @@ FROM nginx:1.27-bookworm
 ARG FX_VERSION=dev
 LABEL org.opencontainers.image.source="https://github.com/dollar3651314/falconx-lite" \
       org.opencontainers.image.revision="${FX_VERSION}"
+# Nginx 外层限流的阈值（P-05，site.conf.template 在容器启动时替换）：比后端宽松，只防明显的洪水。
+# 测试环境和生产用这里的默认值；只有压测（e2e/load/compose.load.yml）调大
+ENV FX_NGINX_API_RATE=20r/s \
+    FX_NGINX_API_BURST=400 \
+    FX_NGINX_API_CONN=200 \
+    FX_NGINX_WS_RATE=5r/s \
+    FX_NGINX_WS_BURST=100 \
+    FX_NGINX_WS_CONN=500
 RUN rm -f /etc/nginx/conf.d/default.conf
 COPY deploy/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/nginx/site.conf.template /etc/nginx/templates/site.conf.template

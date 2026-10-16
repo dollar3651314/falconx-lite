@@ -43,6 +43,8 @@ describe('错误码映射', () => {
       'BUILT_IN_CANNOT_DISABLE', 'VALIDATION_FAILED', 'BAD_REQUEST', 'METHOD_NOT_ALLOWED', 'INTERNAL_ERROR',
       // S16c：手动强平、强制撤单、品种启停、休市日
       'POSITION_NOT_OPEN', 'TRADING_CLOSED', 'QUOTE_UNAVAILABLE', 'SYMBOL_IN_USE', 'HOLIDAY_EXISTS',
+      // 通用限流（P-05、SEC-15）
+      'RATE_LIMITED',
     ];
     expect(backend.filter((c) => !ERROR_KEYS[c])).toEqual([]);
   });
@@ -53,6 +55,9 @@ describe('错误码映射', () => {
     expect(toApiError(403, { code: 'PASSWORD_CHANGE_REQUIRED' }).reasonKey).toBe('errors.passwordChangeRequired');
     expect(toApiError(401, { code: 'UNAUTHORIZED' }).reasonKey).toBe('errors.unauthorized');
     expect(toApiError(429, { code: 'LOGIN_LOCKED' }).reasonKey).toBe('errors.loginLocked');
+    expect(toApiError(429, { code: 'RATE_LIMITED' }).reasonKey).toBe('errors.rateLimited');
+    // 没有响应体的 429（例如 Nginx 外层限流的响应没有到达页面）也显示"操作太频繁"
+    expect(toApiError(429, null).reasonKey).toBe('errors.rateLimited');
     expect(toApiError(400, { code: 'INVALID_CREDENTIALS' }).reasonKey).toBe('errors.invalidCredentials');
   });
 

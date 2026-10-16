@@ -18,6 +18,7 @@ export type ApiErrorReason =
   | 'emailTaken'
   | 'codeInvalid'
   | 'codeTooFrequent'
+  | 'rateLimited'
   | 'passwordWrong'
   | 'kycRequired'
   | 'kycPending'
@@ -89,6 +90,8 @@ export const SERVER_CODES: Record<string, ApiErrorReason> = {
   LOGIN_LOCKED: 'accountLocked',
   INVALID_CREDENTIALS: 'invalidCredentials',
   CODE_TOO_FREQUENT: 'codeTooFrequent',
+  // 通用限流（P-05）：按 IP、按客户的交易和资金写操作超限，或 Nginx 外层限流；429 带 cooldownSeconds 和 Retry-After
+  RATE_LIMITED: 'rateLimited',
   CODE_INVALID: 'codeInvalid',
   EMAIL_TAKEN: 'emailTaken',
   CURRENT_PASSWORD_WRONG: 'passwordWrong',
@@ -202,7 +205,7 @@ export interface ServerErrorOptions {
 export function fromServer(status: number, body: ServerErrorBody | undefined, opt: ServerErrorOptions = {}): ApiError {
   const code = body?.code ?? '';
   const reason: ApiErrorReason =
-    opt.codes?.[code] ?? SERVER_CODES[code] ?? (status === 401 ? 'unauthorized' : status === 403 ? 'forbidden' : status === 404 ? 'notFound' : status >= 500 || status === 0 ? 'server' : 'badRequest');
+    opt.codes?.[code] ?? SERVER_CODES[code] ?? (status === 401 ? 'unauthorized' : status === 403 ? 'forbidden' : status === 404 ? 'notFound' : status === 429 ? 'rateLimited' : status >= 500 || status === 0 ? 'server' : 'badRequest');
 
   let fieldErrors: Record<string, string[]> | undefined;
   const add = (field: string, key: string) => {
