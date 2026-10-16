@@ -7,9 +7,11 @@ import com.falconx.lite.market.kline.Bar;
 import com.falconx.lite.market.kline.KlineService;
 import com.falconx.lite.market.kline.Timeframe;
 import com.falconx.lite.market.quote.QuoteProcessor;
+import com.falconx.lite.market.quote.RecentTicks;
 import com.falconx.lite.market.web.Views.KlineView;
 import com.falconx.lite.market.web.Views.QuoteView;
 import com.falconx.lite.market.web.Views.SymbolView;
+import com.falconx.lite.market.web.Views.TickView;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +51,17 @@ class MarketController {
     Timeframe t = Timeframe.of(tf).orElseThrow(() -> new BizException("TIMEFRAME_INVALID", "K 线周期不支持"));
     int n = Math.max(1, Math.min(limit, 1000));
     return klines.history(symbol, t, n).stream().map(b -> Views.kline(b, s.digits())).toList();
+  }
+
+  /**
+   * 最近逐笔报价（客户端 Tick 图的初始数据，之后客户端用 WebSocket 推送的报价往后接）。
+   * 只在内存里保留每个品种最近 500 笔，服务重启后从空开始（不存数据库，对照表 M-09）。
+   */
+  @GetMapping("/api/market/ticks")
+  List<TickView> ticks(@RequestParam String symbol, @RequestParam(defaultValue = "500") int limit) {
+    SymbolSpec s = market.symbol(symbol).orElseThrow(() -> new BizException("SYMBOL_NOT_FOUND", "品种不存在"));
+    int n = Math.max(1, Math.min(limit, RecentTicks.CAPACITY));
+    return processor.recentTicks(symbol, n).stream().map(t -> Views.tick(t, s.digits())).toList();
   }
 
   /** 今日走势（电脑版行情表的迷你图）：每个品种最近 24 根 1 小时 K 线的收盘价 */

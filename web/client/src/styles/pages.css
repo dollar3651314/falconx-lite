@@ -59,12 +59,24 @@
 .m-sym-hl { text-align: right; font-size: 11.5px; flex: none; }
 .m-sym-hl div { display: flex; gap: 6px; justify-content: flex-end; color: var(--subtle); }
 .m-sym-hl dd { color: var(--text); }
-.tf-bar { display: flex; align-items: center; gap: 2px; padding: 6px 10px; background: var(--s1); border-bottom: 1px solid var(--hair); overflow-x: auto; scrollbar-width: none; }
+.chart-tools { position: relative; display: flex; align-items: center; gap: 6px; padding: 0 10px 0 0; background: var(--s1); border-bottom: 1px solid var(--hair); min-width: 0; }
+.tf-bar { display: flex; align-items: center; gap: 2px; padding: 6px 0 6px 10px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .tf-bar button { font-family: var(--mono); font-size: 13px; color: var(--muted); padding: 5px 9px; border-radius: var(--r-sm); flex: none; }
 .tf-bar button.on { color: var(--cyan-deep); background: var(--cyan-soft); font-weight: 700; }
-.tf-bar .sp { flex: 1; }
-.tf-note { font-size: 11px; color: var(--subtle); white-space: nowrap; font-family: var(--mono); }
+/* 指标开关：电脑一行排开，手机收进菜单（v2 E5） */
+.ind-inline { display: flex; align-items: center; gap: 4px; flex: none; }
+.ind-chip { font-size: 12px; font-family: var(--mono); color: var(--muted); padding: 4px 8px; border-radius: var(--r-sm); border: 1px solid var(--hair); white-space: nowrap; }
+.ind-chip.on { color: var(--cyan-deep); background: var(--cyan-soft); border-color: transparent; font-weight: 700; }
+.ind-menu { position: relative; flex: none; }
+.ind-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--muted); padding: 5px 8px; border-radius: var(--r-sm); border: 1px solid var(--hair); white-space: nowrap; }
+.ind-toggle.on { color: var(--cyan-deep); border-color: var(--cyan-deep); }
+.ind-toggle .num { font-size: 11px; min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--cyan-soft); color: var(--cyan-deep); }
+.ind-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; gap: 4px; padding: 8px; min-width: 168px; max-width: calc(100vw - 32px); background: var(--s1); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); }
+.ind-pop .ind-chip { text-align: left; padding: 8px 10px; font-size: 13px; }
 .chart-box { background: var(--s1); height: max(280px, calc(100vh - 430px)); display: flex; flex-direction: column; }
+/* 打开 MACD / RSI 副图时，手机图表区每个副图加高 90px，主图不被挤扁 */
+.chart-box[data-sub-panes='1'] { height: max(370px, calc(100vh - 340px)); }
+.chart-box[data-sub-panes='2'] { height: max(460px, calc(100vh - 250px)); }
 .m-mine { background: var(--s1); margin-top: 8px; padding: 10px 16px; border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); }
 .m-mine-head { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--subtle); margin-bottom: 4px; }
 .m-mine-head a { display: inline-flex; align-items: center; gap: 2px; color: var(--cyan-deep); }
@@ -98,6 +110,9 @@
 .sym-head-d .st { font-size: 11px; color: var(--subtle); }
 .sym-head-d .st .num { display: block; font-size: 12.5px; color: var(--text); }
 .posp { height: 250px; flex: none; display: flex; flex-direction: column; }
+/* 打开 MACD / RSI 副图时持仓区让出一些高度给图表 */
+.center:has(.kchart[data-sub-panes='1']) .posp { height: 210px; }
+.center:has(.kchart[data-sub-panes='2']) .posp { height: 180px; }
 .posp .ptabs-wrap { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .posp .ptabs-body { overflow: auto; min-height: 0; flex: 1; }
 .panel.op { padding: 14px; overflow: auto; display: flex; flex-direction: column; }

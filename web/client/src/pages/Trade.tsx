@@ -4,11 +4,11 @@
  *   点了才弹出下单抽屉（OrderSheet）。
  * 桌面 ≥1024（效果图 C-桌面-交易页.png）：三栏，左品种列表 | 中 K 线（左上角卖 / 买价格按钮）+ 持仓 | 右下单面板。
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { TIMEFRAMES } from '../api/market';
-import type { Side, SymbolInfo, Timeframe } from '../api/types';
+import { CHART_PERIODS } from '../api/market';
+import type { ChartPeriod, Side, SymbolInfo } from '../api/types';
 import { useAccount, useSymbols } from '../app/contexts';
 import { EmptyState, ErrorState, Loading } from '../components/AsyncView';
 import { Icon } from '../components/Icon';
@@ -18,12 +18,14 @@ import { OrderPanel } from '../components/OrderPanel';
 import { OrderSheet } from '../components/OrderSheet';
 import { PositionsTabs } from '../components/PositionsTabs';
 import { StatusTags, SymbolList } from '../components/SymbolList';
+import { useChartPrefs, type ChartPrefs } from '../hooks/useChartPrefs';
 import { useFavorites } from '../hooks/useFavorites';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { useQuote, useQuotes } from '../hooks/useQuotes';
 import { cmp, dec, sub, ZERO } from '../lib/decimal';
 import { formatAmount, formatDecimal, formatLots, formatPercent, formatPrice } from '../lib/format';
 import { spreadPoints, symbolName } from '../lib/symbol';
+import { INDICATOR_LABEL, INDICATORS, type IndicatorKey } from '../lib/indicators';
 import { changePercent, positionPnl } from '../lib/trading';
 
 const TF_KEY = 'fx.trade.tf';
@@ -68,17 +70,77 @@ function FavButton({ code }: { code: string }) {
   );
 }
 
-function TfBar({ tf, onChange }: { tf: Timeframe; onChange: (t: Timeframe) => void }) {
+interface ToolbarProps {
+  period: ChartPeriod;
+  onPeriod: (p: ChartPeriod) => void;
+  prefs: ChartPrefs;
+  onIndicator: (k: IndicatorKey) => void;
+  onBidAsk: () => void;
+  /** 电脑：指标直接排成一行开关；手机：收进"指标"菜单，避免横向溢出 */
+  inline: boolean;
+}
+
+/** 图表工具栏：周期（Tick + 6 个 K 线周期）和显示设置（指标、买卖价线） */
+function ChartToolbar({ period, onPeriod, prefs, onIndicator, onBidAsk, inline }: ToolbarProps) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+  const count = prefs.indicators.length + (prefs.bidAsk ? 1 : 0);
+  const items = (
+    <>
+      <button type="button" role="switch" aria-checked={prefs.bidAsk} className={`ind-chip${prefs.bidAsk ? ' on' : ''}`} onClick={onBidAsk}>
+        {t('chart.bidAsk')}
+      </button>
+      {INDICATORS.map((k) => {
+        const on = prefs.indicators.includes(k);
+        return (
+          <button key={k} type="button" role="switch" aria-checked={on} className={`ind-chip${on ? ' on' : ''}`} onClick={() => onIndicator(k)} title={INDICATOR_LABEL[k]}>
+            {inline ? k.toUpperCase() : INDICATOR_LABEL[k]}
+          </button>
+        );
+      })}
+    </>
+  );
   return (
-    <div className="tf-bar" role="radiogroup" aria-label={t('trade.timeframe')}>
-      {TIMEFRAMES.map((x) => (
-        <button key={x} type="button" role="radio" aria-checked={tf === x} className={tf === x ? 'on' : ''} onClick={() => onChange(x)}>
-          {x}
-        </button>
-      ))}
-      <span className="sp" />
-      <span className="tf-note">MA7 · MA25</span>
+    <div className="chart-tools">
+      <div className="tf-bar" role="radiogroup" aria-label={t('trade.timeframe')}>
+        {CHART_PERIODS.map((x) => (
+          <button key={x} type="button" role="radio" aria-checked={period === x} className={period === x ? 'on' : ''} onClick={() => onPeriod(x)}>
+            {x === 'tick' ? t('chart.tick') : x}
+          </button>
+        ))}
+      </div>
+      {inline ? (
+        <div className="ind-inline" role="group" aria-label={t('chart.indicators')}>
+          {items}
+        </div>
+      ) : (
+        <div className="ind-menu" ref={menuRef}>
+          <button type="button" className={`ind-toggle${open ? ' on' : ''}`} aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            {t('chart.indicators')}
+            {count > 0 && <span className="num">{count}</span>}
+            <Icon name="chevronDown" size={12} strokeWidth={2.4} />
+          </button>
+          {open && (
+            <div className="ind-pop" role="group" aria-label={t('chart.indicators')}>
+              {items}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -219,7 +281,8 @@ export default function Trade() {
   const desktop = useIsDesktop();
   const { map, list, loading, error, reload } = useSymbols();
   const { positions } = useAccount();
-  const [tf, setTf] = useState<Timeframe>(() => (TIMEFRAMES.includes(readLocal(TF_KEY) as Timeframe) ? (readLocal(TF_KEY) as Timeframe) : '15m'));
+  const [tf, setTf] = useState<ChartPeriod>(() => (CHART_PERIODS.includes(readLocal(TF_KEY) as ChartPeriod) ? (readLocal(TF_KEY) as ChartPeriod) : '15m'));
+  const { prefs, toggleIndicator, toggleBidAsk } = useChartPrefs();
   const [sheet, setSheet] = useState<Side | null>(null);
   const [picker, setPicker] = useState(false);
   const qSide = search.get('side');
@@ -251,7 +314,7 @@ export default function Trade() {
   if (!list.length) return <div className="page"><EmptyState title={t('market.emptyAll')} /></div>;
   if (!s) return <div className="page"><EmptyState title={t('trade.symbolNotFound', { code: param })} action={<button type="button" className="btn btn-primary" onClick={() => navigate('/trade/XAUUSD')}>XAUUSD</button>} /></div>;
 
-  const changeTf = (x: Timeframe) => {
+  const changeTf = (x: ChartPeriod) => {
     setTf(x);
     writeLocal(TF_KEY, x);
   };
@@ -269,10 +332,10 @@ export default function Trade() {
         <section className="center">
           <div className="panel chartp">
             <DesktopHead s={s} />
-            <TfBar tf={tf} onChange={changeTf} />
+            <ChartToolbar period={tf} onPeriod={changeTf} prefs={prefs} onIndicator={toggleIndicator} onBidAsk={toggleBidAsk} inline />
             <div className="chart-wrap">
               <PriceButtons s={s} side={sideReq.side} onPick={(x) => setSideReq((r) => ({ side: x, n: r.n + 1 }))} />
-              <KChart symbol={s.code} timeframe={tf} digits={s.digits} positionLines={lines} />
+              <KChart symbol={s.code} period={tf} digits={s.digits} positionLines={lines} indicators={prefs.indicators} showBidAsk={prefs.bidAsk} />
             </div>
             <ChartCredit />
           </div>
@@ -290,9 +353,9 @@ export default function Trade() {
   return (
     <div className="page page-trade">
       <MobileHead s={s} onPick={() => setPicker(true)} />
-      <TfBar tf={tf} onChange={changeTf} />
-      <div className="chart-box">
-        <KChart symbol={s.code} timeframe={tf} digits={s.digits} positionLines={lines} />
+      <ChartToolbar period={tf} onPeriod={changeTf} prefs={prefs} onIndicator={toggleIndicator} onBidAsk={toggleBidAsk} inline={false} />
+      <div className="chart-box" data-sub-panes={prefs.indicators.filter((k) => k === 'macd' || k === 'rsi').length}>
+        <KChart symbol={s.code} period={tf} digits={s.digits} positionLines={lines} indicators={prefs.indicators} showBidAsk={prefs.bidAsk} />
       </div>
       <ChartCredit />
       <MyPositionsHere s={s} />

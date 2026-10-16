@@ -172,4 +172,17 @@ class MarketFlowTest {
     assertThat(mvc.perform(get("/api/market/klines").param("symbol", "XAUUSD").param("tf", "2m").cookie(c)).andReturn().getResponse().getContentAsString()).contains("TIMEFRAME_INVALID");
     assertThat(mvc.perform(get("/api/market/sparklines").cookie(c)).andReturn().getResponse().getContentAsString()).contains("\"XAUUSD\":[");
   }
+
+  @Test
+  void 接口_最近逐笔报价_需要登录_按小数位输出_只记FRESH() throws Exception {
+    assertThat(mvc.perform(get("/api/market/ticks").param("symbol", "XAGUSD")).andReturn().getResponse().getStatus()).isEqualTo(401);
+    Cookie c = login();
+    processor.process(q("XAGUSD", "48.12", "48.15", NOW));
+    processor.process(q("XAGUSD", "48.13", "48.16", NOW));
+    assertThat(processor.process(q("XAGUSD", "48.20", "48.10", NOW))).as("买卖倒挂").isEqualTo(QuoteStatus.ABNORMAL);
+    String body = mvc.perform(get("/api/market/ticks").param("symbol", "XAGUSD").param("limit", "2").cookie(c)).andReturn().getResponse().getContentAsString();
+    long ms = NOW.toEpochMilli();
+    assertThat(body).isEqualTo("[{\"time\":" + ms + ",\"bid\":\"48.120\",\"ask\":\"48.150\"},{\"time\":" + ms + ",\"bid\":\"48.130\",\"ask\":\"48.160\"}]");
+    assertThat(mvc.perform(get("/api/market/ticks").param("symbol", "NOPE").cookie(c)).andReturn().getResponse().getContentAsString()).contains("SYMBOL_NOT_FOUND");
+  }
 }
