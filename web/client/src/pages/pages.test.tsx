@@ -71,12 +71,12 @@ describe('下单面板手数', () => {
     fireEvent.change(input, { target: { value: '0.25' } });
     expect(input.value).toBe('0.25');
     expect(screen.getByRole('button', { name: '确认买入 0.25 手 XAUUSD' })).toBeInTheDocument();
-    // 名义价值按 0.25 手计算：0.25 × 100 盎司 × 买价
+    // 名义价值按 0.25 手计算：0.25 × 100 盎司 × 买价（模拟起始价 4197.70，随机游走留 ±3% 余量）
     await waitFor(() => {
       const row = screen.getByText('名义价值').parentElement!;
       const notional = Number(row.querySelector('dd')!.textContent!.replace(/,/g, ''));
-      expect(notional).toBeGreaterThan(0.25 * 100 * 4000);
-      expect(notional).toBeLessThan(0.25 * 100 * 4300);
+      expect(notional).toBeGreaterThan(0.25 * 100 * 4050);
+      expect(notional).toBeLessThan(0.25 * 100 * 4350);
     });
   });
 });

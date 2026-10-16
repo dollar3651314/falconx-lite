@@ -234,18 +234,18 @@ function seedWithdrawals(): Withdrawal[] {
 
 export function seed(): Db {
   const positions = [
-    makePosition(seedNo(260, 1), 'XAUUSD', 'buy', '0.10', 50, '4120.85', 260, '4180.00', '4095.00'),
-    makePosition(seedNo(720, 2), 'EURUSD', 'sell', '1.00', 100, '1.16420', 720, undefined, '1.16900'),
-    makePosition(seedNo(1500, 3), 'USDJPY', 'buy', '2.00', 200, '151.230', 1500, '153.000'),
-    makePosition(seedNo(2900, 4), 'NAS100', 'buy', '1.50', 50, '24650.0', 2900, '25200.0'),
-    makePosition(seedNo(3600, 5), 'ETHUSD', 'sell', '0.75', 20, '4120.00', 3600, undefined, '4300.00'),
-    makePosition(seedNo(4100, 6), 'GER40', 'sell', '0.50', 100, '24420.5', 4100),
-    makePosition(seedNo(5000, 7), 'XAGUSD', 'buy', '0.20', 100, '47.950', 5000),
+    makePosition(seedNo(260, 1), 'XAUUSD', 'buy', '0.10', 50, '4192.10', 260, '4252.28', '4165.81'),
+    makePosition(seedNo(720, 2), 'EURUSD', 'sell', '1.00', 100, '1.12500', 720, undefined, '1.12964'),
+    makePosition(seedNo(1500, 3), 'USDJPY', 'buy', '2.00', 200, '157.279', 1500, '159.119'),
+    makePosition(seedNo(2900, 4), 'NAS100', 'buy', '1.50', 50, '29323.5', 2900, '29977.7'),
+    makePosition(seedNo(3600, 5), 'ETHUSD', 'sell', '0.75', 20, '2459.63', 3600, undefined, '2567.09'),
+    makePosition(seedNo(4100, 6), 'GER40', 'sell', '0.50', 100, '25766.9', 4100),
+    makePosition(seedNo(5000, 7), 'XAGUSD', 'buy', '0.20', 100, '56.776', 5000),
   ];
   const orders = [
-    makeOrder(seedNo(95, 11), 'XAUUSD', 'buy', '0.20', 50, '4080.00', 95, '4160.00', '4040.00'),
-    makeOrder(seedNo(400, 12), 'GBPUSD', 'sell', '0.50', 100, '1.33800', 400),
-    makeOrder(seedNo(1300, 13), 'SOLUSD', 'buy', '3.00', 20, '185.00', 1300),
+    makeOrder(seedNo(95, 11), 'XAUUSD', 'buy', '0.20', 50, '4150.55', 95, '4231.93', '4109.86'),
+    makeOrder(seedNo(400, 12), 'GBPUSD', 'sell', '0.50', 100, '1.34036', 400),
+    makeOrder(seedNo(1300, 13), 'SOLUSD', 'buy', '3.00', 20, '98.34', 1300),
   ];
   const orderFrozen = orders.reduce((s, o) => s + dec(o.frozenMargin), 0n);
   return {

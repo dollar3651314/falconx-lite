@@ -19,16 +19,16 @@ interface Sim {
 }
 
 const BASE: [string, string, string, number, number, boolean][] = [
-  ['XAUUSD', '黄金', 'Gold', 4126.35, 2, false],
-  ['XAGUSD', '白银', 'Silver', 48.625, 3, false],
-  ['EURUSD', '欧元/美元', 'Euro / US Dollar', 1.1642, 5, false],
-  ['GBPUSD', '英镑/美元', 'British Pound / US Dollar', 1.33185, 5, false],
-  ['USDJPY', '美元/日元', 'US Dollar / Japanese Yen', 151.842, 3, false],
-  ['USDCNH', '美元/离岸人民币', 'US Dollar / Offshore Chinese Yuan', 7.1325, 5, false],
-  ['NAS100', '纳指 100', 'Nasdaq 100', 24812.6, 1, false],
-  ['XTIUSD', '美国原油（WTI 西德克萨斯中质原油）', 'US Crude Oil (West Texas Intermediate)', 61.82, 2, false],
-  ['BTCUSD', '比特币', 'Bitcoin', 112480.5, 1, true],
-  ['ETHUSD', '以太坊', 'Ethereum', 4086.2, 2, true],
+  ['XAUUSD', '黄金', 'Gold', 4197.7, 2, false],
+  ['XAGUSD', '白银', 'Silver', 57.575, 3, false],
+  ['EURUSD', '欧元/美元', 'Euro / US Dollar', 1.125, 5, false],
+  ['GBPUSD', '英镑/美元', 'British Pound / US Dollar', 1.3342, 5, false],
+  ['USDJPY', '美元/日元', 'US Dollar / Japanese Yen', 157.915, 3, false],
+  ['USDCNH', '美元/离岸人民币', 'US Dollar / Offshore Chinese Yuan', 6.6842, 5, false],
+  ['NAS100', '纳指 100', 'Nasdaq 100', 29516.9, 1, false],
+  ['XTIUSD', '美国原油（WTI 西德克萨斯中质原油）', 'US Crude Oil (West Texas Intermediate)', 95.6, 2, false],
+  ['BTCUSD', '比特币', 'Bitcoin', 81567.5, 1, true],
+  ['ETHUSD', '以太坊', 'Ethereum', 2439.45, 2, true],
 ];
 
 // 开盘价在示例价上下 1.5% 以内，涨跌有正有负
