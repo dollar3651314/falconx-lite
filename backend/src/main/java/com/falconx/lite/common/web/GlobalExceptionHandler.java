@@ -1,11 +1,14 @@
 package com.falconx.lite.common.web;
 
 import com.falconx.lite.common.error.BizException;
+import com.falconx.lite.common.error.RetryLaterException;
 import com.falconx.lite.common.error.ValidationException;
+import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.TypeMismatchException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -36,6 +39,12 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(BizException.class)
   public ResponseEntity<ApiError> biz(BizException e) {
+    if (e instanceof RetryLaterException r) {
+      // 太频繁：返回还要等多少秒（响应体和 Retry-After 头），客户端按它倒计时
+      return ResponseEntity.status(STATUS.getOrDefault(e.code(), HttpStatus.TOO_MANY_REQUESTS))
+          .header(HttpHeaders.RETRY_AFTER, String.valueOf(r.cooldownSeconds()))
+          .body(new ApiError(e.code(), e.getMessage(), List.of(), r.cooldownSeconds()));
+    }
     return ResponseEntity.status(STATUS.getOrDefault(e.code(), HttpStatus.BAD_REQUEST)).body(ApiError.of(e.code(), e.getMessage()));
   }
 

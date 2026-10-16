@@ -2,6 +2,7 @@
  * 通用的异步加载：返回 加载中 / 出错 / 数据，并在原型场景切换后自动重新加载。
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { IS_MOCK } from '../api/mode';
 import { getScenarioVersion, subscribeProto } from '../api/prototype';
 
 export interface AsyncState<T> {
@@ -13,8 +14,12 @@ export interface AsyncState<T> {
   setData: (updater: (prev: T | undefined) => T | undefined) => void;
 }
 
+const noSubscribe = () => () => {};
+const zero = () => 0;
+
+/** 原型场景的版本号；真实接口模式下没有原型场景，恒为 0（按编译期常量选，real 构建不打包模拟层） */
 export function useScenarioVersion(): number {
-  return useSyncExternalStore(subscribeProto, getScenarioVersion, getScenarioVersion);
+  return useSyncExternalStore(IS_MOCK ? subscribeProto : noSubscribe, IS_MOCK ? getScenarioVersion : zero, IS_MOCK ? getScenarioVersion : zero);
 }
 
 /**

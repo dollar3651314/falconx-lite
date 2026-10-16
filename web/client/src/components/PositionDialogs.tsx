@@ -10,7 +10,7 @@ import { useAccount, useToast } from '../app/contexts';
 import { useQuote } from '../hooks/useQuotes';
 import { cmp, dec, isDecimalString, ZERO } from '../lib/decimal';
 import { formatAmount, formatLots, formatPrice } from '../lib/format';
-import { closePrice, liquidationAfterAddMargin, positionPnl } from '../lib/trading';
+import { closePrice, liquidationAfterAddMargin, positionPnl, usdRate } from '../lib/trading';
 import { hasErrors, validateOrder, type FieldErrors } from '../lib/validators';
 import { Switch, TextField } from './Form';
 import { ConfirmDialog, Modal } from './Modal';
@@ -168,7 +168,8 @@ export function AddMarginDialog({ position, symbol, onClose }: { position: Posit
     if ((amount.split('.')[1]?.length ?? 0) > 2) errs.push('validation.amountDigits');
     if (cmp(dec(amount), available) > 0) errs.push('validation.marginExceedsAvailable');
   }
-  const newLiq = errs.length === 0 && q ? liquidationAfterAddMargin(position, symbol, q.quoteToUsd, dec(amount)) : null;
+  const rate = usdRate(q);
+  const newLiq = errs.length === 0 && rate ? liquidationAfterAddMargin(position, symbol, rate, dec(amount)) : null;
   const submit = () => {
     setSubmitted(true);
     if (errs.length) return;

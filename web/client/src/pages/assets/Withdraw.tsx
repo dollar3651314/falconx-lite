@@ -58,8 +58,20 @@ function WithdrawForm({ info, whitelist, onDone }: { info: WithdrawInfo; whiteli
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [serverErr, setServerErr] = useState<string | null>(null);
+  // 后端返回的字段错误（VALIDATION_FAILED 的 fields），显示在对应输入框下面；改了这个字段就清掉
+  const [serverFields, setServerFields] = useState<Errs<'whitelistId' | 'amount'>>({});
   const errs: Errs<'whitelistId' | 'amount' | 'kyc'> = validateWithdraw({ whitelistId: wid, amount }, info, whitelist, new Date(now));
-  const shown = submitted ? errs : {};
+  const local: Errs<'whitelistId' | 'amount' | 'kyc'> = submitted ? errs : {};
+  const merged = (k: 'whitelistId' | 'amount') => [...(local[k] ?? []), ...(serverFields[k] ?? [])].filter((x, i, a) => a.indexOf(x) === i);
+  const shown: Errs<'whitelistId' | 'amount'> = { whitelistId: merged('whitelistId'), amount: merged('amount') };
+  const changeWid = (v: string) => {
+    setWid(v);
+    setServerFields((s) => ({ ...s, whitelistId: [] }));
+  };
+  const changeAmount = (v: string) => {
+    setAmount(v);
+    setServerFields((s) => ({ ...s, amount: [] }));
+  };
   const addr = whitelist.find((w) => w.id === wid);
   const fee = addr ? info.fees[addr.network] : null;
   const amt = isDecimalString(amount) ? dec(amount) : null;
@@ -73,12 +85,13 @@ function WithdrawForm({ info, whitelist, onDone }: { info: WithdrawInfo; whiteli
     for (const cap of [dec(info.maxPerTx), sub(dailyRemaining(info), dec('0.01'))]) if (cmp(cap, m) < 0) m = cap;
     if (cmp(m, ZERO) < 0) m = ZERO;
     // 向下取整到 0.01
-    setAmount(toFixed(sub(m, dec('0.004999999')), 2));
+    changeAmount(toFixed(sub(m, dec('0.004999999')), 2));
   };
 
   const submit = () => {
     setSubmitted(true);
     setServerErr(null);
+    setServerFields({});
     if (hasErrors(errs)) return;
     setConfirm(true);
   };
@@ -94,7 +107,11 @@ function WithdrawForm({ info, whitelist, onDone }: { info: WithdrawInfo; whiteli
       onDone();
     } catch (e) {
       setConfirm(false);
-      setServerErr(isApiError(e) && e.fieldErrors ? t('validation.fixAll') : t(errorKey(e)));
+      const f = isApiError(e) ? e.fieldErrors : undefined;
+      if (f?.whitelistId?.length || f?.amount?.length) {
+        setServerFields({ whitelistId: f.whitelistId, amount: f.amount });
+        setServerErr(t('validation.fixAll'));
+      } else setServerErr(t(errorKey(e))); // 表单上没有对应输入框的字段错误：直接显示第一条原因
     } finally {
       setBusy(false);
     }
@@ -122,7 +139,7 @@ function WithdrawForm({ info, whitelist, onDone }: { info: WithdrawInfo; whiteli
             {t('withdraw.noWhitelist')} <Link to="/assets/whitelist">{t('whitelist.add')}</Link>
           </div>
         ) : (
-          <Select label={t('withdraw.to')} value={wid} onChange={setWid} options={options} errors={shown.whitelistId} />
+          <Select label={t('withdraw.to')} value={wid} onChange={changeWid} options={options} errors={shown.whitelistId} />
         )}
         {whitelist.length === 0 && <FieldErrors id="wl-err" errors={shown.whitelistId} />}
         <p className="muted small wd-rule">{t('withdraw.newAddressRule')}</p>
@@ -131,7 +148,7 @@ function WithdrawForm({ info, whitelist, onDone }: { info: WithdrawInfo; whiteli
           label={t('withdraw.amount')}
           className="amount-field"
           value={amount}
-          onChange={(v) => setAmount(v.replace(/[^\d.]/g, ''))}
+          onChange={(v) => changeAmount(v.replace(/[^\d.]/g, ''))}
           inputMode="decimal"
           mono
           placeholder={t('withdraw.amountPlaceholder', { min: info.minAmount })}

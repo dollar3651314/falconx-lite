@@ -106,6 +106,23 @@ describe('HTTP：同源、Cookie、错误转换', () => {
     expect(calls[0].body).toEqual({ email: 'a@b.com', purpose: 'RESET_PASSWORD' });
   });
 
+  it('验证码：按后端返回的冷却秒数倒计时；返回值不合法时按 60 秒', async () => {
+    stubFetch({ status: 200, body: { cooldownSeconds: 90 } }, { status: 200, body: { cooldownSeconds: 'x' } }, { status: 200, body: {} });
+    expect(await auth.sendEmailCode('a@b.com', 'register')).toEqual({ cooldownSeconds: 90 });
+    expect(await auth.sendEmailCode('a@b.com', 'register')).toEqual({ cooldownSeconds: 60 });
+    expect(await auth.sendEmailCode('a@b.com', 'register')).toEqual({ cooldownSeconds: 60 });
+  });
+
+  it('验证码发送太频繁（429）：带上还要等的秒数', async () => {
+    stubFetch({ status: 429, body: { code: 'CODE_TOO_FREQUENT', message: '发送太频繁', fields: [], cooldownSeconds: 42 } }, { status: 429, body: { code: 'CODE_TOO_FREQUENT', fields: [] } });
+    const e = await auth.sendEmailCode('a@b.com', 'register').catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(ApiError);
+    expect((e as ApiError).reason).toBe('codeTooFrequent');
+    expect((e as ApiError).cooldownSeconds).toBe(42);
+    const old = await auth.sendEmailCode('a@b.com', 'register').catch((x: unknown) => x);
+    expect((old as ApiError).cooldownSeconds).toBeUndefined();
+  });
+
   it('注册：验证码错误标在验证码输入框上', async () => {
     stubFetch({ status: 400, body: { code: 'CODE_INVALID', message: '验证码错误', fields: [] } });
     const e = await auth.register({ email: 'a@b.com', code: '000000', password: 'password1', firstName: 'A', middleName: '', lastName: 'B', birthDate: '1990-01-01', nationality: 'CN' }).catch((x: unknown) => x);
@@ -187,6 +204,16 @@ describe('交易、钱包、通知接口', () => {
     expect(calls[2]).toMatchObject({ url: '/api/wallet/withdrawals', body: { whitelistId: '3', amount: '100' } });
   });
 
+  it('提现：后端的字段错误（VALIDATION_FAILED 的 fields）对应到表单字段', async () => {
+    stubFetch({
+      status: 400,
+      body: { code: 'VALIDATION_FAILED', fields: [{ field: 'amount', code: 'amountDigits' }, { field: 'whitelistId', code: 'selectAddress' }] },
+    });
+    const e = (await wallet.submitWithdraw({ whitelistId: 'x', amount: '1.234' }).catch((x: unknown) => x)) as ApiError;
+    expect(e.reason).toBe('validationFailed');
+    expect(e.fieldErrors).toEqual({ amount: ['validation.amountDigits'], whitelistId: ['validation.selectAddress'] });
+  });
+
   it('站内信按界面语言取；未读数；标记已读', async () => {
     stubFetch({ body: { items: [], total: 0, page: 1, pageSize: 20 } }, { body: { count: 3 } }, { status: 200 });
     await notifications.listNotifications('en', 1, 20);
@@ -228,9 +255,14 @@ describe('实时推送', () => {
     ws.open();
     ws.push({ type: 'positions' });
     ws.push({ type: 'trade', kind: 'tp', symbol: 'XAUUSD', pnl: '12.5' });
+    ws.push({ type: 'deposit', status: 'pending', network: 'ERC20', amount: '100', confirmations: 1 });
     ws.push({ type: 'unknown' });
     handleTradingMessage({ type: 'notification' }); // 缺少 item 的忽略
-    expect(got).toEqual([{ type: 'positions' }, { type: 'trade', kind: 'tp', symbol: 'XAUUSD', pnl: '12.5' }]);
+    expect(got).toEqual([
+      { type: 'positions' },
+      { type: 'trade', kind: 'tp', symbol: 'XAUUSD', pnl: '12.5' },
+      { type: 'deposit', status: 'pending', network: 'ERC20', amount: '100', confirmations: 1 },
+    ]);
     off();
   });
 
@@ -262,6 +294,10 @@ describe('实时推送', () => {
     handleMarketMessage({ type: 'quotes', data: [q] });
     handleMarketMessage({ type: 'quotes', data: [{ ...q, bid: '150.100', quoteToUsd: undefined }] });
     expect(got.at(-1)![0]).toMatchObject({ bid: '150.100', quoteToUsd: '0.0066' });
+    // 从来没拿到过汇率：留空（不补成 '0'），页面显示"—"
+    handleMarketMessage({ type: 'quotes', data: [{ ...q, symbol: 'EURJPY', quoteToUsd: undefined }] });
+    expect(got.at(-1)![0].symbol).toBe('EURJPY');
+    expect(got.at(-1)![0].quoteToUsd).toBeUndefined();
     off();
     // 新订阅先收到缓存的全量快照
     const later: Quote[][] = [];

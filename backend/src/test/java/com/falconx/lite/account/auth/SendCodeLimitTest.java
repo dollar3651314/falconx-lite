@@ -63,7 +63,7 @@ class SendCodeLimitTest {
     pastCodes(email, "RESET_PASSWORD", 9, 2);
     pastCodes(email, "RESET_PASSWORD", 20, 25);
     // 第 10 次：还可以
-    assertThat(sendCode(email, "RESET_PASSWORD", ip()).getStatus()).isEqualTo(204);
+    assertThat(sendCode(email, "RESET_PASSWORD", ip()).getStatus()).isEqualTo(200);
     // 过了 60 秒的重发间隔，第 11 次：拒绝（换 IP 也一样）
     jdbc.update("UPDATE account_email_code SET created_at = DATE_SUB(created_at, INTERVAL 2 MINUTE) WHERE email = ?", email);
     MockHttpServletResponse r = sendCode(email, "RESET_PASSWORD", ip());
@@ -79,9 +79,9 @@ class SendCodeLimitTest {
   void SEC03_同一IP每小时超过上限就不再发_不管邮箱存不存在_换IP不受影响() throws Exception {
     String ip = ip();
     // 3 次以内：注册用的新邮箱、重置密码用的不存在的邮箱都算
-    assertThat(sendCode(email(), "REGISTER", ip).getStatus()).isEqualTo(204);
-    assertThat(sendCode(email(), "RESET_PASSWORD", ip).getStatus()).isEqualTo(204);
-    assertThat(sendCode(email(), "REGISTER", ip).getStatus()).isEqualTo(204);
+    assertThat(sendCode(email(), "REGISTER", ip).getStatus()).isEqualTo(200);
+    assertThat(sendCode(email(), "RESET_PASSWORD", ip).getStatus()).isEqualTo(200);
+    assertThat(sendCode(email(), "REGISTER", ip).getStatus()).isEqualTo(200);
     // 第 4 次：拒绝，邮件不发
     String blocked = email();
     MockHttpServletResponse r = sendCode(blocked, "REGISTER", ip);
@@ -91,6 +91,6 @@ class SendCodeLimitTest {
     // 不存在的邮箱也一样拒绝（不能用来区分邮箱是否注册过）
     assertThat(sendCode(email(), "RESET_PASSWORD", ip).getStatus()).isEqualTo(429);
     // 别的 IP 不受影响
-    assertThat(sendCode(email(), "REGISTER", ip()).getStatus()).isEqualTo(204);
+    assertThat(sendCode(email(), "REGISTER", ip()).getStatus()).isEqualTo(200);
   }
 }

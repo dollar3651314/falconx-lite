@@ -5,7 +5,7 @@
  * - 保证金 = 名义价值 ÷ 杠杆；手续费 = 名义价值 × 费率（开仓收、平仓不收）；
  * - 强平价：亏损达到（保证金 − 维持保证金）时的价格，维持保证金 = 名义价值 × 维持保证金率。
  */
-import { add, cmp, dec, div, mul, sub, toFixed, ZERO, type Dec } from './decimal';
+import { add, cmp, dec, div, isDecimalString, mul, sub, toFixed, ZERO, type Dec } from './decimal';
 import type { Position, Quote, Side, SymbolInfo } from '../api/types';
 
 export interface OrderEstimate {
@@ -15,6 +15,16 @@ export interface OrderEstimate {
   margin: Dec;
   fee: Dec;
   liquidationPrice: Dec;
+}
+
+/**
+ * 报价的 USD 折算率：合法的正数才返回，没有（后端暂时取不到汇率）或不合法时返回 null。
+ * 拿不到汇率时，按 USD 折算的预估一律不算（页面显示"—"），不能当成 0 或让 dec() 抛错。
+ */
+export function usdRate(quote: Pick<Quote, 'quoteToUsd'> | null | undefined): string | null {
+  const r = quote?.quoteToUsd;
+  if (typeof r !== 'string' || !isDecimalString(r)) return null;
+  return cmp(dec(r), ZERO) > 0 ? r.trim() : null;
 }
 
 /** 下单方向对应的成交参考价：买用 ask，卖用 bid */
@@ -82,9 +92,11 @@ export function pnlAt(side: Side, entry: Dec, exit: Dec, lots: Dec, contractSize
   return mul(mul(mul(diff, lots), dec(contractSize)), dec(quoteToUsd));
 }
 
-/** 持仓的浮动盈亏 */
-export function positionPnl(p: Position, symbol: SymbolInfo, quote: Quote): Dec {
-  return pnlAt(p.side, dec(p.openPrice), dec(closePrice(p.side, quote)), dec(p.lots), symbol.contractSize, quote.quoteToUsd);
+/** 持仓的浮动盈亏；没有汇率时返回 null（页面显示"—"） */
+export function positionPnl(p: Position, symbol: SymbolInfo, quote: Quote): Dec | null {
+  const rate = usdRate(quote);
+  if (!rate) return null;
+  return pnlAt(p.side, dec(p.openPrice), dec(closePrice(p.side, quote)), dec(p.lots), symbol.contractSize, rate);
 }
 
 /** 追加保证金后的新强平价（按开仓时的维持保证金率重算，修复 T-11） */
