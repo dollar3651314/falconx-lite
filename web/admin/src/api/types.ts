@@ -501,15 +501,25 @@ export interface TradingSymbol {
   lastQuoteAt?: string | null;
   /** 现在是否在交易时段内：休市时没有报价是正常的，不标红 */
   tradingOpen?: boolean;
+  /** 模拟起始价（只在模拟报价源下使用，见 SymbolPage.simulatedQuotes）；没填为空 */
+  simStartPrice?: string | null;
 }
 
-/** 改品种参数：合约大小、报价货币、小数位不能改；openPaused 是品种自己的"暂停开仓"（新增的品种默认暂停，在这里打开） */
+/** 品种列表：多一个 simulatedQuotes（当前报价源是不是模拟源，是的话新增和编辑里显示"模拟起始价"） */
+export interface SymbolPage extends Page<TradingSymbol> {
+  simulatedQuotes: boolean;
+}
+
+/**
+ * 改品种参数：合约大小、报价货币、小数位不能改；openPaused 是品种自己的"暂停开仓"（新增的品种默认暂停，在这里打开）；
+ * simStartPrice 给已建好的品种补模拟起始价（只在模拟报价源下生效，否则后端忽略；不传表示不改）。
+ */
 export type SymbolPatch = Partial<
   Pick<
     TradingSymbol,
     'nameZh' | 'nameEn' | 'maxLeverage' | 'minLots' | 'maxLots' | 'lotStep' | 'openFeeRate' | 'maintenanceMarginRate' | 'markup' | 'swapLong' | 'swapShort' | 'hot' | 'sortOrder' | 'openPaused'
   >
->;
+> & { simStartPrice?: string };
 
 /** 新增品种的交易时段模板（UTC）：fx 周日 22:00–周五 21:00；crypto 全天候；us_stock 周一至周五 13:30–20:00 */
 export type SessionTemplate = 'fx' | 'crypto' | 'us_stock';
@@ -536,6 +546,8 @@ export interface SymbolCreateInput {
   hot: boolean;
   copySessionsFrom?: string;
   sessionTemplate?: SessionTemplate;
+  /** 模拟起始价（可选，正数，小数位不超过 digits）：只在模拟报价源下生效，否则后端忽略 */
+  simStartPrice?: string;
 }
 
 export interface SymbolQuery extends PageQuery {

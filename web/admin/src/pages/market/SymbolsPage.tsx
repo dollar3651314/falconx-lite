@@ -5,13 +5,14 @@
  * 改维持保证金率、手续费率只影响以后开的仓；有持仓或挂单的品种不能停用。
  * v2 E3：右上角"新增品种"（高危，SymbolCreateDrawer），新增后默认暂停开仓，在"编辑"里打开（暂停开仓开关）。
  * v2 E6："最后报价时间"列：开市时超过 1 分钟没报价标红，从没报价显示"暂无报价"，休市不标红；每 5 秒静默刷新（可暂停）。
+ * 模拟起始价：报价源是模拟源时（列表接口的 simulatedQuotes），新增和编辑里都显示，给还没有报价的品种补价；不是模拟源时不显示。
  */
 import { useState } from 'react';
 import { Alert, Button, Drawer, Form, Input, InputNumber, Select, Space, Switch, Tooltip } from 'antd';
 import { EditOutlined, FireFilled, PlusOutlined, WarningFilled } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { listSymbols, setSymbolEnabled, updateSymbol } from '../../api';
-import type { SymbolPatch, SymbolQuery, TradingSymbol } from '../../api/types';
+import type { SymbolPage, SymbolPatch, SymbolQuery, TradingSymbol } from '../../api/types';
 import { CATEGORIES } from '../../config/constants';
 import { usePagedList } from '../../hooks/usePagedList';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
@@ -27,7 +28,7 @@ import { Pill } from '../../components/Pill';
 import { Num } from '../../components/Num';
 import { compareAmounts, formatAmount, formatRatePercent } from '../../utils/money';
 import { localName, quoteFreshness, shortTime, fullTime } from '../../utils/display';
-import { isValidRate } from '../../utils/validators';
+import { isValidRate, simStartPriceProblems } from '../../utils/validators';
 
 type Filters = Omit<SymbolQuery, 'page' | 'pageSize'>;
 
@@ -48,6 +49,7 @@ interface EditValues {
   hot: boolean;
   sortOrder: number;
   openPaused: boolean;
+  simStartPrice?: string;
 }
 
 function SwapCell({ value }: { value: string | null }) {
@@ -83,7 +85,8 @@ function QuoteTimeCell({ s }: { s: TradingSymbol }) {
 export function SymbolsPage() {
   const { t, i18n } = useTranslation();
   const { can } = useAuth();
-  const list = usePagedList<TradingSymbol, Filters>(listSymbols, {}, 20);
+  const list = usePagedList<TradingSymbol, Filters, SymbolPage>(listSymbols, {}, 20);
+  const simulatedQuotes = list.data?.simulatedQuotes === true;
   const [draft, setDraft] = useState<Filters>({});
   const [editing, setEditing] = useState<TradingSymbol | null>(null);
   const [creating, setCreating] = useState(false);
@@ -93,7 +96,7 @@ export function SymbolsPage() {
 
   const openEdit = (s: TradingSymbol) => {
     setEditing(s);
-    form.setFieldsValue({ ...s, swapLong: s.swapLong ?? '', swapShort: s.swapShort ?? '' });
+    form.setFieldsValue({ ...s, swapLong: s.swapLong ?? '', swapShort: s.swapShort ?? '', simStartPrice: s.simStartPrice ?? '' });
   };
 
   const save = async () => {
@@ -118,6 +121,9 @@ export function SymbolsPage() {
       swapLong: v.swapLong.trim() === '' ? null : v.swapLong.trim(),
       swapShort: v.swapShort.trim() === '' ? null : v.swapShort.trim(),
     };
+    // 模拟起始价：只在模拟报价源下发；空表示不改（不能清空）
+    const sim = (v.simStartPrice ?? '').trim();
+    if (simulatedQuotes && sim && sim !== (editing.simStartPrice ?? '')) patch.simStartPrice = sim;
     const code = editing.code;
     hr.ask({
       title: t('symbols.saveConfirm', { code }),
@@ -324,6 +330,23 @@ export function SymbolsPage() {
             <Form.Item name="openPaused" label={t('symbols.openPausedLabel')} valuePropName="checked" extra={t('symbols.openPausedHint')}>
               <Switch />
             </Form.Item>
+            {simulatedQuotes ? (
+              <Form.Item
+                name="simStartPrice"
+                label={t('symbols.simStartPrice')}
+                extra={t('symbols.simStartPriceEditHint')}
+                rules={[
+                  {
+                    validator: (_r, v: string | undefined) => {
+                      const p = simStartPriceProblems(v, editing.digits);
+                      return p.length ? Promise.reject(new Error(t(p[0], { digits: editing.digits }))) : Promise.resolve();
+                    },
+                  },
+                ]}
+              >
+                <Input inputMode="decimal" placeholder={t('symbols.simStartPricePh')} autoComplete="off" />
+              </Form.Item>
+            ) : null}
             <Form.Item name="sortOrder" label={t('symbols.sortOrder')} extra={t('symbols.sortOrderHint')} rules={[{ required: true, type: 'integer', min: 0, max: 100000, message: t('validation.positiveInteger') }]}>
               <InputNumber style={{ width: '100%' }} min={0} max={100000} precision={0} />
             </Form.Item>
@@ -332,6 +355,7 @@ export function SymbolsPage() {
       </Drawer>
       <SymbolCreateDrawer
         open={creating}
+        simulatedQuotes={simulatedQuotes}
         onClose={() => setCreating(false)}
         onCreated={(code) => {
           setCreating(false);

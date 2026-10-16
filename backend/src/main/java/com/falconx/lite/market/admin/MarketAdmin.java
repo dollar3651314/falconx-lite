@@ -9,6 +9,7 @@ import com.falconx.lite.market.api.MarketQuote;
 import com.falconx.lite.market.api.SymbolSpec;
 import com.falconx.lite.market.config.SymbolCatalog;
 import com.falconx.lite.market.quote.QuoteProcessor;
+import com.falconx.lite.market.quote.SimulatedQuoteSource;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -22,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -31,9 +33,11 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * {@link MarketAdminApi} 的实现。改动在事务提交后重新加载 {@link SymbolCatalog}。
  * 品种的维持保证金率、手续费率改了只影响以后开的仓，已有持仓用开仓时记下的值（强平价不变）。
  * 新增品种（v2 E3）同样只写表、提交后重新加载：行情入口 {@link QuoteProcessor}、撮合、风控敞口、K 线都按 {@link SymbolCatalog} 认品种，不需要重启。
+ * 模拟起始价（v2 补充）：只在模拟报价源下生效，存进 market_symbol.sim_start_price，提交后交给 {@link SimulatedQuoteSource#seed}；
+ * 重启后报价源按 {@link SimulatedQuoteSource.SimStartPrices}（本类实现）从库里读回。不是模拟源时这一项忽略（不校验、不保存）。
  */
 @Service
-class MarketAdmin implements MarketAdminApi {
+class MarketAdmin implements MarketAdminApi, SimulatedQuoteSource.SimStartPrices {
 
   private final MarketAdminMapper mapper;
   private final SymbolCatalog catalog;
@@ -41,14 +45,67 @@ class MarketAdmin implements MarketAdminApi {
   private final MarketApi market;
   private final MarketProperties props;
   private final Clock clock;
+  /** 只在 falconx.market.source=simulated 时有；用 ObjectProvider 取（报价源启动时又要读本类的起始价，避免循环依赖） */
+  private final ObjectProvider<SimulatedQuoteSource> simulated;
 
-  MarketAdmin(MarketAdminMapper mapper, SymbolCatalog catalog, QuoteProcessor processor, MarketApi market, MarketProperties props, Clock clock) {
+  MarketAdmin(MarketAdminMapper mapper, SymbolCatalog catalog, QuoteProcessor processor, MarketApi market, MarketProperties props, Clock clock,
+      ObjectProvider<SimulatedQuoteSource> simulated) {
     this.mapper = mapper;
     this.catalog = catalog;
     this.processor = processor;
     this.market = market;
     this.props = props;
     this.clock = clock;
+    this.simulated = simulated;
+  }
+
+  @Override
+  public boolean simulatedQuotes() {
+    return simulated.getIfAvailable() != null;
+  }
+
+  /** 库里填了模拟起始价的品种（含停用的：重新启用后行情入口才认它的报价） */
+  @Override
+  @Transactional(readOnly = true)
+  public List<Entry> simStartPrices() {
+    return mapper.symbolsWithSimStartPrice().stream().map(r -> new Entry(r.code, r.simStartPrice, r.digits)).toList();
+  }
+
+  /**
+   * 模拟起始价的校验：正数，小数位不超过品种的报价小数位（digits 不合法时只查正数），整数部分最多 16 位（列是 DECIMAL(24,8)）。
+   * 不合法时记字段错误并返回空。
+   */
+  private static BigDecimal simStartPrice(ValidationException.Collector c, BigDecimal v, Integer digits) {
+    BigDecimal p = v.stripTrailingZeros();
+    if (p.signum() <= 0 || p.precision() - p.scale() > 16) {
+      c.add("simStartPrice", "invalid");
+      return null;
+    }
+    if (digits != null && digits >= 0 && digits <= 8 && Math.max(p.scale(), 0) > digits) {
+      c.add("simStartPrice", "tooManyDecimals");
+      return null;
+    }
+    return p.scale() < 0 ? p.setScale(0) : p;
+  }
+
+  /** 提交后交给模拟报价源（品种已经重新加载，行情入口认得它）；已经在报价的品种不变 */
+  private void seedAfterCommit(String code, BigDecimal price, int digits) {
+    SimulatedQuoteSource s = simulated.getIfAvailable();
+    if (s == null || price == null) return;
+    afterCommit(() -> s.seed(code, price, digits));
+  }
+
+  private static void afterCommit(Runnable r) {
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+        @Override
+        public void afterCommit() {
+          r.run();
+        }
+      });
+    } else {
+      r.run();
+    }
   }
 
   /** 最后报价时间取行情内存里最后一条正常报价的时间（v2 E6） */
@@ -56,20 +113,11 @@ class MarketAdmin implements MarketAdminApi {
     Instant last = processor.book().get(r.code).map(e -> e.quote().time()).orElse(null);
     return new Symbol(new SymbolSpec(r.code, r.nameZh, r.nameEn, r.category, r.digits, r.contractSize, r.unit, r.baseCcy, r.quoteCcy, r.maxLeverage,
         r.minLots, r.maxLots, r.lotStep, r.feeRate, r.maintenanceMarginRate, r.markup, r.swapLong, r.swapShort, r.hot, r.openPaused, r.sortOrder),
-        r.enabled, r.updatedAt, last, r.enabled && catalog.isOpen(r.code, clock.instant()));
+        r.enabled, r.updatedAt, last, r.enabled && catalog.isOpen(r.code, clock.instant()), r.simStartPrice);
   }
 
   private void reloadAfterCommit() {
-    if (TransactionSynchronizationManager.isSynchronizationActive()) {
-      TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-        @Override
-        public void afterCommit() {
-          catalog.reload();
-        }
-      });
-    } else {
-      catalog.reload();
-    }
+    afterCommit(catalog::reload);
   }
 
   @Override
@@ -113,10 +161,17 @@ class MarketAdmin implements MarketAdminApi {
     if (p.hot() != null) r.hot = p.hot();
     if (p.sortOrder() != null) r.sortOrder = p.sortOrder();
     if (p.openPaused() != null) r.openPaused = p.openPaused();
+    // 模拟起始价：只在模拟报价源下生效，否则忽略
+    BigDecimal sim = null;
+    if (p.simStartPrice() != null && simulatedQuotes()) {
+      sim = simStartPrice(c, p.simStartPrice(), r.digits);
+      if (sim != null) r.simStartPrice = sim;
+    }
     if (r.minLots.compareTo(r.maxLots) > 0) c.add("maxLots", "lessThanMin");
     c.throwIfAny();
     mapper.updateSymbol(r);
     reloadAfterCommit();
+    if (r.enabled) seedAfterCommit(code, sim, r.digits);
     return before;
   }
 
@@ -206,7 +261,7 @@ class MarketAdmin implements MarketAdminApi {
   @Override
   @Transactional
   public Symbol createSymbol(SymbolCreate in) {
-    SymbolCreate x = in == null ? new SymbolCreate(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null) : in;
+    SymbolCreate x = in == null ? new SymbolCreate(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null) : in;
     ValidationException.Collector c = new ValidationException.Collector();
     String code = x.code() == null ? "" : x.code().strip();
     if (code.isEmpty()) c.add("code", "required");
@@ -261,6 +316,8 @@ class MarketAdmin implements MarketAdminApi {
         c.add("sessionTemplate", "invalid");
       }
     }
+    // 模拟起始价（可选）：只在模拟报价源下生效，否则忽略（不校验、不保存）
+    BigDecimal sim = x.simStartPrice() != null && simulatedQuotes() ? simStartPrice(c, x.simStartPrice(), x.digits()) : null;
     c.throwIfAny();
     if (mapper.codeCount(code) > 0) throw new BizException("SYMBOL_EXISTS", "品种代码已存在");
 
@@ -289,9 +346,11 @@ class MarketAdmin implements MarketAdminApi {
     r.openPaused = true; // 新增后默认暂停开仓：运营确认报价正常后在品种页打开
     r.sortOrder = mapper.maxSortOrder() + 1;
     r.enabled = true;
+    r.simStartPrice = sim;
     mapper.insertSymbol(r);
     for (int[] s : sessions) mapper.insertSession(code, s[0], s[1], s[2]);
     reloadAfterCommit();
+    seedAfterCommit(code, sim, r.digits);
     return symbol(mapper.symbol(code));
   }
 
@@ -302,6 +361,7 @@ class MarketAdmin implements MarketAdminApi {
     Symbol before = symbol(r);
     mapper.setEnabled(code, enabled);
     reloadAfterCommit();
+    if (enabled) seedAfterCommit(code, r.simStartPrice, r.digits);
     return before;
   }
 

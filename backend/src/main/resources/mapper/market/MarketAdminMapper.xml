@@ -5,11 +5,16 @@
 
   <sql id="symbolCols">
     code, name_zh, name_en, category, digits, contract_size, unit, base_ccy, quote_ccy, max_leverage, min_lots, max_lots, lot_step, fee_rate,
-    maintenance_margin_rate, markup, swap_long, swap_short, hot, open_paused, sort_order, enabled, updated_at
+    maintenance_margin_rate, markup, sim_start_price, swap_long, swap_short, hot, open_paused, sort_order, enabled, updated_at
   </sql>
 
   <select id="symbols" resultType="com.falconx.lite.market.admin.MarketAdminMapper$SymbolRow">
     SELECT <include refid="symbolCols"/> FROM market_symbol ORDER BY sort_order, code
+  </select>
+
+  <!-- 模拟报价源启动时读（V23） -->
+  <select id="symbolsWithSimStartPrice" resultType="com.falconx.lite.market.admin.MarketAdminMapper$SymbolRow">
+    SELECT <include refid="symbolCols"/> FROM market_symbol WHERE sim_start_price IS NOT NULL ORDER BY sort_order, code
   </select>
 
   <select id="symbol" resultType="com.falconx.lite.market.admin.MarketAdminMapper$SymbolRow">
@@ -19,7 +24,7 @@
   <update id="updateSymbol">
     UPDATE market_symbol SET name_zh = #{nameZh}, name_en = #{nameEn}, max_leverage = #{maxLeverage}, min_lots = #{minLots}, max_lots = #{maxLots},
       lot_step = #{lotStep}, fee_rate = #{feeRate}, maintenance_margin_rate = #{maintenanceMarginRate}, markup = #{markup}, swap_long = #{swapLong},
-      swap_short = #{swapShort}, hot = #{hot}, sort_order = #{sortOrder}, open_paused = #{openPaused}
+      swap_short = #{swapShort}, hot = #{hot}, sort_order = #{sortOrder}, open_paused = #{openPaused}, sim_start_price = #{simStartPrice}
     WHERE code = #{code}
   </update>
 
@@ -30,9 +35,9 @@
 
   <insert id="insertSymbol">
     INSERT INTO market_symbol (code, name_zh, name_en, category, digits, contract_size, unit, base_ccy, quote_ccy, max_leverage, min_lots, max_lots,
-      lot_step, fee_rate, maintenance_margin_rate, markup, swap_long, swap_short, hot, open_paused, sort_order, enabled)
+      lot_step, fee_rate, maintenance_margin_rate, markup, sim_start_price, swap_long, swap_short, hot, open_paused, sort_order, enabled)
     VALUES (#{code}, #{nameZh}, #{nameEn}, #{category}, #{digits}, #{contractSize}, #{unit}, #{baseCcy}, #{quoteCcy}, #{maxLeverage}, #{minLots},
-      #{maxLots}, #{lotStep}, #{feeRate}, #{maintenanceMarginRate}, #{markup}, #{swapLong}, #{swapShort}, #{hot}, #{openPaused}, #{sortOrder}, #{enabled})
+      #{maxLots}, #{lotStep}, #{feeRate}, #{maintenanceMarginRate}, #{markup}, #{simStartPrice}, #{swapLong}, #{swapShort}, #{hot}, #{openPaused}, #{sortOrder}, #{enabled})
   </insert>
 
   <insert id="insertSession">

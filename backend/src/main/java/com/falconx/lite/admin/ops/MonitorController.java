@@ -173,7 +173,7 @@ class MonitorController {
 
   @RequiresPermission(Permission.SYMBOL_VIEW)
   @GetMapping("/api/admin/symbols")
-  Ops.Page<MarketOps.SymbolView> symbols(@RequestParam(required = false) String category, @RequestParam(required = false) String keyword,
+  MarketOps.SymbolPage symbols(@RequestParam(required = false) String category, @RequestParam(required = false) String keyword,
       @RequestParam(required = false) Boolean enabled, @RequestParam(required = false) Boolean missingSwap, @RequestParam(defaultValue = "1") int page,
       @RequestParam(defaultValue = "50") int pageSize) {
     return market.symbols(category, keyword, enabled, missingSwap, page, pageSize);

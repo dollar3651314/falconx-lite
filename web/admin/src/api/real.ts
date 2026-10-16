@@ -47,6 +47,7 @@ import type {
   RoleInput,
   SymbolCreateInput,
   SymbolExposure,
+  SymbolPage,
   SymbolPatch,
   SymbolQuery,
   SystemConfig,
@@ -367,11 +368,12 @@ export function normalizeSymbol(s: TradingSymbol): TradingSymbol {
   return isZero(s.swapLong) && isZero(s.swapShort) ? { ...s, swapLong: null, swapShort: null } : s;
 }
 
-export async function listSymbols(q: SymbolQuery): Promise<Page<TradingSymbol>> {
-  const p = await request<Page<TradingSymbol>>('/symbols', {
+/** 品种列表；simulatedQuotes：当前报价源是不是模拟源（后端没返回时按不是） */
+export async function listSymbols(q: SymbolQuery): Promise<SymbolPage> {
+  const p = await request<SymbolPage>('/symbols', {
     query: { category: q.category, keyword: q.keyword, enabled: q.enabled, missingSwap: q.missingSwap ? true : undefined, page: q.page, pageSize: q.pageSize },
   });
-  return { ...p, items: p.items.map(normalizeSymbol) };
+  return { ...p, items: p.items.map(normalizeSymbol), simulatedQuotes: p.simulatedQuotes === true };
 }
 
 /** 改品种参数（必须填原因）：只影响以后开的仓。隔夜费率清空（null）按"未配置"发 0 */

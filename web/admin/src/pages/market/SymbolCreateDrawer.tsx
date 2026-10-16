@@ -2,7 +2,8 @@
  * 新增品种（v2 E3，高危）：代码（唯一）、中英文名、类别、小数位、合约大小、报价货币、最大杠杆、维持保证金率、开仓手续费率、
  * 最小 / 最大手数、手数步长、加点、交易时段（从已有品种复制或选模板）、是否热门。
  * 新增后默认"暂停开仓"：运营确认报价正常后在品种的"编辑"里打开。新品种不需要重启就被行情、撮合、风控、K 线认得；
- * 但要有报价源给它报价（模拟报价源只给有起始价的品种报价，新品种显示"暂无报价"）。
+ * 但要有报价源给它报价：报价源是模拟源时（simulatedQuotes，开发和测试环境）显示"模拟起始价"，填了就立即从这个价开始报价，
+ * 不填显示"暂无报价"；不是模拟源时（接 LP 后）不显示这一项。
  */
 import { useEffect, useState } from 'react';
 import { Alert, Button, Drawer, Form, Input, InputNumber, Radio, Select, Space, Switch } from 'antd';
@@ -12,7 +13,7 @@ import type { SessionTemplate, SymbolCategory, SymbolCreateInput } from '../../a
 import { BACKEND_CATEGORIES, SESSION_TEMPLATES } from '../../config/constants';
 import { useHighRisk } from '../../hooks/useConfirmDialogs';
 import { compareAmounts } from '../../utils/money';
-import { CURRENCY_RE, SYMBOL_CODE_RE } from '../../utils/validators';
+import { CURRENCY_RE, SYMBOL_CODE_RE, simStartPriceProblems } from '../../utils/validators';
 
 /** 手数：正数，最多 8 位小数（后端口径） */
 const LOTS_RE = /^(0\.\d{1,8}|[1-9]\d*(\.\d{1,8})?)$/;
@@ -38,6 +39,7 @@ interface CreateValues {
   sessionSource: 'template' | 'copy';
   sessionTemplate?: SessionTemplate;
   copySessionsFrom?: string;
+  simStartPrice?: string;
 }
 
 const INITIAL: Partial<CreateValues> = {
@@ -57,7 +59,18 @@ const INITIAL: Partial<CreateValues> = {
   sessionTemplate: 'crypto',
 };
 
-export function SymbolCreateDrawer({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (code: string) => void }) {
+export function SymbolCreateDrawer({
+  open,
+  onClose,
+  onCreated,
+  simulatedQuotes = false,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (code: string) => void;
+  /** 当前报价源是不是模拟源（品种列表接口返回）：是的话显示"模拟起始价" */
+  simulatedQuotes?: boolean;
+}) {
   const { t } = useTranslation();
   const [form] = Form.useForm<CreateValues>();
   const [sources, setSources] = useState<string[]>([]);
@@ -101,6 +114,7 @@ export function SymbolCreateDrawer({ open, onClose, onCreated }: { open: boolean
       markup: (v.markup ?? '0').trim() || '0',
       hot: !!v.hot,
       ...(v.sessionSource === 'copy' ? { copySessionsFrom: v.copySessionsFrom } : { sessionTemplate: v.sessionTemplate }),
+      ...(simulatedQuotes && v.simStartPrice?.trim() ? { simStartPrice: v.simStartPrice.trim() } : {}),
     };
     hr.ask({
       title: t('symbols.createConfirm', { code: input.code }),
@@ -134,7 +148,7 @@ export function SymbolCreateDrawer({ open, onClose, onCreated }: { open: boolean
           </Space>
         }
       >
-        <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('symbols.createPausedHint')} description={t('symbols.createQuoteHint')} />
+        <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('symbols.createPausedHint')} description={t(simulatedQuotes ? 'symbols.createQuoteHintSim' : 'symbols.createQuoteHint')} />
         <Form form={form} layout="vertical" name="symbol-create" requiredMark initialValues={INITIAL} className="symbol-form">
           <div className="grid2">
             <Form.Item
@@ -230,6 +244,25 @@ export function SymbolCreateDrawer({ open, onClose, onCreated }: { open: boolean
               <Input inputMode="decimal" />
             </Form.Item>
           </div>
+          {simulatedQuotes ? (
+            <Form.Item
+              name="simStartPrice"
+              label={t('symbols.simStartPrice')}
+              extra={t('symbols.simStartPriceHint')}
+              dependencies={['digits']}
+              rules={[
+                ({ getFieldValue }) => ({
+                  validator: (_r, v: string | undefined) => {
+                    const digits = getFieldValue('digits') as number | undefined;
+                    const p = simStartPriceProblems(v, digits);
+                    return p.length ? Promise.reject(new Error(t(p[0], { digits }))) : Promise.resolve();
+                  },
+                }),
+              ]}
+            >
+              <Input inputMode="decimal" placeholder={t('symbols.simStartPricePh')} autoComplete="off" />
+            </Form.Item>
+          ) : null}
           <Form.Item name="sessionSource" label={t('symbols.sessionSource')} rules={[required]}>
             <Radio.Group
               options={[

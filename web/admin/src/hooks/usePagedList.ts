@@ -5,7 +5,8 @@ import { useCallback, useState } from 'react';
 import type { Page, PageQuery } from '../api/types';
 import { useApi } from './useApi';
 
-export function usePagedList<T, F extends object>(fetch: (q: PageQuery & F) => Promise<Page<T>>, initialFilters: F, pageSize = 10) {
+/** P：接口返回的分页类型（有的列表在分页字段之外多带几个字段，例如品种列表的 simulatedQuotes） */
+export function usePagedList<T, F extends object, P extends Page<T> = Page<T>>(fetch: (q: PageQuery & F) => Promise<P>, initialFilters: F, pageSize = 10) {
   const [filters, setFiltersState] = useState<F>(initialFilters);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(pageSize);

@@ -89,3 +89,19 @@ export function nationalityProblems(v: string): string[] {
 export const SYMBOL_CODE_RE = /^[A-Z][A-Z0-9]{1,15}$/;
 /** 报价货币：3–4 位大写字母 */
 export const CURRENCY_RE = /^[A-Z]{3,4}$/;
+
+/**
+ * 模拟起始价（只在模拟报价源下使用）：正数、整数部分最多 16 位、小数位不超过品种的报价小数位 digits，和后端 MarketAdmin 一致。
+ * 末尾的 0 不算小数位（1.2300 按 1.23）。空表示不填，返回空数组；digits 不确定（没填或不合法）时只查格式。
+ */
+export function simStartPriceProblems(v: string | undefined, digits: number | undefined | null): string[] {
+  const text = (v ?? '').trim();
+  if (!text) return [];
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(text);
+  if (!m) return ['validation.simStartPrice'];
+  const int = m[1].replace(/^0+/, '');
+  const frac = (m[2] ?? '').replace(/0+$/, '');
+  if ((!int && !frac) || int.length > 16) return ['validation.simStartPrice'];
+  if (typeof digits === 'number' && Number.isInteger(digits) && digits >= 0 && digits <= 8 && frac.length > digits) return ['validation.simStartPriceDecimals'];
+  return [];
+}
