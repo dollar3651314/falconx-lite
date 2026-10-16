@@ -4,5 +4,6 @@
 !backend/target/falconx-lite-*.jar
 !web/client/dist/
 !web/admin/dist/
+!web/site/dist/
 !deploy/nginx/
 !deploy/kit/

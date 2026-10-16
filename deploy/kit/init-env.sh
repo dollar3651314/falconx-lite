@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 在服务器上生成 .env 里不需要 Amos 提供的值（S20，部署方案 v1.3 第 6 节）。用 root 运行：
-#   sudo bash /opt/falconx/init-env.sh <客户端域名> <后台域名> <证书提醒邮箱>
+#   sudo bash /opt/falconx/init-env.sh <客户端域名> <后台域名> <证书提醒邮箱> [官网域名]
 # 生成：MYSQL_ROOT_PASSWORD、FX_DB_PASSWORD、FX_REDIS_PASSWORD、浏览器推送密钥对（VAPID）、第一个超级管理员（用户名 admin、随机初始密码）。
 # - 只填**空着的**变量，已经有值的不动，可以重复运行。
 # - 生成的值直接写进 /opt/falconx/.env（权限 600），**屏幕上不显示**；超管初始密码要看时由 Amos 自己运行：
@@ -32,6 +32,9 @@ b64url() { base64 -w0 | tr '+/' '-_' | tr -d '='; }
   set_if_empty ADMIN_DOMAIN "$2"
   set_if_empty CERT_EMAIL "$3"
 }
+# 官网域名（v2，可选的第 4 个参数；部署方案第 11 节）
+[ $# -ge 4 ] && set_if_empty WWW_DOMAIN "$4"
+
 set_if_empty MYSQL_ROOT_PASSWORD "$(rand 24)"
 set_if_empty FX_DB_PASSWORD "$(rand 24)"
 set_if_empty FX_REDIS_PASSWORD "$(rand 24)"
