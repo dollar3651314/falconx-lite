@@ -3,12 +3,16 @@ package com.falconx.lite.account.admin;
 import com.falconx.lite.account.api.CustomerAdminApi;
 import com.falconx.lite.account.auth.AuthAccess;
 import com.falconx.lite.common.error.BizException;
+import com.falconx.lite.common.error.ValidationException;
 import com.falconx.lite.common.storage.ObjectStorage;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,11 +23,13 @@ class CustomerAdmin implements CustomerAdminApi {
   private final CustomerAdminMapper mapper;
   private final AuthAccess auth;
   private final ObjectStorage storage;
+  private final Clock clock;
 
-  CustomerAdmin(CustomerAdminMapper mapper, AuthAccess auth, ObjectStorage storage) {
+  CustomerAdmin(CustomerAdminMapper mapper, AuthAccess auth, ObjectStorage storage, Clock clock) {
     this.mapper = mapper;
     this.auth = auth;
     this.storage = storage;
+    this.clock = clock;
   }
 
   static String name(String first, String middle, String last) {
@@ -68,8 +74,60 @@ class CustomerAdmin implements CustomerAdminApi {
     List<CustomerAdminMapper.CustomerRow> rows = mapper.byIds(List.of(id));
     if (rows.isEmpty()) return Optional.empty();
     CustomerAdminMapper.CustomerRow r = rows.getFirst();
+    CustomerAdminMapper.LastLogin last = mapper.lastLogin(id);
     return Optional.of(new CustomerDetail(customer(r), r.firstName, r.middleName, r.lastName, r.birthDate, r.frozenReason, r.docType, r.docNumber,
-        r.kycReviewedAt, r.kycRejectReason));
+        r.kycReviewedAt, r.kycRejectReason, last == null ? null : last.ip, last == null ? null : last.createdAt));
+  }
+
+  /** 姓名允许的字符：字母（含中文）、组合符号、撇号、空格、点、连字符；和客户端 validators.ts 的 NAME_RE 一致 */
+  static final Pattern NAME_CHARS = Pattern.compile("[\\p{L}\\p{M}' .-]+");
+  /** 姓名每段最多 50 字（客户端 validateName） */
+  static final int NAME_MAX = 50;
+
+  private static String name(ValidationException.Collector c, String field, String v, boolean required) {
+    String s = v == null ? "" : v.strip();
+    if (s.isEmpty()) {
+      if (required) c.add(field, "required");
+      return "";
+    }
+    if (s.length() > NAME_MAX) c.add(field, "nameTooLong");
+    if (!NAME_CHARS.matcher(s).matches()) c.add(field, "nameChars");
+    return s;
+  }
+
+  @Override
+  @Transactional
+  public ProfileEdit updateProfile(long userId, ProfileEdit e) {
+    List<CustomerAdminMapper.CustomerRow> rows = mapper.byIds(List.of(userId));
+    if (rows.isEmpty()) throw new BizException("NOT_FOUND", "客户不存在");
+    CustomerAdminMapper.CustomerRow r = rows.getFirst();
+    ProfileEdit before = new ProfileEdit(r.firstName, r.middleName, r.lastName, r.birthDate == null ? null : r.birthDate.toString(), r.nationality);
+    ProfileEdit in = e == null ? new ProfileEdit(null, null, null, null, null) : e;
+    ValidationException.Collector c = new ValidationException.Collector();
+    String first = name(c, "firstName", in.firstName(), true);
+    String middle = name(c, "middleName", in.middleName(), false);
+    String last = name(c, "lastName", in.lastName(), true);
+    // 出生日期：真实日期、不早于 1900 年、年满 18 周岁（和客户端 validateBirthDate 一致，按 UTC 日期算）
+    LocalDate birth = null;
+    LocalDate today = LocalDate.now(clock);
+    String birthText = in.birthDate() == null ? "" : in.birthDate().strip();
+    if (birthText.isEmpty()) c.add("birthDate", "required");
+    else if (!birthText.matches("\\d{4}-\\d{2}-\\d{2}")) c.add("birthDate", "dateFormat");
+    else {
+      try {
+        birth = LocalDate.parse(birthText);
+      } catch (java.time.DateTimeException ex) {
+        c.add("birthDate", "dateInvalid");
+      }
+    }
+    if (birth != null && (birth.getYear() < 1900 || birth.isAfter(today))) c.add("birthDate", "dateInvalid");
+    else if (birth != null && birth.plusYears(18).isAfter(today)) c.add("birthDate", "ageUnder18");
+    String nat = in.nationality() == null ? "" : in.nationality().strip();
+    if (nat.isEmpty()) c.add("nationality", "required");
+    else if (!nat.matches("[A-Z]{2}")) c.add("nationality", "nationalityInvalid");
+    c.throwIfAny();
+    mapper.upsertProfile(userId, first, middle, last, birth, nat);
+    return before;
   }
 
   @Override

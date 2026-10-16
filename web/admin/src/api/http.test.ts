@@ -45,6 +45,8 @@ describe('错误码映射', () => {
       'POSITION_NOT_OPEN', 'TRADING_CLOSED', 'QUOTE_UNAVAILABLE', 'SYMBOL_IN_USE', 'HOLIDAY_EXISTS',
       // 通用限流（P-05、SEC-15）
       'RATE_LIMITED',
+      // v2 E3 新增品种
+      'SYMBOL_EXISTS',
     ];
     expect(backend.filter((c) => !ERROR_KEYS[c])).toEqual([]);
   });

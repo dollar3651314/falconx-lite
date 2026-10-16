@@ -7,7 +7,7 @@ import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-/** 后台查看客户和 KYC 的只读查询（account_* 表）。只有 account 模块使用。 */
+/** 后台查看客户和 KYC 的查询，以及后台编辑客户资料（v2 E1）（account_* 表）。只有 account 模块使用。 */
 @Mapper
 interface CustomerAdminMapper {
 
@@ -50,6 +50,18 @@ interface CustomerAdminMapper {
     LocalDateTime reviewedAt;
     String rejectReason;
   }
+
+  /** 最近一次登录：最新的登录会话的 IP 和创建时间（v2 E6） */
+  class LastLogin {
+    String ip;
+    LocalDateTime createdAt;
+  }
+
+  LastLogin lastLogin(@Param("userId") long userId);
+
+  /** 写资料：没有资料行时补一行（注册时一定会写，这里只防万一） */
+  void upsertProfile(@Param("userId") long userId, @Param("firstName") String firstName, @Param("middleName") String middleName,
+      @Param("lastName") String lastName, @Param("birthDate") LocalDate birthDate, @Param("nationality") String nationality);
 
   List<CustomerRow> customers(@Param("keyword") String keyword, @Param("id") Long id, @Param("status") String status, @Param("kycStatus") String kycStatus,
       @Param("offset") int offset, @Param("limit") int limit);

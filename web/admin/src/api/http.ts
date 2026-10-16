@@ -55,6 +55,8 @@ export const ERROR_KEYS: Record<string, string> = {
   QUOTE_UNAVAILABLE: 'errors.quoteUnavailable',
   SYMBOL_IN_USE: 'errors.symbolInUse',
   HOLIDAY_EXISTS: 'errors.holidayExists',
+  // v2 E3 新增品种：代码已存在（含停用的）
+  SYMBOL_EXISTS: 'errors.symbolExists',
   // 通用
   NOT_FOUND: 'errors.notFound',
   VALIDATION_FAILED: 'errors.validationFailed',

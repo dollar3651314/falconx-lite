@@ -8,6 +8,7 @@ export const PERMISSIONS = [
   { code: 'dashboard:view', module: 'dashboard', highRisk: false },
 
   { code: 'customer:view', module: 'customer', highRisk: false },
+  { code: 'customer:edit', module: 'customer', highRisk: true },
   { code: 'customer:freeze', module: 'customer', highRisk: true },
   { code: 'customer:adjust_balance', module: 'customer', highRisk: true },
 
@@ -38,6 +39,7 @@ export const PERMISSIONS = [
 
   { code: 'symbol:view', module: 'market', highRisk: false },
   { code: 'symbol:edit', module: 'market', highRisk: true },
+  { code: 'symbol:create', module: 'market', highRisk: true },
   { code: 'session:view', module: 'market', highRisk: false },
   { code: 'session:edit', module: 'market', highRisk: false },
   { code: 'fx:view', module: 'market', highRisk: false },

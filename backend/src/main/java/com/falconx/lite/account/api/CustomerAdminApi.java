@@ -22,9 +22,14 @@ public interface CustomerAdminApi {
   record Customer(long id, String email, String name, String nationality, String status, String kycStatus, LocalDateTime registeredAt,
       LocalDateTime lastLoginAt) {}
 
-  /** 客户详情：资料和最近一次 KYC */
+  /**
+   * 客户详情：资料、最近一次 KYC、最近一次登录的 IP（v2 E6，取最近一个登录会话的 IP；从没登录过为空）。
+   */
   record CustomerDetail(Customer customer, String firstName, String middleName, String lastName, LocalDate birthDate, String frozenReason,
-      String docType, String docNumber, LocalDateTime kycReviewedAt, String kycRejectReason) {}
+      String docType, String docNumber, LocalDateTime kycReviewedAt, String kycRejectReason, String lastLoginIp, LocalDateTime lastLoginIpAt) {}
+
+  /** 后台编辑客户资料（v2 E1）：只有这 5 项；邮箱、状态不在这里改。birthDate 是 YYYY-MM-DD */
+  record ProfileEdit(String firstName, String middleName, String lastName, String birthDate, String nationality) {}
 
   /** KYC 申请；status PENDING / APPROVED / REJECTED，docType ID_CARD / PASSPORT */
   record KycApplication(long id, long userId, String name, String email, String nationality, LocalDate birthDate, String docType, String docNumber,
@@ -46,6 +51,14 @@ public interface CustomerAdminApi {
 
   /** 冻结（填原因）或解冻；冻结后该客户所有登录立即失效（AC-04） */
   void setFrozen(long userId, boolean frozen, String reason);
+
+  /**
+   * 后台编辑客户资料（v2 E1）。校验规则和客户端注册一致（{@code web/client/src/lib/validators.ts} 的 validateProfile），
+   * 字段错误一次全部返回；KYC 已通过的客户也允许改（由后台标出，和证件可能不一致）。
+   *
+   * @return 改之前的资料
+   */
+  ProfileEdit updateProfile(long userId, ProfileEdit edit);
 
   Page<KycApplication> kycApplications(String status, String keyword, int offset, int limit);
 

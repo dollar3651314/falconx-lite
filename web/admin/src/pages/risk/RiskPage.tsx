@@ -1,6 +1,7 @@
 /**
  * 风控看板（效果图 M7）：全局暂停、自动强平开关（高危）；平台总净敞口和阈值；品种净敞口表（暂停/恢复）；
  * 单用户持仓上限；最近风控事件。第一版唯一的自动规则：净敞口超阈值 → 自动禁止新开仓并通知风控。
+ * v2 E7：每 5 秒自动刷新（静默，不闪），可暂停，页面不可见时停止。
  */
 import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
@@ -10,6 +11,8 @@ import { useTranslation } from 'react-i18next';
 import { getRiskOverview, setAutoLiquidation, setGlobalPause, setPerUserLimit, setPlatformThreshold, setSymbolPaused, setSymbolThreshold } from '../../api';
 import type { RiskEvent, SymbolExposure } from '../../api/types';
 import { useApi } from '../../hooks/useApi';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { AutoRefreshControl } from '../../components/AutoRefreshControl';
 import { useHighRisk } from '../../hooks/useConfirmDialogs';
 import { useAuth } from '../../auth/AuthContext';
 import { PageHeader } from '../../components/PageHeader';
@@ -43,7 +46,8 @@ export function RiskPage() {
   const { t, i18n } = useTranslation();
   const { can } = useAuth();
   const fetcher = useCallback(() => getRiskOverview(), []);
-  const { data, loading, error, reload } = useApi(fetcher);
+  const { data, loading, error, reload, refresh } = useApi(fetcher);
+  const auto = useAutoRefresh(refresh, 5000);
   const hr = useHighRisk();
 
   /** optional：阈值可以留空（不监控，后台方案第 9 节）；单客户持仓上限必填 */
@@ -145,9 +149,12 @@ export function RiskPage() {
         title={t('risk.title')}
         sub={s ? t('risk.sub', { time: fullTime(s.updatedAt).slice(11) }) : t('risk.subLoading')}
         extra={
-          <Button icon={<ReloadOutlined />} onClick={reload} loading={loading}>
-            {t('common.refresh')}
-          </Button>
+          <>
+            <AutoRefreshControl auto={auto} />
+            <Button icon={<ReloadOutlined />} onClick={reload} loading={loading}>
+              {t('common.refresh')}
+            </Button>
+          </>
         }
       />
       <Alert type="info" showIcon message={t('risk.ruleTitle')} description={t('risk.ruleDesc')} />

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- 后台查看客户和 KYC（只读）。只有 account 模块使用。 -->
+<!-- 后台查看客户和 KYC；后台编辑客户资料（v2 E1）。只有 account 模块使用。 -->
 <mapper namespace="com.falconx.lite.account.admin.CustomerAdminMapper">
 
   <!-- 客户 + 资料 + 最近一次 KYC 申请 -->
@@ -38,6 +38,18 @@
   <select id="byIds" resultType="com.falconx.lite.account.admin.CustomerAdminMapper$CustomerRow">
     <include refid="customerSelect"/> WHERE u.id IN <foreach collection="ids" item="i" open="(" separator="," close=")">#{i}</foreach>
   </select>
+
+  <!-- 最近一次登录（v2 E6）：每次登录建一个会话，取最新的一个 -->
+  <select id="lastLogin" resultType="com.falconx.lite.account.admin.CustomerAdminMapper$LastLogin">
+    SELECT ip, created_at FROM account_session WHERE user_id = #{userId} ORDER BY id DESC LIMIT 1
+  </select>
+
+  <insert id="upsertProfile">
+    INSERT INTO account_profile (user_id, first_name, middle_name, last_name, birth_date, nationality)
+    VALUES (#{userId}, #{firstName}, #{middleName}, #{lastName}, #{birthDate}, #{nationality}) AS n
+    ON DUPLICATE KEY UPDATE first_name = n.first_name, middle_name = n.middle_name, last_name = n.last_name,
+      birth_date = n.birth_date, nationality = n.nationality
+  </insert>
 
   <update id="setFrozenReason">UPDATE account_user SET frozen_reason = #{reason} WHERE id = #{id}</update>
 

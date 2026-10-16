@@ -57,6 +57,15 @@ interface MarketAdminMapper {
 
   void updateSymbol(SymbolRow r);
 
+  /** 代码是否已存在（含停用的），新增品种时检查（v2 E3） */
+  long codeCount(@Param("code") String code);
+
+  int maxSortOrder();
+
+  void insertSymbol(SymbolRow r);
+
+  void insertSession(@Param("symbol") String symbol, @Param("day") int day, @Param("open") int open, @Param("close") int close);
+
   void setEnabled(@Param("code") String code, @Param("enabled") boolean enabled);
 
   List<SessionRow> sessions();

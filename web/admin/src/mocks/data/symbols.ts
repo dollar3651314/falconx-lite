@@ -75,6 +75,7 @@ const seeds: Seed[] = [
 ];
 
 const contractSize: Record<SymbolCategory, string> = {
+  fx: '100000',
   forex_major: '100000',
   forex_cross: '100000',
   cnh: '100000',
@@ -109,6 +110,7 @@ const fxWeek = (sundayOpen: string, fridayClose: string): Range[] => [
   { day: 5, open: '00:00', close: fridayClose },
 ];
 const sessionRanges: Record<SymbolCategory, Range[]> = {
+  fx: fxWeek('22:00', '21:00'),
   forex_major: fxWeek('22:00', '22:00'),
   forex_cross: fxWeek('22:00', '22:00'),
   cnh: fxWeek('22:00', '22:00'),
