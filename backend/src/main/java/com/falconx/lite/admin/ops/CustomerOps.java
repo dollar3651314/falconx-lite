@@ -25,7 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 后台"客户"（S16b）：列表、详情、冻结 / 解冻（AC-04）、调余额（后台方案 G5）。
+ * 后台"客户"（S16b）：列表、详情、冻结 / 解冻（AC-04）、调余额（后台方案 G5）；v2：编辑资料（E1）、详情显示最近登录 IP（E6）。
  * 调余额：单笔不超过 {@code adjust.singleLimit}、每个管理员当天（UTC）累计不超过 {@code adjust.dailyLimit}；
  * 扣减不能超过客户的可提金额（浮动盈利不算，和提现同一口径），所以余额不会被扣成负数；记账本 {@code ADMIN_ADJUST}。
  */
@@ -46,10 +46,16 @@ class CustomerOps {
 
   record LedgerView(String id, String type, String amount, String balanceAfter, String ref, String time) {}
 
-  /** 字段和原型 CustomerDetail 一致 */
+  /** 字段和原型 CustomerDetail 一致；lastLoginIp、lastLoginIpAt 是 v2 E6 加的（最近一个登录会话的 IP 和时间） */
   record Detail(long id, String name, String email, String nationality, String status, String kycStatus, String balance, int openPositions,
-      String registeredAt, String lastLoginAt, String firstName, String middleName, String lastName, String birthDate, String frozenReason, Kyc kyc,
-      Account account, List<PositionView> positions, List<LedgerView> ledger) {}
+      String registeredAt, String lastLoginAt, String lastLoginIp, String lastLoginIpAt, String firstName, String middleName, String lastName,
+      String birthDate, String frozenReason, Kyc kyc, Account account, List<PositionView> positions, List<LedgerView> ledger) {}
+
+  /**
+   * 编辑资料的请求体（v2 E1）。email、status 只用来拒绝：编辑里不能改邮箱，状态只能用冻结 / 解冻改。
+   */
+  record ProfileBody(String firstName, String middleName, String lastName, String birthDate, String nationality, String email, String status,
+      String reason) {}
 
   record Limits(String singleLimit, String dailyLimit, String usedToday) {}
 
@@ -126,8 +132,53 @@ class CustomerOps {
         Ops.money(m.withdrawFrozen()));
     LocalDate birth = d.birthDate();
     return new Detail(c.id(), c.name(), c.email(), c.nationality(), apiStatus(c.status()), apiStatus(c.kycStatus()), Ops.money(m.balance()), positions.size(),
-        Ops.time(c.registeredAt()), Ops.time(c.lastLoginAt()), d.firstName(), d.middleName(), d.lastName(), birth == null ? null : birth.toString(),
-        d.frozenReason(), kyc, account, positions, lines);
+        Ops.time(c.registeredAt()), Ops.time(c.lastLoginAt()), d.lastLoginIp(), Ops.time(d.lastLoginIpAt()), d.firstName(), d.middleName(), d.lastName(),
+        birth == null ? null : birth.toString(), d.frozenReason(), kyc, account, positions, lines);
+  }
+
+  /**
+   * 编辑客户资料（v2 E1，高危，必须填原因）：姓名（名、中间名、姓）、出生日期、国籍。
+   * 审计只记改了的字段；KYC 已通过的客户也允许改，但审计里标出 {@code kycApproved: true}（修改后和证件可能不一致），页面上也会提示。
+   */
+  @Transactional
+  Detail editProfile(long id, ProfileBody b) {
+    ProfileBody body = b == null ? new ProfileBody(null, null, null, null, null, null, null, null) : b;
+    String r = Audit.requireReason(body.reason());
+    ValidationException.Collector notEditable = new ValidationException.Collector();
+    if (body.email() != null) notEditable.add("email", "notEditable");
+    if (body.status() != null) notEditable.add("status", "notEditable");
+    notEditable.throwIfAny();
+    audit.run("customer.edit", String.valueOf(id), true, r, () -> {
+      CustomerAdminApi.CustomerDetail d = customers.customer(id).orElseThrow(() -> new BizException("NOT_FOUND", "客户不存在"));
+      CustomerAdminApi.ProfileEdit before = customers.updateProfile(id, new CustomerAdminApi.ProfileEdit(body.firstName(), body.middleName(), body.lastName(),
+          body.birthDate(), body.nationality()));
+      CustomerAdminApi.CustomerDetail now = customers.customer(id).orElseThrow();
+      CustomerAdminApi.ProfileEdit after = new CustomerAdminApi.ProfileEdit(now.firstName(), now.middleName(), now.lastName(),
+          now.birthDate() == null ? null : now.birthDate().toString(), now.customer().nationality());
+      Map<String, Object> was = new java.util.LinkedHashMap<>();
+      Map<String, Object> is = new java.util.LinkedHashMap<>();
+      for (var comp : CustomerAdminApi.ProfileEdit.class.getRecordComponents()) {
+        try {
+          Object x = comp.getAccessor().invoke(before);
+          Object y = comp.getAccessor().invoke(after);
+          if (!java.util.Objects.equals(x == null ? "" : x, y == null ? "" : y)) {
+            was.put(comp.getName(), x);
+            is.put(comp.getName(), y);
+          }
+        } catch (ReflectiveOperationException e) {
+          throw new IllegalStateException(e);
+        }
+      }
+      if ("APPROVED".equals(d.customer().kycStatus())) {
+        // KYC 已通过：允许改，但在审计里标出（改姓名、出生日期会和证件不一致）
+        is.put("kycApproved", true);
+        if (is.containsKey("firstName") || is.containsKey("middleName") || is.containsKey("lastName") || is.containsKey("birthDate")) {
+          is.put("kycMismatch", "KYC 已通过，修改后和证件不一致");
+        }
+      }
+      return Audit.Change.of(null, was, is);
+    });
+    return detail(id);
   }
 
   static String docType(String db) {

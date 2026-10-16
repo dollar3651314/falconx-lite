@@ -73,6 +73,13 @@ class OpsController {
     return customers.detail(id);
   }
 
+  /** v2 E1：编辑客户资料（高危，必须填原因）；邮箱、状态不能在这里改 */
+  @RequiresPermission(Permission.CUSTOMER_EDIT)
+  @PutMapping("/api/admin/customers/{id}/profile")
+  CustomerOps.Detail editProfile(@PathVariable long id, @RequestBody CustomerOps.ProfileBody body) {
+    return customers.editProfile(id, body);
+  }
+
   @RequiresPermission(Permission.CUSTOMER_ADJUST_BALANCE)
   @GetMapping("/api/admin/customers/adjust-limits")
   CustomerOps.Limits adjustLimits() {

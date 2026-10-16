@@ -1,12 +1,15 @@
 /**
  * 客户详情：资料、KYC、账户余额、持仓、最近资金流水；冻结/解冻、调整余额（高危）。
+ * v2 E1：编辑资料（高危，必须填原因）：姓名（名、中间名、姓）、出生日期、国籍；邮箱不能改，状态只能用冻结 / 解冻改。
+ *   校验和客户端注册一致（utils/validators.ts）；KYC 已通过的客户允许改，但弹窗里提示"修改会和证件不一致"，审计里也会标出。
+ * v2 E6：资料里显示最近登录 IP 和时间。
  */
 import { useCallback } from 'react';
 import { Alert, Button, Descriptions, Form, Input, Radio, Skeleton, Space } from 'antd';
-import { ArrowLeftOutlined, LockOutlined, UnlockOutlined, DollarOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, LockOutlined, UnlockOutlined, DollarOutlined, EditOutlined } from '@ant-design/icons';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { adjustBalance, getAdjustLimits, getCustomer, setCustomerFrozen } from '../../api';
+import { adjustBalance, getAdjustLimits, getCustomer, setCustomerFrozen, updateCustomerProfile } from '../../api';
 import type { LedgerEntry, Position } from '../../api/types';
 import { useApi } from '../../hooks/useApi';
 import { useHighRisk } from '../../hooks/useConfirmDialogs';
@@ -18,7 +21,7 @@ import { Pill } from '../../components/Pill';
 import { Amount, Num } from '../../components/Num';
 import { customerTone, kycTone } from '../../utils/status';
 import { formatAmount, subtractAmounts } from '../../utils/money';
-import { adjustAmountProblems } from '../../utils/validators';
+import { adjustAmountProblems, birthDateProblems, nameProblems, nationalityProblems } from '../../utils/validators';
 import { fullTime, shortTime } from '../../utils/display';
 
 export function CustomerDetailPage() {
@@ -43,6 +46,81 @@ export function CustomerDetailPage() {
       ),
       confirmText: freezing ? t('customers.confirmFreeze') : t('customers.confirmUnfreeze'),
       onConfirm: (v) => setCustomerFrozen(c.id, freezing, v.reason),
+      onDone: reload,
+    });
+  };
+
+  /** 表单校验：把校验函数返回的翻译键拼成一条提示（一次显示这个字段的全部问题） */
+  const rule = (problems: (v: string) => string[]) => ({
+    validator: (_r: unknown, value: string | undefined) => {
+      const p = problems(value ?? '');
+      return p.length ? Promise.reject(new Error(p.map((k) => t(k)).join('；'))) : Promise.resolve();
+    },
+  });
+
+  const askEdit = () => {
+    if (!c) return;
+    const kycApproved = c.kyc.status === 'approved';
+    hr.ask({
+      title: t('customers.editProfile'),
+      description: (
+        <>
+          <div>{t('customers.targetLine', { name: c.name, id: c.id, email: c.email })}</div>
+          <div>{t('customers.editProfileImpact')}</div>
+        </>
+      ),
+      initialValues: {
+        firstName: c.firstName ?? '',
+        middleName: c.middleName ?? '',
+        lastName: c.lastName ?? '',
+        birthDate: c.birthDate ?? '',
+        nationality: c.nationality ?? '',
+      },
+      extra: (
+        <div className="profile-form">
+          {kycApproved ? <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={t('customers.kycApprovedEditWarning')} /> : null}
+          <Form.Item label={t('customers.email')} extra={t('customers.emailReadOnly')}>
+            <Input value={c.email} disabled />
+          </Form.Item>
+          <div className="name-row">
+            <Form.Item name="firstName" label={t('customers.firstName')} required rules={[rule((v) => nameProblems(v, true))]}>
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="middleName" label={t('customers.middleName')} rules={[rule((v) => nameProblems(v, false))]}>
+              <Input autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="lastName" label={t('customers.lastName')} required rules={[rule((v) => nameProblems(v, true))]}>
+              <Input autoComplete="off" />
+            </Form.Item>
+          </div>
+          <Form.Item name="birthDate" label={t('customers.birthDate')} required extra={t('customers.birthDateHint')} rules={[rule((v) => birthDateProblems(v))]}>
+            <Input placeholder="1990-01-31" inputMode="numeric" autoComplete="off" />
+          </Form.Item>
+          <Form.Item
+            name="nationality"
+            label={t('customers.nationality')}
+            required
+            extra={t('customers.nationalityHint')}
+            normalize={(v: string) => (v ?? '').toUpperCase()}
+            rules={[rule(nationalityProblems)]}
+          >
+            <Input maxLength={2} style={{ width: 120 }} autoComplete="off" />
+          </Form.Item>
+        </div>
+      ),
+      confirmText: t('customers.confirmEditProfile'),
+      onConfirm: (v) =>
+        updateCustomerProfile(
+          c.id,
+          {
+            firstName: String(v.firstName ?? '').trim(),
+            middleName: String(v.middleName ?? '').trim(),
+            lastName: String(v.lastName ?? '').trim(),
+            birthDate: String(v.birthDate ?? '').trim(),
+            nationality: String(v.nationality ?? '').trim(),
+          },
+          v.reason,
+        ),
       onDone: reload,
     });
   };
@@ -115,6 +193,9 @@ export function CustomerDetailPage() {
         extra={
           c ? (
             <>
+              <PermButton perm="customer:edit" icon={<EditOutlined />} onClick={askEdit}>
+                {t('customers.editProfile')}
+              </PermButton>
               <PermButton perm="customer:freeze" danger icon={c.status === 'active' ? <LockOutlined /> : <UnlockOutlined />} onClick={askFreeze}>
                 {c.status === 'active' ? t('customers.freeze') : t('customers.unfreeze')}
               </PermButton>
@@ -170,6 +251,16 @@ export function CustomerDetailPage() {
               <Descriptions.Item label={t('customers.birthDate')}><Num>{c.birthDate ?? '—'}</Num></Descriptions.Item>
               <Descriptions.Item label={t('customers.registeredAt')}><Num>{fullTime(c.registeredAt)}</Num></Descriptions.Item>
               <Descriptions.Item label={t('customers.lastLogin')}>{c.lastLoginAt ? <Num>{fullTime(c.lastLoginAt)}</Num> : t('customers.neverLogin')}</Descriptions.Item>
+              <Descriptions.Item label={t('customers.lastLoginIp')}>
+                {c.lastLoginIp ? (
+                  <span>
+                    <Num>{c.lastLoginIp}</Num>
+                    {c.lastLoginIpAt ? <span className="muted"> · <Num>{fullTime(c.lastLoginIpAt)}</Num></span> : null}
+                  </span>
+                ) : (
+                  '—'
+                )}
+              </Descriptions.Item>
             </Descriptions>
           </div>
 

@@ -152,6 +152,9 @@ export interface Position {
 }
 
 export interface CustomerDetail extends CustomerSummary {
+  /** 最近一次登录的 IP 和时间（v2 E6，取最近一个登录会话）；从没登录过为空 */
+  lastLoginIp?: string | null;
+  lastLoginIpAt?: string | null;
   firstName: string | null;
   middleName: string | null;
   lastName: string | null;
@@ -173,6 +176,17 @@ export interface CustomerDetail extends CustomerSummary {
   };
   positions: Position[];
   ledger: LedgerEntry[];
+}
+
+/** 后台编辑客户资料（v2 E1）：只有这 5 项；邮箱不能改，状态只能用冻结 / 解冻改 */
+export interface CustomerProfileInput {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  /** YYYY-MM-DD */
+  birthDate: string;
+  /** ISO 3166-1 两位大写字母 */
+  nationality: string;
 }
 
 export interface AdjustLimits {
@@ -451,7 +465,8 @@ export interface RiskOverview {
 }
 
 // ---------- 品种与行情 ----------
-export type SymbolCategory = 'forex_major' | 'forex_cross' | 'cnh' | 'metal' | 'index' | 'energy' | 'crypto' | 'stock';
+/** 原型用细分的外汇类别；后端（真实接口）外汇只有一个 fx */
+export type SymbolCategory = 'fx' | 'forex_major' | 'forex_cross' | 'cnh' | 'metal' | 'index' | 'energy' | 'crypto' | 'stock';
 
 /**
  * 品种（字段按后端，后台方案第 9 节）：没有原型的 lpSymbol、spreadPoints、sessionId；
@@ -482,12 +497,46 @@ export interface TradingSymbol {
   openPaused: boolean;
   sortOrder: number;
   updatedAt: string | null;
+  /** 最后一条正常报价的时间（v2 E6）；从没收到过为空（显示"暂无报价"） */
+  lastQuoteAt?: string | null;
+  /** 现在是否在交易时段内：休市时没有报价是正常的，不标红 */
+  tradingOpen?: boolean;
 }
 
-/** 改品种参数：合约大小、报价货币、小数位不能改 */
+/** 改品种参数：合约大小、报价货币、小数位不能改；openPaused 是品种自己的"暂停开仓"（新增的品种默认暂停，在这里打开） */
 export type SymbolPatch = Partial<
-  Pick<TradingSymbol, 'nameZh' | 'nameEn' | 'maxLeverage' | 'minLots' | 'maxLots' | 'lotStep' | 'openFeeRate' | 'maintenanceMarginRate' | 'markup' | 'swapLong' | 'swapShort' | 'hot' | 'sortOrder'>
+  Pick<
+    TradingSymbol,
+    'nameZh' | 'nameEn' | 'maxLeverage' | 'minLots' | 'maxLots' | 'lotStep' | 'openFeeRate' | 'maintenanceMarginRate' | 'markup' | 'swapLong' | 'swapShort' | 'hot' | 'sortOrder' | 'openPaused'
+  >
 >;
+
+/** 新增品种的交易时段模板（UTC）：fx 周日 22:00–周五 21:00；crypto 全天候；us_stock 周一至周五 13:30–20:00 */
+export type SessionTemplate = 'fx' | 'crypto' | 'us_stock';
+
+/**
+ * 新增品种（v2 E3）。新增后默认暂停开仓；隔夜费率未配置（标红）。
+ * 交易时段二选一：copySessionsFrom（从已有品种复制）或 sessionTemplate（模板）。
+ */
+export interface SymbolCreateInput {
+  code: string;
+  nameZh: string;
+  nameEn: string;
+  category: SymbolCategory;
+  digits: number;
+  contractSize: string;
+  quoteCurrency: string;
+  maxLeverage: number;
+  maintenanceMarginRate: string;
+  openFeeRate: string;
+  minLots: string;
+  maxLots: string;
+  lotStep: string;
+  markup: string;
+  hot: boolean;
+  copySessionsFrom?: string;
+  sessionTemplate?: SessionTemplate;
+}
 
 export interface SymbolQuery extends PageQuery {
   category?: SymbolCategory;

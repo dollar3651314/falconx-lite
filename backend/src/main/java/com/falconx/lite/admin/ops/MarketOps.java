@@ -26,12 +26,24 @@ import org.springframework.stereotype.Service;
 class MarketOps {
 
   /** 品种（原型 TradingSymbol 的字段按后端实际调整，见后台方案第 9 节） */
+  /**
+   * 品种。v2 E6：lastQuoteAt 最后一条正常报价的时间（从没收到过为空，页面显示"暂无报价"）、tradingOpen 现在是否在交易时段内
+   * （休市时没有报价是正常的，页面不标红）。
+   */
   record SymbolView(String code, String nameZh, String nameEn, String category, String quoteCurrency, String contractSize, String minLots, String maxLots,
       String lotStep, int maxLeverage, String maintenanceMarginRate, String openFeeRate, String swapLong, String swapShort, String markup, int digits, boolean hot,
-      boolean enabled, boolean openPaused, int sortOrder, String updatedAt) {}
+      boolean enabled, boolean openPaused, int sortOrder, String updatedAt, String lastQuoteAt, boolean tradingOpen) {}
 
+  /** openPaused：品种自己的"暂停开仓"（新增的品种默认暂停，运营确认报价正常后在这里打开） */
   record SymbolPatchBody(String nameZh, String nameEn, Integer maxLeverage, String minLots, String maxLots, String lotStep, String openFeeRate,
-      String maintenanceMarginRate, String markup, String swapLong, String swapShort, Boolean hot, Integer sortOrder, String reason) {}
+      String maintenanceMarginRate, String markup, String swapLong, String swapShort, Boolean hot, Integer sortOrder, Boolean openPaused, String reason) {}
+
+  /**
+   * 新增品种（v2 E3）。数值都用字符串（不经过浮点）；交易时段二选一：copySessionsFrom（已有品种代码）或 sessionTemplate（fx / crypto / us_stock）。
+   */
+  record SymbolCreateBody(String code, String nameZh, String nameEn, String category, Integer digits, String contractSize, String quoteCurrency,
+      Integer maxLeverage, String maintenanceMarginRate, String openFeeRate, String minLots, String maxLots, String lotStep, String markup, Boolean hot,
+      String copySessionsFrom, String sessionTemplate, String reason) {}
 
   record Range(int day, String open, String close) {}
 
@@ -58,7 +70,8 @@ class MarketOps {
     SymbolSpec x = s.spec();
     return new SymbolView(x.code(), x.nameZh(), x.nameEn(), x.category(), x.quoteCcy(), Ops.money(x.contractSize()), Ops.money(x.minLots()),
         Ops.money(x.maxLots()), Ops.money(x.lotStep()), x.maxLeverage(), Ops.money(x.maintenanceMarginRate()), Ops.money(x.feeRate()), Ops.money(x.swapLong()),
-        Ops.money(x.swapShort()), Ops.money(x.markup()), x.digits(), x.hot(), s.enabled(), x.openPaused(), x.sortOrder(), Ops.time(s.updatedAt()));
+        Ops.money(x.swapShort()), Ops.money(x.markup()), x.digits(), x.hot(), s.enabled(), x.openPaused(), x.sortOrder(), Ops.time(s.updatedAt()),
+        s.lastQuoteAt() == null ? null : s.lastQuoteAt().toString(), s.tradingOpen());
   }
 
   /** missingSwap：多空隔夜费率都是 0（没配置，不收隔夜费，后台标红） */
@@ -92,17 +105,65 @@ class MarketOps {
 
   /** 改品种参数（高危）：只影响以后开的仓，已有持仓的强平价不变 */
   SymbolView updateSymbol(String code, SymbolPatchBody b) {
-    SymbolPatchBody body = b == null ? new SymbolPatchBody(null, null, null, null, null, null, null, null, null, null, null, null, null, null) : b;
+    SymbolPatchBody body = b == null ? new SymbolPatchBody(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null) : b;
     String r = Audit.requireReason(body.reason());
     MarketAdminApi.SymbolPatch patch = new MarketAdminApi.SymbolPatch(body.nameZh(), body.nameEn(), body.maxLeverage(), dec("minLots", body.minLots()),
         dec("maxLots", body.maxLots()), dec("lotStep", body.lotStep()), dec("openFeeRate", body.openFeeRate()),
         dec("maintenanceMarginRate", body.maintenanceMarginRate()), dec("markup", body.markup()), dec("swapLong", body.swapLong()),
-        dec("swapShort", body.swapShort()), body.hot(), body.sortOrder());
+        dec("swapShort", body.swapShort()), body.hot(), body.sortOrder(), body.openPaused());
     return audit.run("symbol.update", code, true, r, () -> {
       SymbolView before = view(market.updateSymbol(code, patch));
       SymbolView after = current(code);
       return Audit.Change.of(after, diff(before, after, true), diff(before, after, false));
     });
+  }
+
+  /** 不是配置的字段（随时间变化），审计不记 */
+  private static final java.util.Set<String> IGNORED_IN_DIFF = java.util.Set.of("updatedAt", "lastQuoteAt", "tradingOpen");
+
+  /**
+   * 新增品种（v2 E3，高危，必须填原因）：默认暂停开仓；审计记新品种的全部参数和交易时段来源。
+   * 数值格式不对的字段和其他字段错误一起返回。
+   */
+  SymbolView createSymbol(SymbolCreateBody b) {
+    SymbolCreateBody body = b == null
+        ? new SymbolCreateBody(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null) : b;
+    String r = Audit.requireReason(body.reason());
+    MarketAdminApi.SymbolCreate create = new MarketAdminApi.SymbolCreate(body.code() == null ? null : body.code().strip().toUpperCase(Locale.ROOT),
+        body.nameZh(), body.nameEn(), body.category(), body.digits(), num(body.contractSize()), body.quoteCurrency(), body.maxLeverage(),
+        num(body.maintenanceMarginRate()), num(body.openFeeRate()), num(body.minLots()),
+        num(body.maxLots()), num(body.lotStep()), num(body.markup()), body.hot(), body.copySessionsFrom(),
+        body.sessionTemplate());
+    String target = create.code() == null ? "" : create.code();
+    return audit.run("symbol.create", target, true, r, () -> {
+      // 行情模块的事务已经提交、内存里的品种已经重新加载，再取一次（交易时段状态按新品种算）
+      SymbolView v = current(market.createSymbol(create).spec().code());
+      Map<String, Object> after = new LinkedHashMap<>();
+      for (var c : SymbolView.class.getRecordComponents()) {
+        if (IGNORED_IN_DIFF.contains(c.getName())) continue;
+        try {
+          after.put(c.getName(), c.getAccessor().invoke(v));
+        } catch (ReflectiveOperationException e) {
+          throw new IllegalStateException(e);
+        }
+      }
+      after.put("sessions", create.copySessionsFrom() != null && !create.copySessionsFrom().isBlank() ? "copy:" + create.copySessionsFrom().strip()
+          : "template:" + create.sessionTemplate());
+      return Audit.Change.of(v, null, after);
+    });
+  }
+
+  /** 不是数字时传给行情模块的值：所有数值字段都不接受负数，行情模块会把它和其他字段错误一起报成 invalid */
+  private static final BigDecimal NOT_A_NUMBER = BigDecimal.ONE.negate();
+
+  /** 数值字段：空表示没填（由行情模块报 required），格式不对报 invalid */
+  private static BigDecimal num(String v) {
+    if (v == null || v.isBlank()) return null;
+    try {
+      return new BigDecimal(v.strip());
+    } catch (NumberFormatException e) {
+      return NOT_A_NUMBER;
+    }
   }
 
   /** 只记改了的字段 */
@@ -112,7 +173,7 @@ class MarketOps {
       try {
         Object x = c.getAccessor().invoke(a);
         Object y = c.getAccessor().invoke(b);
-        if (!java.util.Objects.equals(x, y) && !"updatedAt".equals(c.getName())) out.put(c.getName(), before ? x : y);
+        if (!java.util.Objects.equals(x, y) && !IGNORED_IN_DIFF.contains(c.getName())) out.put(c.getName(), before ? x : y);
       } catch (ReflectiveOperationException e) {
         throw new IllegalStateException(e);
       }

@@ -13,6 +13,7 @@ import {
   type AuditValue,
   type CurrentAdmin,
   type CustomerDetail,
+  type CustomerProfileInput,
   type CustomerQuery,
   type CustomerSummary,
   type DashboardStats,
@@ -40,6 +41,7 @@ import {
   type TradingParams,
   type TradingParamsInput,
   type RiskOverview,
+  type SymbolCreateInput,
   type SymbolPatch,
   type TradingSymbol,
   type WithdrawalDetail,
@@ -51,8 +53,9 @@ import { MENU, type MenuItemDef } from '../config/menu';
 import { PERMISSIONS, SUPER_ADMIN_ROLE } from '../config/permissions';
 import { sanitizeAuditPayload } from '../utils/audit';
 import { compareAmounts, fromScaled, isValidAmountInput, sumAmounts, toScaled, usagePercent } from '../utils/money';
+import { CURRENCY_RE, SYMBOL_CODE_RE, birthDateProblems, nameProblems, nationalityProblems } from '../utils/validators';
 import * as db from './data/db';
-import { createRng, minutesAgo, nowString } from './data/seed';
+import { NOW_MS, createRng, minutesAgo, nowString } from './data/seed';
 import { emptyPage, matches, mutate, paginate, respond } from './runtime';
 
 // ============ 工具 ============
@@ -260,12 +263,15 @@ export function getCustomer(id: number): Promise<CustomerDetail> {
     const frozenWd = sumAmounts(db.withdrawals.filter((w) => w.customerId === id && ['cooling', 'pending', 'delayed', 'broadcasting'].includes(w.status)).map((w) => w.amount));
     const avail = fromScaled((toScaled(c.balance) ?? 0n) - (toScaled(used) ?? 0n) - (toScaled(frozenWd) ?? 0n));
     const [first, ...rest] = c.name.split(' ');
+    const edited = db.customerProfiles.get(id);
     return {
       ...c,
-      firstName: rest.length ? first : c.name.slice(1) || c.name,
-      middleName: '',
-      lastName: rest.length ? rest.join(' ') : c.name.slice(0, 1),
-      birthDate: kyc?.birthDate ?? '1990-05-12',
+      lastLoginIp: db.lastLoginIpOf(c),
+      lastLoginIpAt: c.lastLoginAt,
+      firstName: edited ? edited.firstName : rest.length ? first : c.name.slice(1) || c.name,
+      middleName: edited ? edited.middleName : '',
+      lastName: edited ? edited.lastName : rest.length ? rest.join(' ') : c.name.slice(0, 1),
+      birthDate: edited ? edited.birthDate : kyc?.birthDate ?? '1990-05-12',
       frozenReason: c.status === 'frozen' ? '客户来电称手机丢失，申请冻结' : null,
       kyc: {
         status: c.kycStatus,
@@ -307,6 +313,71 @@ export function setCustomerFrozen(id: number, frozen: boolean, reason: string): 
     c.status = frozen ? 'frozen' : 'active';
     audit(frozen ? 'customer.freeze' : 'customer.unfreeze', String(id), true, r, { status: before }, { status: c.status });
   });
+}
+
+/** 字段错误：和真实接口一样一次返回全部（apiFieldCode 的翻译键） */
+function fieldError(fields: { field: string; code: string }[]): ApiError {
+  return new ApiError('errors.validationFailed', undefined, { status: 400, code: 'VALIDATION_FAILED', fields });
+}
+
+/** 翻译键 validation.xxx → 后端的字段错误码（和后端 CustomerAdmin 一致） */
+const FIELD_CODE: Record<string, string> = {
+  'validation.required': 'required',
+  'validation.nameTooLong': 'nameTooLong',
+  'validation.nameChars': 'nameChars',
+  'validation.dateFormat': 'dateFormat',
+  'validation.dateInvalid': 'dateInvalid',
+  'validation.ageUnder18': 'ageUnder18',
+  'validation.nationalityFormat': 'nationalityInvalid',
+};
+
+/** 编辑客户资料（v2 E1，高危）：校验和客户端注册一致；KYC 已通过也允许改，审计里标出 */
+export function updateCustomerProfile(id: number, input: CustomerProfileInput, reason: string): Promise<CustomerDetail> {
+  return mutate(() => {
+    requirePerm('customer:edit');
+    const r = requireReason(reason);
+    const c = db.customerById(id);
+    if (!c) throw new ApiError('errors.notFound');
+    const problems: { field: string; code: string }[] = [];
+    const push = (field: string, keys: string[]) => keys.forEach((k) => problems.push({ field, code: FIELD_CODE[k] ?? k }));
+    push('firstName', nameProblems(input.firstName, true));
+    push('middleName', nameProblems(input.middleName, false));
+    push('lastName', nameProblems(input.lastName, true));
+    push('birthDate', birthDateProblems(input.birthDate, new Date(NOW_MS)));
+    push('nationality', nationalityProblems(input.nationality));
+    if (problems.length) throw fieldError(problems);
+    const kyc = db.kycApplications.find((k) => k.customerId === id);
+    const [first, ...rest] = c.name.split(' ');
+    const old = db.customerProfiles.get(id) ?? {
+      firstName: rest.length ? first : c.name.slice(1) || c.name,
+      middleName: '',
+      lastName: rest.length ? rest.join(' ') : c.name.slice(0, 1),
+      birthDate: kyc?.birthDate ?? '1990-05-12',
+    };
+    const next = { firstName: input.firstName.trim(), middleName: input.middleName.trim(), lastName: input.lastName.trim(), birthDate: input.birthDate.trim() };
+    const before: Record<string, AuditValue> = {};
+    const after: Record<string, AuditValue> = {};
+    (Object.keys(next) as (keyof typeof next)[]).forEach((k) => {
+      if (old[k] !== next[k]) {
+        before[k] = old[k];
+        after[k] = next[k];
+      }
+    });
+    if (c.nationality !== input.nationality.trim()) {
+      before.nationality = c.nationality;
+      after.nationality = input.nationality.trim();
+    }
+    if (c.kycStatus === 'approved') {
+      after.kycApproved = true;
+      if (['firstName', 'middleName', 'lastName', 'birthDate'].some((k) => k in after)) after.kycMismatch = 'KYC 已通过，修改后和证件不一致';
+    }
+    db.customerProfiles.set(id, next);
+    c.nationality = input.nationality.trim();
+    c.name = [next.lastName, next.firstName].every((x) => /^[\u4e00-\u9fff]+$/.test(x))
+      ? `${next.lastName}${next.firstName}`
+      : [next.firstName, next.middleName, next.lastName].filter(Boolean).join(' ');
+    audit('customer.edit', String(id), true, r, before, after);
+  }).then(() => getCustomer(id));
 }
 
 export function getAdjustLimits(): Promise<AdjustLimits> {
@@ -660,6 +731,19 @@ export function setPerUserLimit(limit: string, reason: string): Promise<void> {
 }
 
 // ============ 品种与行情 ============
+/**
+ * 模拟的最后报价时间（v2 E6）：按真实时间算，开市品种几秒前有报价；HK50 演示"超过 1 分钟没报价"（标红）；
+ * 停用的品种、新增后还没报价源的品种为空（显示"暂无报价"）；美股按休市处理（不标红）。
+ */
+const STALE_DEMO = 'HK50';
+const quotedSymbols = new Set(db.symbols.map((s) => s.code));
+function withQuoteTime(s: TradingSymbol): TradingSymbol {
+  const tradingOpen = s.enabled && s.category !== 'stock';
+  if (!s.enabled || !quotedSymbols.has(s.code)) return { ...s, lastQuoteAt: null, tradingOpen };
+  const ageMs = s.code === STALE_DEMO ? 3 * 60_000 + 12_000 : s.category === 'stock' ? 15 * 3600_000 : (s.code.charCodeAt(0) % 5) * 1000 + 600;
+  return { ...s, lastQuoteAt: new Date(Date.now() - ageMs).toISOString(), tradingOpen };
+}
+
 export function listSymbols(q: SymbolQuery): Promise<Page<TradingSymbol>> {
   return respond(
     () =>
@@ -670,7 +754,7 @@ export function listSymbols(q: SymbolQuery): Promise<Page<TradingSymbol>> {
             (q.enabled === undefined || s.enabled === q.enabled) &&
             (!q.missingSwap || s.swapLong === null || s.swapShort === null) &&
             matches(q.keyword, s.code, s.nameZh, s.nameEn),
-        ),
+        ).map(withQuoteTime),
         q.page,
         q.pageSize,
       ),
@@ -694,6 +778,75 @@ export function updateSymbol(code: string, patch: SymbolPatch, reason: string): 
     });
     Object.assign(s, patch, { updatedAt: nowString() });
     audit('symbol.update', code, true, r, before, after);
+  });
+}
+
+/** 新增品种（v2 E3，高危）：校验和后端一致；新增后默认暂停开仓，没有报价源（暂无报价） */
+export function createSymbol(input: SymbolCreateInput, reason: string): Promise<TradingSymbol> {
+  return mutate(() => {
+    requirePerm('symbol:create');
+    const r = requireReason(reason);
+    const code = (input.code ?? '').trim().toUpperCase();
+    const problems: { field: string; code: string }[] = [];
+    const bad = (field: string, c: string) => problems.push({ field, code: c });
+    if (!code) bad('code', 'required');
+    else if (!SYMBOL_CODE_RE.test(code)) bad('code', 'invalid');
+    if (!input.nameZh?.trim()) bad('nameZh', 'required');
+    if (!input.nameEn?.trim()) bad('nameEn', 'required');
+    if (!Number.isInteger(input.digits) || input.digits < 0 || input.digits > 8) bad('digits', 'invalid');
+    if (!isValidAmountInput(input.contractSize ?? '', 8)) bad('contractSize', 'invalid');
+    const quote = (input.quoteCurrency ?? '').trim().toUpperCase();
+    if (!CURRENCY_RE.test(quote)) bad('quoteCurrency', 'invalid');
+    else if (quote !== 'USD' && quote !== 'USDT' && !db.symbols.some((s) => s.code === `${quote}USD` || s.code === `USD${quote}`) && quote !== 'HKD') bad('quoteCurrency', 'noFxRate');
+    if (!Number.isInteger(input.maxLeverage) || input.maxLeverage < 1 || input.maxLeverage > 1000) bad('maxLeverage', 'invalid');
+    if (!isValidAmountInput(input.maintenanceMarginRate ?? '', 8) || compareAmounts(input.maintenanceMarginRate, '0.5', 8) > 0) bad('maintenanceMarginRate', 'invalid');
+    const fee = (input.openFeeRate ?? '').trim();
+    if (!/^\d+(\.\d{1,8})?$/.test(fee) || compareAmounts(fee, '0.01', 8) > 0) bad('openFeeRate', 'invalid');
+    (['minLots', 'maxLots', 'lotStep'] as const).forEach((k) => {
+      if (!isValidAmountInput(input[k] ?? '', 8)) bad(k, 'invalid');
+    });
+    if (isValidAmountInput(input.minLots ?? '', 8) && isValidAmountInput(input.maxLots ?? '', 8) && compareAmounts(input.minLots, input.maxLots, 8) > 0) bad('maxLots', 'lessThanMin');
+    if (!/^\d+(\.\d{1,8})?$/.test((input.markup ?? '0').trim() || '0')) bad('markup', 'invalid');
+    const copy = input.copySessionsFrom?.trim();
+    if (!copy && !input.sessionTemplate) bad('sessions', 'required');
+    else if (copy && !db.sessions.some((s) => s.symbol === copy)) bad('copySessionsFrom', 'invalid');
+    if (problems.length) throw fieldError(problems);
+    if (db.symbols.some((s) => s.code === code)) throw new ApiError('errors.symbolExists', undefined, { status: 409, code: 'SYMBOL_EXISTS' });
+    const ranges = copy
+      ? db.sessions.find((s) => s.symbol === copy)!.ranges.map((x) => ({ ...x }))
+      : input.sessionTemplate === 'crypto'
+        ? [1, 2, 3, 4, 5, 6, 7].map((day) => ({ day, open: '00:00', close: '24:00' }))
+        : input.sessionTemplate === 'us_stock'
+          ? [1, 2, 3, 4, 5].map((day) => ({ day, open: '13:30', close: '20:00' }))
+          : [{ day: 7, open: '22:00', close: '24:00' }, ...[1, 2, 3, 4].map((day) => ({ day, open: '00:00', close: '24:00' })), { day: 5, open: '00:00', close: '21:00' }];
+    const s: TradingSymbol = {
+      code,
+      nameZh: input.nameZh.trim(),
+      nameEn: input.nameEn.trim(),
+      category: input.category,
+      quoteCurrency: quote,
+      contractSize: input.contractSize.trim(),
+      minLots: input.minLots.trim(),
+      maxLots: input.maxLots.trim(),
+      lotStep: input.lotStep.trim(),
+      maxLeverage: input.maxLeverage,
+      maintenanceMarginRate: input.maintenanceMarginRate.trim(),
+      openFeeRate: fee,
+      swapLong: null,
+      swapShort: null,
+      markup: (input.markup ?? '0').trim() || '0',
+      digits: input.digits,
+      hot: !!input.hot,
+      enabled: true,
+      openPaused: true,
+      sortOrder: Math.max(0, ...db.symbols.map((x) => x.sortOrder)) + 10,
+      updatedAt: nowString(),
+    };
+    db.symbols.push(s);
+    db.sessions.push({ symbol: code, ranges });
+    const after: Record<string, AuditValue> = { ...(s as unknown as Record<string, AuditValue>), sessions: copy ? `copy:${copy}` : `template:${input.sessionTemplate}` };
+    audit('symbol.create', code, true, r, null, after);
+    return withQuoteTime(s);
   });
 }
 

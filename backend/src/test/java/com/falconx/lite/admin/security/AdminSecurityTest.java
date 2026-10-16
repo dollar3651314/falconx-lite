@@ -198,6 +198,6 @@ class AdminSecurityTest extends AdminTestSupport {
     assertThat(m.get("name")).isEqualTo("n");
     @SuppressWarnings("unchecked") Map<String, Object> nested = (Map<String, Object>) m.get("nested");
     assertThat(nested).containsEntry("apiToken", "***").containsEntry("secretKey", "***").containsEntry("ok", 1);
-    assertThat(Set.of(Permission.values())).hasSize(46);
+    assertThat(Set.of(Permission.values())).hasSize(48);
   }
 }
