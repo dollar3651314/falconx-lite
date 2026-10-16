@@ -1,4 +1,6 @@
-/* 全局样式：设计 token 与效果图 M6、M7 一致（src/theme.ts 同步给 Ant Design） */
+/* 全局样式：设计 token 与效果图 M6、M7 一致（src/theme.ts 同步给 Ant Design）。
+   v2 E2 深色主题：根元素 data-theme="dark" 时换成文件末尾的深色变量（src/hooks/useThemeMode.tsx 设置）；
+   这里不要再写死浅色的颜色值，新加颜色先在 :root 和深色两处各定义一个变量 */
 :root {
   --bg: #f4f7fb;
   --s1: #ffffff;
@@ -26,6 +28,20 @@
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', 'DejaVu Sans Mono', monospace;
   --banner-h: 24px;
   --header-h: 52px;
+  /* v2 E2：原来写死在下面各处的浅色值，改成变量，深色主题里重新定义 */
+  --proto-bg: #fff7ed;
+  --proto-fg: #7c2d12;
+  --proto-bd: #fdba74;
+  --track: #e2e8f0;
+  --row-alert: #fef2f2;
+  --row-selected: rgba(8, 145, 178, 0.07);
+  --warn-box-bg: #fff7ed;
+  --warn-box-bd: #fdba74;
+  --warn-box-fg: #7c2d12;
+  --danger-text-strong: #7f1d1d;
+  --placeholder-a: #f1f5f9;
+  --placeholder-b: #e9eff5;
+  --stale: #b91c1c;
 }
 
 * { box-sizing: border-box; }
@@ -50,7 +66,7 @@ body { overflow-x: hidden; }
 .proto-banner {
   position: sticky; top: 0; z-index: 1001;
   height: var(--banner-h); line-height: var(--banner-h);
-  background: #fff7ed; color: #7c2d12; border-bottom: 1px solid #fdba74;
+  background: var(--proto-bg); color: var(--proto-fg); border-bottom: 1px solid var(--proto-bd);
   text-align: center; font-size: 12px; font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 8px;
 }
@@ -90,7 +106,7 @@ body { overflow-x: hidden; }
 .app-sider.ant-layout-sider {
   /* 桌面侧栏固定在视口左侧：从顶栏下方一直铺到视口底部，与内容高度无关，滚动时也不会露出断层 */
   position: fixed !important; left: 0; top: calc(var(--banner-h) + var(--header-h)); bottom: 0; z-index: 100;
-  height: auto !important; background: #fff; border-right: 1px solid var(--border); overflow-y: auto;
+  height: auto !important; background: var(--s1); border-right: 1px solid var(--border); overflow-y: auto;
 }
 /* 侧栏脱离文档流后，内容区让出 200px */
 .app-body.with-sider > .app-content { margin-left: 200px; }
@@ -136,9 +152,9 @@ body { overflow-x: hidden; }
 .table-card .ant-table-wrapper .ant-table-pagination { padding: 0 12px; }
 .ant-table-wrapper .ant-table-thead > tr > th { font-weight: 500; font-size: 12px; white-space: nowrap; }
 .ant-table-wrapper .ant-table-tbody > tr > td { font-size: 12.5px; }
-.ant-table-wrapper .ant-table-tbody > tr.row-selected > td { background: rgba(8, 145, 178, 0.07); }
+.ant-table-wrapper .ant-table-tbody > tr.row-selected > td { background: var(--row-selected); }
 .ant-table-wrapper .ant-table-tbody > tr.row-selected > td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
-.ant-table-wrapper .ant-table-tbody > tr.row-alert > td { background: #fef2f2; }
+.ant-table-wrapper .ant-table-tbody > tr.row-alert > td { background: var(--row-alert); }
 .ant-table-wrapper .ant-table-tbody > tr.row-alert > td:first-child { box-shadow: inset 3px 0 0 var(--short); }
 .clickable-row { cursor: pointer; }
 .user-cell b { display: block; font-weight: 600; font-size: 13px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -186,7 +202,7 @@ body { overflow-x: hidden; }
 .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; background: var(--s2); border-radius: var(--r); padding: 8px 10px; }
 .kv-grid div { font-size: 12px; color: var(--subtle); min-width: 0; }
 .kv-grid .num { display: block; color: var(--text); font-size: 13px; margin-top: 1px; white-space: normal; overflow-wrap: anywhere; }
-.addr-box { border: 1px solid #fdba74; background: #fff7ed; border-radius: var(--r); padding: 8px 10px; font-size: 12px; color: #7c2d12; line-height: 1.55; overflow-wrap: anywhere; }
+.addr-box { border: 1px solid var(--warn-box-bd); background: var(--warn-box-bg); border-radius: var(--r); padding: 8px 10px; font-size: 12px; color: var(--warn-box-fg); line-height: 1.55; overflow-wrap: anywhere; }
 .addr-box.ok { border-color: var(--hair); background: var(--s2); color: var(--muted); }
 .addr-box .num { color: var(--text); white-space: normal; }
 .mini { font-size: 12px; color: var(--muted); }
@@ -210,7 +226,7 @@ body { overflow-x: hidden; }
 .exposure-card { padding: 12px 16px; }
 .exposure-card .row1 { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
 .exposure-card .big { font-family: var(--mono); font-size: 24px; font-weight: 700; }
-.bar { height: 6px; border-radius: 99px; background: #e2e8f0; overflow: hidden; width: 100%; }
+.bar { height: 6px; border-radius: 99px; background: var(--track); overflow: hidden; width: 100%; }
 .bar > i { display: block; height: 100%; border-radius: 99px; background: var(--primary); }
 .bar.warn > i { background: #d97706; }
 .bar.over > i { background: var(--short); }
@@ -229,11 +245,11 @@ body { overflow-x: hidden; }
 .stat .v { font-size: 18px; font-family: var(--mono); font-weight: 700; margin-top: 2px; overflow-wrap: anywhere; }
 .doc-images { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 767px) { .doc-images { grid-template-columns: minmax(0, 1fr); } }
-.doc-ph { aspect-ratio: 1.58; border-radius: var(--r); border: 1px dashed var(--border); background: repeating-linear-gradient(45deg, #f1f5f9, #f1f5f9 10px, #e9eff5 10px, #e9eff5 20px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted); font-size: 12px; text-align: center; padding: 8px; }
+.doc-ph { aspect-ratio: 1.58; border-radius: var(--r); border: 1px dashed var(--border); background: repeating-linear-gradient(45deg, var(--placeholder-a), var(--placeholder-a) 10px, var(--placeholder-b) 10px, var(--placeholder-b) 20px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted); font-size: 12px; text-align: center; padding: 8px; }
 .doc-ph .anticon { font-size: 28px; color: var(--subtle); }
 /* 真实证件照片（S18a）：和占位图同样大小，点击放大 */
 .doc-img { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); text-align: center; }
-.doc-img .ant-image { width: 100%; aspect-ratio: 1.58; border-radius: var(--r); border: 1px solid var(--border); overflow: hidden; background: #f1f5f9; }
+.doc-img .ant-image { width: 100%; aspect-ratio: 1.58; border-radius: var(--r); border: 1px solid var(--border); overflow: hidden; background: var(--placeholder-a); }
 .doc-img .ant-image-img { width: 100%; height: 100%; object-fit: contain; }
 
 .ant-descriptions .ant-descriptions-item-label { color: var(--muted) !important; }
@@ -249,7 +265,7 @@ body { overflow-x: hidden; }
 .error-state .ant-result-subtitle { color: var(--muted); }
 
 /* 高危弹窗 */
-.high-risk-desc { background: var(--danger-bg); border: 1px solid var(--danger-bd); border-radius: var(--r); padding: 10px 12px; margin-bottom: 14px; color: #7f1d1d; font-size: 12.5px; line-height: 1.6; overflow-wrap: anywhere; }
+.high-risk-desc { background: var(--danger-bg); border: 1px solid var(--danger-bd); border-radius: var(--r); padding: 10px 12px; margin-bottom: 14px; color: var(--danger-text-strong); font-size: 12.5px; line-height: 1.6; overflow-wrap: anywhere; }
 
 /* 登录 */
 .login-wrap { min-height: calc(100vh - var(--banner-h)); display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
@@ -277,3 +293,76 @@ body { overflow-x: hidden; }
 
 /* 交易时段（按品种，只读） */
 .session-ranges { display: flex; flex-wrap: wrap; gap: 2px 12px; max-width: 640px; }
+
+/* ---------- v2 E6：最后报价时间 ---------- */
+.quote-time { white-space: nowrap; }
+.quote-time.stale { color: var(--stale); font-weight: 600; }
+
+/* ---------- v2 E7：自动刷新 ---------- */
+.auto-refresh { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--subtle); white-space: nowrap; }
+
+/* ---------- v2 E1：编辑客户资料 ---------- */
+.profile-form .ant-form-item { margin-bottom: 12px; }
+.profile-form .name-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 10px; }
+@media (max-width: 480px) { .profile-form .name-row { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- v2 E3：新增品种 ---------- */
+.symbol-form .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+@media (max-width: 480px) { .symbol-form .grid2 { grid-template-columns: minmax(0, 1fr); } }
+
+
+/* ======================================================================
+   v2 E2 深色主题（slate 底，和客户端同一方向）。
+   文字、链接、涨跌、警示色在 bg / s1 / s2 / s3 四种底色上的对比度都 ≥ 4.5:1（WCAG AA）；
+   和 src/theme.ts 的 darkTokens 一一对应。
+   ====================================================================== */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0b1220;
+  --s1: #111a2b;
+  --s2: #0f1726;
+  --s3: #1a2538;
+  --border: rgba(148, 163, 184, 0.24);
+  --hair: rgba(148, 163, 184, 0.13);
+  --text: #e2e8f0;
+  --muted: #a8b5c8;
+  --subtle: #94a3b8;
+  --primary: #22d3ee;
+  /* 在 CSS 里 --primary-deep 只用作文字、描边颜色（标志、头像字母、焦点框），深色下用亮色；主色按钮的底色在 antd 主题里，仍是 #0e7490 */
+  --primary-deep: #5fd4e8;
+  --long: #4ade80;
+  --short: #f87171;
+  --short-text: #f87171;
+  --warn: #fbbf24;
+  --risk: #fb923c;
+  --danger: #fca5a5;
+  --danger-bg: rgba(248, 113, 113, 0.12);
+  --danger-bd: rgba(248, 113, 113, 0.45);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
+  --proto-bg: #3b2a14;
+  --proto-fg: #fed7aa;
+  --proto-bd: #92400e;
+  --track: #263247;
+  --row-alert: rgba(248, 113, 113, 0.1);
+  --row-selected: rgba(34, 211, 238, 0.1);
+  --warn-box-bg: #33270f;
+  --warn-box-bd: #92400e;
+  --warn-box-fg: #fde68a;
+  --danger-text-strong: #fecaca;
+  --placeholder-a: #162033;
+  --placeholder-b: #1c2840;
+  --stale: #fca5a5;
+}
+:root[data-theme='dark'] .pill-pend { color: #fdba74; background: #3b302e; }
+:root[data-theme='dark'] .pill-delay { color: #c4b5fd; background: #272650; }
+:root[data-theme='dark'] .pill-ok { color: #86efac; background: #143934; }
+:root[data-theme='dark'] .pill-warn { color: #fdba74; background: #33270f; border-color: #92400e; }
+:root[data-theme='dark'] .pill-danger { color: #fca5a5; background: #392230; border-color: rgba(248, 113, 113, 0.45); }
+:root[data-theme='dark'] .pill-info { color: #67e8f9; background: #0f3649; }
+:root[data-theme='dark'] .pill-muted { color: #cbd5e1; background: #293344; }
+:root[data-theme='dark'] .pill-sys { color: #c4b5fd; background: #272650; }
+:root[data-theme='dark'] .pill-admin { color: #7dd3fc; background: #0f3649; }
+:root[data-theme='dark'] .emg-btn.ant-btn:disabled { color: #fecdd3 !important; }
+:root[data-theme='dark'] .scenario-fab.ant-btn,
+:root[data-theme='dark'] .scenario-panel.ant-card { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+:root[data-theme='dark'] .menu-badge { background: #dc2626; }

@@ -17,6 +17,7 @@ import { EnvBanner } from './EnvBanner';
 import { ProtoBanner } from './ProtoBanner';
 import { ScenarioPanel } from './ScenarioPanel';
 import { Logo } from './Logo';
+import { ThemeSwitch } from './ThemeSwitch';
 
 const IDENTITIES: ProtoIdentity[] = ['super', 'ops', 'risk'];
 
@@ -133,6 +134,7 @@ export function AppLayout() {
               </Button>
             </Dropdown>
           ) : null}
+          <ThemeSwitch />
           <Tooltip title={t('common.switchLanguage')}>
             <Button
               type="text"

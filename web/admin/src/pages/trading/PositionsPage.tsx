@@ -1,5 +1,6 @@
 /**
  * 持仓监控：保证金水平、强平价；手动强平（高危，二次确认，写审计）。
+ * v2 E7：每 5 秒静默刷新当前页（现价、盈亏、保证金水平），可暂停，页面不可见时停止。
  */
 import { Alert } from 'antd';
 import { ThunderboltOutlined } from '@ant-design/icons';
@@ -7,6 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { liquidatePosition, listPositions } from '../../api';
 import type { Position } from '../../api/types';
 import { usePagedList } from '../../hooks/usePagedList';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { AutoRefreshControl } from '../../components/AutoRefreshControl';
 import { useHighRisk } from '../../hooks/useConfirmDialogs';
 import { PageHeader } from '../../components/PageHeader';
 import { DataTable } from '../../components/DataTable';
@@ -19,6 +22,7 @@ import { TradeFilters, type TradeFilterValues } from './TradeFilters';
 export function PositionsPage() {
   const { t } = useTranslation();
   const list = usePagedList<Position, TradeFilterValues>(listPositions, {});
+  const auto = useAutoRefresh(list.refresh, 5000);
   const hr = useHighRisk();
 
   const liquidate = (p: Position) =>
@@ -33,7 +37,7 @@ export function PositionsPage() {
 
   return (
     <>
-      <PageHeader title={t('positions.title')} sub={t('positions.sub')} />
+      <PageHeader title={t('positions.title')} sub={t('positions.sub')} extra={<AutoRefreshControl auto={auto} />} />
       <Alert type="info" showIcon message={t('positions.hint')} />
       <TradeFilters onChange={list.setFilters} />
       <DataTable<Position>

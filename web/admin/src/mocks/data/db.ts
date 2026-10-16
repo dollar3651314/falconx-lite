@@ -88,6 +88,14 @@ customers.slice(-6).forEach((c, i) => {
 
 export const customerById = (id: number) => customers.find((c) => c.id === id);
 
+/**
+ * 后台编辑过的客户资料（v2 E1）：没编辑过的客户按姓名拆出名和姓（getCustomer 里），编辑后以这里为准。
+ */
+export const customerProfiles = new Map<number, { firstName: string; middleName: string; lastName: string; birthDate: string }>();
+
+/** 最近登录 IP（v2 E6，示意：文档用的保留地址段）；从没登录过的客户为空 */
+export const lastLoginIpOf = (c: CustomerSummary): string | null => (c.lastLoginAt ? `203.0.113.${(c.id * 7) % 250}` : null);
+
 // ---------------- KYC ----------------
 export const kycApplications: KycApplication[] = customers
   .filter((c) => c.kycStatus !== 'none')

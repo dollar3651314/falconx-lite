@@ -11,6 +11,8 @@ public enum Permission {
   DASHBOARD_VIEW("dashboard:view", "dashboard", false),
 
   CUSTOMER_VIEW("customer:view", "customer", false),
+  /** v2（E1）：编辑客户资料（姓名、出生日期、国籍） */
+  CUSTOMER_EDIT("customer:edit", "customer", true),
   CUSTOMER_FREEZE("customer:freeze", "customer", true),
   CUSTOMER_ADJUST_BALANCE("customer:adjust_balance", "customer", true),
 
@@ -41,6 +43,8 @@ public enum Permission {
 
   SYMBOL_VIEW("symbol:view", "market", false),
   SYMBOL_EDIT("symbol:edit", "market", true),
+  /** v2（E3）：新增品种 */
+  SYMBOL_CREATE("symbol:create", "market", true),
   SESSION_VIEW("session:view", "market", false),
   SESSION_EDIT("session:edit", "market", false),
   FX_VIEW("fx:view", "market", false),

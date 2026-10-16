@@ -43,3 +43,49 @@ export function isValidRate(text: string): boolean {
 
 export const USERNAME_RE = /^[a-z][a-z0-9._-]{2,39}$/;
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// ---------- v2 E1：后台编辑客户资料（规则和客户端注册一致：web/client/src/lib/validators.ts 的 validateProfile；后端 CustomerAdmin.updateProfile） ----------
+
+/** 姓名允许的字符：字母（含中文）、组合符号、撇号、空格、点、连字符 */
+const NAME_RE = /^[\p{L}\p{M}' .-]+$/u;
+/** 姓名每段最多 50 字 */
+export const NAME_MAX = 50;
+
+/** 名、中间名、姓：返回翻译键（一次给出全部问题） */
+export function nameProblems(v: string, required: boolean): string[] {
+  const text = (v ?? '').trim();
+  if (!text) return required ? ['validation.required'] : [];
+  const out: string[] = [];
+  if (text.length > NAME_MAX) out.push('validation.nameTooLong');
+  if (!NAME_RE.test(text)) out.push('validation.nameChars');
+  return out;
+}
+
+/** 出生日期：YYYY-MM-DD，真实日期，不早于 1900 年、不晚于今天，年满 18 周岁（按 UTC 日期） */
+export function birthDateProblems(v: string, today: Date = new Date()): string[] {
+  const text = (v ?? '').trim();
+  if (!text) return ['validation.required'];
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (!m) return ['validation.dateFormat'];
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d || y < 1900 || dt.getTime() > today.getTime()) {
+    return ['validation.dateInvalid'];
+  }
+  const adult = new Date(Date.UTC(y + 18, mo - 1, d));
+  return adult.getTime() > today.getTime() ? ['validation.ageUnder18'] : [];
+}
+
+/** 国籍：ISO 3166-1 两位大写字母 */
+export function nationalityProblems(v: string): string[] {
+  const text = (v ?? '').trim();
+  if (!text) return ['validation.required'];
+  return /^[A-Z]{2}$/.test(text) ? [] : ['validation.nationalityFormat'];
+}
+
+// ---------- v2 E3：新增品种 ----------
+
+/** 品种代码：大写字母开头，大写字母和数字，2–16 位（例如 EURUSD、US30、JPN225），和后端 MarketAdmin 一致 */
+export const SYMBOL_CODE_RE = /^[A-Z][A-Z0-9]{1,15}$/;
+/** 报价货币：3–4 位大写字母 */
+export const CURRENCY_RE = /^[A-Z]{3,4}$/;

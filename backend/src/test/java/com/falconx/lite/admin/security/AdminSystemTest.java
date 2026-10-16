@@ -159,7 +159,7 @@ class AdminSystemTest extends AdminTestSupport {
     JsonNode roles = body(call(get("/api/admin/roles"), s.cookie(), null));
     for (JsonNode role : roles) {
       if ("super_admin".equals(role.get("code").asString())) {
-        assertThat(role.get("permissions").size()).isEqualTo(46);
+        assertThat(role.get("permissions").size()).isEqualTo(Permission.values().length);
         assertThat(role.get("builtIn").asBoolean()).isTrue();
       }
       assertThat(role.get("id").asString()).isNotEqualTo(id);

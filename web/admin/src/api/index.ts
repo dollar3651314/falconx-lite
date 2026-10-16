@@ -44,6 +44,8 @@ export const listCustomers: typeof real.listCustomers = IS_MOCK ? mock.listCusto
 export const getCustomer: typeof real.getCustomer = IS_MOCK ? mock.getCustomer : real.getCustomer;
 /** POST /api/admin/customers/{id}/freeze（高危） */
 export const setCustomerFrozen: typeof real.setCustomerFrozen = IS_MOCK ? mock.setCustomerFrozen : real.setCustomerFrozen;
+/** PUT /api/admin/customers/{id}/profile（高危，v2 E1：姓名、出生日期、国籍） */
+export const updateCustomerProfile: typeof real.updateCustomerProfile = IS_MOCK ? mock.updateCustomerProfile : real.updateCustomerProfile;
 /** GET /api/admin/customers/adjust-limits */
 export const getAdjustLimits: typeof real.getAdjustLimits = IS_MOCK ? mock.getAdjustLimits : real.getAdjustLimits;
 /** POST /api/admin/customers/{id}/adjust（高危） */
@@ -118,6 +120,8 @@ export const setPerUserLimit: typeof real.setPerUserLimit = IS_MOCK ? mock.setPe
 // ---- 品种与行情（交易时段只读、休市日按品种，后台方案第 9 节） ----
 /** GET /api/admin/symbols */
 export const listSymbols: typeof real.listSymbols = IS_MOCK ? mock.listSymbols : real.listSymbols;
+/** POST /api/admin/symbols（高危，v2 E3：新增品种，默认暂停开仓） */
+export const createSymbol: typeof real.createSymbol = IS_MOCK ? mock.createSymbol : real.createSymbol;
 /** PUT /api/admin/symbols/{code}（高危） */
 export const updateSymbol: typeof real.updateSymbol = IS_MOCK ? mock.updateSymbol : real.updateSymbol;
 /** POST /api/admin/symbols/{code}/enabled（高危） */

@@ -19,9 +19,25 @@
   <update id="updateSymbol">
     UPDATE market_symbol SET name_zh = #{nameZh}, name_en = #{nameEn}, max_leverage = #{maxLeverage}, min_lots = #{minLots}, max_lots = #{maxLots},
       lot_step = #{lotStep}, fee_rate = #{feeRate}, maintenance_margin_rate = #{maintenanceMarginRate}, markup = #{markup}, swap_long = #{swapLong},
-      swap_short = #{swapShort}, hot = #{hot}, sort_order = #{sortOrder}
+      swap_short = #{swapShort}, hot = #{hot}, sort_order = #{sortOrder}, open_paused = #{openPaused}
     WHERE code = #{code}
   </update>
+
+  <!-- 新增品种（v2 E3） -->
+  <select id="codeCount" resultType="long">SELECT COUNT(*) FROM market_symbol WHERE code = #{code}</select>
+
+  <select id="maxSortOrder" resultType="int">SELECT COALESCE(MAX(sort_order), 0) FROM market_symbol</select>
+
+  <insert id="insertSymbol">
+    INSERT INTO market_symbol (code, name_zh, name_en, category, digits, contract_size, unit, base_ccy, quote_ccy, max_leverage, min_lots, max_lots,
+      lot_step, fee_rate, maintenance_margin_rate, markup, swap_long, swap_short, hot, open_paused, sort_order, enabled)
+    VALUES (#{code}, #{nameZh}, #{nameEn}, #{category}, #{digits}, #{contractSize}, #{unit}, #{baseCcy}, #{quoteCcy}, #{maxLeverage}, #{minLots},
+      #{maxLots}, #{lotStep}, #{feeRate}, #{maintenanceMarginRate}, #{markup}, #{swapLong}, #{swapShort}, #{hot}, #{openPaused}, #{sortOrder}, #{enabled})
+  </insert>
+
+  <insert id="insertSession">
+    INSERT INTO market_session (symbol, day_of_week, open_minute, close_minute) VALUES (#{symbol}, #{day}, #{open}, #{close})
+  </insert>
 
   <update id="setEnabled">UPDATE market_symbol SET enabled = #{enabled} WHERE code = #{code}</update>
 

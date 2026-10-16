@@ -179,6 +179,13 @@ class MonitorController {
     return market.symbols(category, keyword, enabled, missingSwap, page, pageSize);
   }
 
+  /** v2 E3：新增品种（高危，必须填原因）；新增后默认暂停开仓 */
+  @RequiresPermission(Permission.SYMBOL_CREATE)
+  @PostMapping("/api/admin/symbols")
+  MarketOps.SymbolView createSymbol(@RequestBody MarketOps.SymbolCreateBody body) {
+    return market.createSymbol(body);
+  }
+
   @RequiresPermission(Permission.SYMBOL_EDIT)
   @PutMapping("/api/admin/symbols/{code}")
   MarketOps.SymbolView updateSymbol(@PathVariable String code, @RequestBody MarketOps.SymbolPatchBody body) {

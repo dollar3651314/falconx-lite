@@ -15,6 +15,7 @@ import type {
   AuditQuery,
   CurrentAdmin,
   CustomerDetail,
+  CustomerProfileInput,
   CustomerQuery,
   CustomerSummary,
   DashboardStats,
@@ -44,6 +45,7 @@ import type {
   RiskSettings,
   Role,
   RoleInput,
+  SymbolCreateInput,
   SymbolExposure,
   SymbolPatch,
   SymbolQuery,
@@ -109,6 +111,11 @@ export function getCustomer(id: number): Promise<CustomerDetail> {
 /** 冻结 / 解冻（必须填原因，AC-04） */
 export async function setCustomerFrozen(id: number, frozen: boolean, reason: string): Promise<void> {
   await request(`/customers/${id}/freeze`, { method: 'POST', body: { frozen, reason } });
+}
+
+/** 编辑客户资料（v2 E1，必须填原因）：姓名、出生日期、国籍；返回更新后的详情 */
+export function updateCustomerProfile(id: number, input: CustomerProfileInput, reason: string): Promise<CustomerDetail> {
+  return request(`/customers/${id}/profile`, { method: 'PUT', body: { ...input, reason } });
 }
 
 export function getAdjustLimits(): Promise<AdjustLimits> {
@@ -373,6 +380,11 @@ export async function updateSymbol(code: string, patch: SymbolPatch, reason: str
   if (patch.swapLong === null) body.swapLong = '0';
   if (patch.swapShort === null) body.swapShort = '0';
   await request(`/symbols/${enc(code)}`, { method: 'PUT', body });
+}
+
+/** 新增品种（v2 E3，必须填原因）：新增后默认暂停开仓 */
+export async function createSymbol(input: SymbolCreateInput, reason: string): Promise<TradingSymbol> {
+  return normalizeSymbol(await request<TradingSymbol>('/symbols', { method: 'POST', body: { ...input, reason } }));
 }
 
 /** 启用 / 停用（必须填原因）；有持仓或挂单的品种不能停用 */
