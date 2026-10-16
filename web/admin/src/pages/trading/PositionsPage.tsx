@@ -46,7 +46,7 @@ export function PositionsPage() {
         page={list.page}
         pageSize={list.pageSize}
         onPageChange={list.onPageChange}
-        rowClassName={(r) => (compareAmounts(r.marginLevel, '100') < 0 ? 'row-alert' : '')}
+        rowClassName={(r) => (r.marginLevel && compareAmounts(r.marginLevel, '100') < 0 ? 'row-alert' : '')}
         columns={[
           { title: t('trading.positionId'), dataIndex: 'id', render: (v: string) => <Num>{v}</Num> },
           { title: t('funds.user'), key: 'u', render: (_, r) => <div className="user-cell"><b title={r.customerName}>{r.customerName}</b><small>ID {r.customerId}</small></div> },
@@ -61,7 +61,8 @@ export function PositionsPage() {
             title: t('positions.marginLevel'),
             dataIndex: 'marginLevel',
             align: 'right',
-            render: (v: string) => <Num className={compareAmounts(v, '100') < 0 ? 'down strong' : ''}>{formatAmount(v)}%</Num>,
+            // 没有报价时后端返回空（真实接口）
+            render: (v: string | null) => (v ? <Num className={compareAmounts(v, '100') < 0 ? 'down strong' : ''}>{formatAmount(v)}%</Num> : '—'),
           },
           { title: t('positions.liqPrice'), dataIndex: 'liquidationPrice', align: 'right', render: (v: string) => <Num>{v}</Num> },
           { title: t('positions.slTp'), key: 'sltp', render: (_, r) => <Num>{r.stopLoss ?? '—'} / {r.takeProfit ?? '—'}</Num> },

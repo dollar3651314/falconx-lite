@@ -1,14 +1,14 @@
 /**
  * 管理员：新增、编辑、禁用/启用、重置密码（均为高危，二次确认）。
  * 非超级管理员不能分配超级管理员角色（修复 fxsystem S4）：界面上禁用该选项并说明，服务端同样拦截。
- * 重置密码时临时密码通过邮件发给本人，界面和审计日志都不显示密码。
+ * 新增和重置密码由系统生成临时密码，只在结果弹窗里显示一次（后台方案第 7 节；原型原来写的是发邮件），审计日志不记密码。
  */
 import { useCallback, useState } from 'react';
-import { Alert, Form, Input, Modal, Select, Space } from 'antd';
+import { Alert, Form, Input, Modal, Select, Space, Typography } from 'antd';
 import { PlusOutlined, EditOutlined, KeyOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { createAdmin, listAdmins, listRoles, resetAdminPassword, setAdminStatus, updateAdmin } from '../../api';
-import type { AdminInput, AdminUser } from '../../api/types';
+import type { AdminInput, AdminUser, TemporaryPassword } from '../../api/types';
 import { SUPER_ADMIN_ROLE } from '../../config/permissions';
 import { usePagedList } from '../../hooks/usePagedList';
 import { useApi } from '../../hooks/useApi';
@@ -36,6 +36,8 @@ export function AdminsPage() {
   const [editing, setEditing] = useState<AdminUser | 'new' | null>(null);
   const [form] = Form.useForm<AdminInput>();
   const hr = useHighRisk();
+  /** 刚生成的临时密码：只在这个弹窗里显示一次，关闭后不再保留 */
+  const [tempPwd, setTempPwd] = useState<{ name: string; username: string; result: TemporaryPassword } | null>(null);
 
   const roleName = (id: string) => {
     const r = roles.data?.find((x) => x.id === id);
@@ -61,7 +63,14 @@ export function AdminsPage() {
     hr.ask({
       title: target === 'new' ? t('admins.createConfirm') : t('admins.editConfirm'),
       description: t('admins.confirmDesc', { name: v.displayName, username: target === 'new' ? v.username : (target as AdminUser).username, roles: v.roleIds.map(roleName).join('、') }),
-      onConfirm: () => (target === 'new' ? createAdmin(v) : updateAdmin((target as AdminUser).id, v)),
+      onConfirm: async () => {
+        if (target === 'new') {
+          const result = await createAdmin(v);
+          setTempPwd({ name: v.displayName, username: v.username, result });
+        } else {
+          await updateAdmin((target as AdminUser).id, v);
+        }
+      },
       onDone: list.reload,
     });
   };
@@ -79,7 +88,10 @@ export function AdminsPage() {
       title: t('admins.resetPwd'),
       description: t('admins.resetDesc', { name: a.displayName, email: a.email }),
       successText: t('admins.resetDone'),
-      onConfirm: (v) => resetAdminPassword(a.id, v.reason),
+      onConfirm: async (v) => {
+        const result = await resetAdminPassword(a.id, v.reason);
+        setTempPwd({ name: a.displayName, username: a.username, result });
+      },
       onDone: list.reload,
     });
 
@@ -210,6 +222,30 @@ export function AdminsPage() {
         </Form>
       </Modal>
       {hr.element}
+      <Modal
+        open={!!tempPwd}
+        title={t('admins.tempPwdTitle')}
+        okText={t('admins.tempPwdSaved')}
+        onOk={() => setTempPwd(null)}
+        onCancel={() => setTempPwd(null)}
+        footer={(_, { OkBtn }) => <OkBtn />}
+        maskClosable={false}
+        destroyOnClose
+      >
+        {tempPwd ? (
+          <>
+            <p>{t('admins.tempPwdFor', { name: tempPwd.name, username: tempPwd.username })}</p>
+            <Typography.Paragraph
+              className="num temp-pwd"
+              aria-label={t('admins.tempPwdLabel')}
+              copyable={{ text: tempPwd.result.temporaryPassword, tooltips: [t('common.copy'), t('common.copied')] }}
+            >
+              {tempPwd.result.temporaryPassword}
+            </Typography.Paragraph>
+            <Alert type="warning" showIcon message={t('admins.tempPwdOnce')} />
+          </>
+        ) : null}
+      </Modal>
     </>
   );
 }

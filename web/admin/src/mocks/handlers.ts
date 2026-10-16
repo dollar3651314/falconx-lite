@@ -11,6 +11,7 @@ import {
   type AuditLog,
   type AuditQuery,
   type AuditValue,
+  type CurrentAdmin,
   type CustomerDetail,
   type CustomerQuery,
   type CustomerSummary,
@@ -18,6 +19,7 @@ import {
   type DepositQuery,
   type Deposit,
   type Holiday,
+  type HolidayInput,
   type KycApplication,
   type KycQuery,
   type LedgerEntry,
@@ -33,8 +35,12 @@ import {
   type RoleInput,
   type SymbolQuery,
   type TaskQuery,
+  type TemporaryPassword,
   type TradeQuery,
   type TradingParams,
+  type TradingParamsInput,
+  type RiskOverview,
+  type SymbolPatch,
   type TradingSymbol,
   type WithdrawalDetail,
   type WithdrawalQuery,
@@ -131,12 +137,7 @@ export function changePassword(oldPassword: string, newPassword: string): Promis
   );
 }
 
-export interface CurrentAdmin {
-  admin: AdminUser;
-  roles: Role[];
-  permissions: string[];
-  isSuperAdmin: boolean;
-}
+export type { CurrentAdmin };
 
 export function getCurrentAdmin(adminId: number): Promise<CurrentAdmin> {
   return respond(
@@ -489,7 +490,7 @@ export function emergencyCancelWithdrawal(id: string, reason: string): Promise<W
 
 export function listRecon(q: ReconQuery) {
   return respond(
-    () => paginate(sortDesc(db.reconItems, (r) => r.detectedAt).filter((r) => (!q.status || r.status === q.status) && (!q.chain || r.chain === q.chain)), q.page, q.pageSize),
+    () => paginate(sortDesc(db.reconItems, (r) => r.detectedAt).filter((r) => !q.status || r.status === q.status), q.page, q.pageSize),
     { empty: () => emptyPage<(typeof db.reconItems)[number]>(q.page, q.pageSize) },
   );
 }
@@ -500,7 +501,9 @@ export function resolveRecon(id: string, note: string): Promise<void> {
     const n = requireReason(note);
     const r = db.reconItems.find((x) => x.id === id);
     if (!r) throw new ApiError('errors.notFound');
+    if (r.status !== 'open') throw new ApiError('errors.issueNotOpen');
     r.status = 'resolved';
+    r.resolvedAt = nowString();
     r.note = n;
     r.handler = currentAdmin().displayName;
     audit('recon.resolve', id, false, n, { status: 'open' }, { status: 'resolved' });
@@ -574,8 +577,8 @@ export function listTradeSymbols(): Promise<string[]> {
 }
 
 // ============ 风控 ============
-export function getRiskOverview() {
-  return respond(
+export function getRiskOverview(): Promise<RiskOverview> {
+  return respond<RiskOverview>(
     () => ({ settings: db.riskSettings, exposures: db.exposures, events: db.riskEvents.slice(0, 8) }),
     { empty: () => ({ settings: { ...db.riskSettings, platformNetUsd: '0' }, exposures: [], events: [] }) },
   );
@@ -675,7 +678,7 @@ export function listSymbols(q: SymbolQuery): Promise<Page<TradingSymbol>> {
   );
 }
 
-export function updateSymbol(code: string, patch: Partial<TradingSymbol>, reason: string): Promise<void> {
+export function updateSymbol(code: string, patch: SymbolPatch, reason: string): Promise<void> {
   return mutate(() => {
     requirePerm('symbol:edit');
     const r = requireReason(reason);
@@ -683,7 +686,7 @@ export function updateSymbol(code: string, patch: Partial<TradingSymbol>, reason
     if (!s) throw new ApiError('errors.notFound');
     const before: Record<string, AuditValue> = {};
     const after: Record<string, AuditValue> = {};
-    (Object.keys(patch) as (keyof TradingSymbol)[]).forEach((k) => {
+    (Object.keys(patch) as (keyof SymbolPatch)[]).forEach((k) => {
       if (patch[k] !== s[k]) {
         before[k] = s[k] as AuditValue;
         after[k] = patch[k] as AuditValue;
@@ -695,7 +698,18 @@ export function updateSymbol(code: string, patch: Partial<TradingSymbol>, reason
 }
 
 export function setSymbolEnabled(code: string, enabled: boolean, reason: string): Promise<void> {
-  return updateSymbol(code, { enabled }, reason);
+  return mutate(() => {
+    requirePerm('symbol:edit');
+    const r = requireReason(reason);
+    const s = db.symbols.find((x) => x.code === code);
+    if (!s) throw new ApiError('errors.notFound');
+    // 还有持仓或挂单的品种不能停用（后台方案第 9 节）
+    if (!enabled && (db.positions.some((p) => p.symbol === code) || db.pendingOrders.some((p) => p.symbol === code))) throw new ApiError('errors.symbolInUse');
+    const before = s.enabled;
+    s.enabled = enabled;
+    s.updatedAt = nowString();
+    audit(enabled ? 'symbol.enable' : 'symbol.disable', code, true, r, { enabled: before }, { enabled });
+  });
 }
 
 export function listSessions() {
@@ -706,11 +720,12 @@ export function listHolidays() {
   return respond(() => [...db.holidays].sort((a, b) => (a.date < b.date ? -1 : 1)), { empty: () => [] as Holiday[] });
 }
 
-export function addHoliday(h: Omit<Holiday, 'id'>): Promise<void> {
+export function addHoliday(h: HolidayInput): Promise<void> {
   return mutate(() => {
     requirePerm('session:edit');
-    db.holidays.push({ ...h, id: `H-${db.holidays.length + 10}` });
-    audit('holiday.create', `${h.date} ${h.sessionId}`, false, null, null, { date: h.date, closure: h.closure });
+    if (db.holidays.some((x) => x.symbol === h.symbol && x.date === h.date)) throw new ApiError('errors.holidayExists');
+    db.holidays.push({ id: String(db.holidays.length + 10), date: h.date, symbol: h.symbol, reason: h.reason?.trim() || null });
+    audit('holiday.add', `${h.symbol} ${h.date}`, false, h.reason?.trim() || null, null, { symbol: h.symbol, date: h.date });
   });
 }
 
@@ -720,7 +735,7 @@ export function deleteHoliday(id: string): Promise<void> {
     const idx = db.holidays.findIndex((h) => h.id === id);
     if (idx >= 0) {
       const [h] = db.holidays.splice(idx, 1);
-      audit('holiday.delete', `${h.date} ${h.sessionId}`, false, null, { date: h.date }, null);
+      audit('holiday.delete', h.id, false, null, { symbol: h.symbol, date: h.date }, null);
     }
   });
 }
@@ -734,14 +749,13 @@ export function getTradingParams(): Promise<TradingParams> {
   return respond(() => db.tradingParams);
 }
 
-export function updateTradingParams(p: Pick<TradingParams, 'marginCallLevel' | 'liquidationLevel'>, reason: string): Promise<void> {
+export function updateTradingParams(p: TradingParamsInput, reason: string): Promise<void> {
   return mutate(() => {
     requirePerm('params:edit');
     const r = requireReason(reason);
-    if (compareAmounts(p.liquidationLevel, p.marginCallLevel) >= 0) throw new ApiError('errors.liqAboveCall');
-    const before = { marginCallLevel: db.tradingParams.marginCallLevel, liquidationLevel: db.tradingParams.liquidationLevel };
+    const before = { marginCallLevel: db.tradingParams.marginCallLevel, marginCallThrottleMinutes: db.tradingParams.marginCallThrottleMinutes };
     Object.assign(db.tradingParams, p, { updatedAt: nowString(), updatedBy: currentAdmin().displayName });
-    audit('params.update', '追保线/强平线', true, r, before, { ...p });
+    audit('params.update', 'trading', true, r, before, { ...p });
   });
 }
 
@@ -813,7 +827,15 @@ function guardSuperAssignment(roleIds: string[], existing?: AdminUser): void {
   if (addsSuper && !isSuper(currentAdmin())) throw new ApiError('errors.cannotAssignSuper');
 }
 
-export function createAdmin(input: AdminInput): Promise<void> {
+/** 原型演示用的临时密码（真实接口由后端生成，只返回一次） */
+function demoTempPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let out = '';
+  for (let i = 0; i < 14; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out + '7k';
+}
+
+export function createAdmin(input: AdminInput): Promise<TemporaryPassword> {
   return mutate(() => {
     requirePerm('admin:edit');
     if (db.admins.some((a) => a.username === input.username)) throw new ApiError('errors.usernameTaken');
@@ -821,6 +843,7 @@ export function createAdmin(input: AdminInput): Promise<void> {
     const a: AdminUser = { id: Math.max(...db.admins.map((x) => x.id)) + 1, ...input, status: 'active', mustChangePassword: true, lastLoginAt: null, createdAt: nowString() };
     db.admins.push(a);
     audit('admin.create', input.username, true, null, null, { username: input.username, roleIds: input.roleIds, password: '(临时密码)' });
+    return { id: a.id, temporaryPassword: demoTempPassword() };
   });
 }
 
@@ -849,7 +872,7 @@ export function setAdminStatus(id: number, active: boolean, reason: string): Pro
   });
 }
 
-export function resetAdminPassword(id: number, reason: string): Promise<void> {
+export function resetAdminPassword(id: number, reason: string): Promise<TemporaryPassword> {
   return mutate(() => {
     requirePerm('admin:edit');
     const r = requireReason(reason);
@@ -857,8 +880,9 @@ export function resetAdminPassword(id: number, reason: string): Promise<void> {
     if (!a) throw new ApiError('errors.notFound');
     if (isSuper(a) && !isSuper(currentAdmin())) throw new ApiError('errors.forbidden');
     a.mustChangePassword = true;
-    // 临时密码通过邮件发给本人，界面和审计都不出现密码
+    // 临时密码只在结果里返回一次（后台方案第 7 节），审计里不出现密码
     audit('admin.reset_password', a.username, true, r, { mustChangePassword: false, password: '***' }, { mustChangePassword: true, password: '***' });
+    return { id: a.id, temporaryPassword: demoTempPassword() };
   });
 }
 
@@ -917,15 +941,16 @@ export function listMenus() {
   return respond(() => menuTree, { empty: () => [] as MenuNode[] });
 }
 
-export function updateMenu(key: string, patch: Pick<MenuNode, 'order'>): Promise<void> {
+export function updateMenu(key: string, patch: Pick<MenuNode, 'order'> & Partial<Pick<MenuNode, 'visible'>>): Promise<void> {
   return mutate(() => {
     requirePerm('menu:edit');
     const walk = (nodes: MenuNode[]): MenuNode | undefined => nodes.reduce<MenuNode | undefined>((f, n) => f ?? (n.key === key ? n : walk(n.children ?? [])), undefined);
     const n = walk(menuTree);
     if (!n) throw new ApiError('errors.notFound');
-    const before = n.order;
+    const before = { order: n.order, visible: n.visible };
     n.order = patch.order;
-    audit('menu.update', key, false, null, { order: before }, { order: n.order });
+    if (patch.visible !== undefined) n.visible = patch.visible;
+    audit('menu.update', key, false, null, before, { order: n.order, visible: n.visible });
   });
 }
 

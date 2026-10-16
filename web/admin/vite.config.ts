@@ -15,6 +15,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // 页面测试跑原型（mock）模式；真实接口层由 src/api/*.test.ts 直接测（fetch 替身）
+    env: { VITE_API_MODE: 'mock' },
     css: false,
     testTimeout: 20000,
   },

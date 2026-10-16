@@ -299,7 +299,7 @@ function WithdrawalDetailPanel({ id, onChanged }: { id: string | null; onChanged
       </h3>
       <div className="who2">
         <span className="av" aria-hidden>
-          {w.customerName.slice(0, 1)}
+          {(w.customerName ?? '').slice(0, 1)}
         </span>
         <div style={{ minWidth: 0 }}>
           <b className="ellipsis" style={{ maxWidth: 200 }} title={w.customerName}>{w.customerName}</b>{' '}

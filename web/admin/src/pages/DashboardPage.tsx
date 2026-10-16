@@ -12,6 +12,7 @@ import { PageHeader } from '../components/PageHeader';
 import { ErrorState } from '../components/ErrorState';
 import { Amount, Num } from '../components/Num';
 import { formatAmount, usagePercent } from '../utils/money';
+import { fullTime } from '../utils/display';
 import { useAuth } from '../auth/AuthContext';
 
 export function DashboardPage() {
@@ -26,7 +27,7 @@ export function DashboardPage() {
     <>
       <PageHeader
         title={t('dashboard.title')}
-        sub={data ? t('dashboard.updatedAt', { time: data.updatedAt }) : t('dashboard.sub')}
+        sub={data ? t('dashboard.updatedAt', { time: fullTime(data.updatedAt) }) : t('dashboard.sub')}
         extra={
           <Button icon={<ReloadOutlined />} onClick={reload} loading={loading}>
             {t('common.refresh')}

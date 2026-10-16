@@ -1,12 +1,40 @@
 /**
- * KYC 详情：资料 + 证件图片（原型用占位图）+ 通过 / 驳回（驳回必填原因）。
+ * KYC 详情：资料 + 证件照片 + 通过 / 驳回（驳回必填原因）。
+ * 照片用 GET /api/admin/kyc/{id}/images/{front|back|selfie} 显示（后台方案第 8 节，同源 Cookie 鉴权、不缓存）；
+ * 原型（mock 模式）没有照片，显示占位图；照片缺失或加载失败时显示"没有这张照片"。
  */
-import { useCallback } from 'react';
-import { Alert, App, Button, Descriptions, Skeleton, Space } from 'antd';
+import { useCallback, useState, type ReactNode } from 'react';
+import { Alert, App, Button, Descriptions, Image, Skeleton, Space } from 'antd';
 import { ArrowLeftOutlined, IdcardOutlined, CameraOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { getKyc, reviewKyc } from '../../api';
+import { getKyc, kycImageUrl, reviewKyc } from '../../api';
+import { fullTime } from '../../utils/display';
+
+type ImageSide = 'front' | 'back' | 'selfie';
+
+/** 一张证件照片：真实模式加载接口图片（可点击放大），原型或加载失败时显示占位 */
+function DocImage({ kycId, side, icon }: { kycId: string; side: ImageSide; icon: ReactNode }) {
+  const { t } = useTranslation();
+  const url = kycImageUrl(kycId, side);
+  const [failed, setFailed] = useState(false);
+  const label = t(`kyc.img.${side}`);
+  if (url && !failed) {
+    return (
+      <figure className="doc-img" style={{ margin: 0 }}>
+        <Image src={url} alt={label} onError={() => setFailed(true)} preview={{ mask: t('kyc.zoom') }} />
+        <figcaption>{label}</figcaption>
+      </figure>
+    );
+  }
+  return (
+    <figure className="doc-ph" style={{ margin: 0 }} aria-label={label}>
+      {icon}
+      <b>{label}</b>
+      <span>{url ? t('kyc.imageMissing') : t('kyc.placeholder')}</span>
+    </figure>
+  );
+}
 import { useApi } from '../../hooks/useApi';
 import { useAction, useNoteDialog } from '../../hooks/useConfirmDialogs';
 import { PageHeader } from '../../components/PageHeader';
@@ -51,7 +79,7 @@ export function KycDetailPage() {
     });
   };
 
-  const images = [
+  const images: { key: ImageSide; icon: ReactNode }[] = [
     { key: 'front', icon: <IdcardOutlined /> },
     { key: 'back', icon: <IdcardOutlined /> },
     { key: 'selfie', icon: <CameraOutlined /> },
@@ -102,8 +130,8 @@ export function KycDetailPage() {
               <Descriptions.Item label={t('customers.birthDate')}><Num>{k.birthDate}</Num></Descriptions.Item>
               <Descriptions.Item label={t('kyc.docType')}>{t(`kyc.doc.${k.docType}`)}</Descriptions.Item>
               <Descriptions.Item label={t('kyc.docNumber')}><Num>{k.docNumber}</Num></Descriptions.Item>
-              <Descriptions.Item label={t('kyc.submittedAt')}><Num>{k.submittedAt}</Num></Descriptions.Item>
-              <Descriptions.Item label={t('kyc.reviewer')}>{k.reviewer ? `${k.reviewer} · ${k.reviewedAt}` : '—'}</Descriptions.Item>
+              <Descriptions.Item label={t('kyc.submittedAt')}><Num>{fullTime(k.submittedAt)}</Num></Descriptions.Item>
+              <Descriptions.Item label={t('kyc.reviewer')}>{k.reviewer ? `${k.reviewer} · ${fullTime(k.reviewedAt)}` : '—'}</Descriptions.Item>
             </Descriptions>
           </div>
           <div className="card card-pad">
@@ -113,11 +141,7 @@ export function KycDetailPage() {
             </h2>
             <div className="doc-images">
               {images.map((img) => (
-                <figure key={img.key} className="doc-ph" style={{ margin: 0 }} aria-label={t(`kyc.img.${img.key}`)}>
-                  {img.icon}
-                  <b>{t(`kyc.img.${img.key}`)}</b>
-                  <span>{t('kyc.placeholder')}</span>
-                </figure>
+                <DocImage key={img.key} kycId={k.id} side={img.key} icon={img.icon} />
               ))}
             </div>
           </div>

@@ -1,15 +1,16 @@
 /**
  * 后台整体布局：原型横幅 + 顶栏 + 侧边菜单（手机上收进抽屉）+ 内容区 + 原型场景面板。
- * 菜单按当前身份的权限显示或隐藏。
+ * 菜单按当前身份的权限显示或隐藏：真实模式用 /api/admin/me 返回的菜单（顺序、是否显示由后台"菜单管理"决定）。
+ * 原型横幅、场景面板、"切换原型身份"只在 mock 模式下出现。
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Tooltip, type MenuProps } from 'antd';
 import { MenuOutlined, TranslationOutlined, UserSwitchOutlined, LogoutOutlined, KeyOutlined, DownOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { MENU, findMenuByPath, type MenuItemDef } from '../config/menu';
+import { findMenuByPath, visibleMenu, type MenuItemDef } from '../config/menu';
 import { useAuth } from '../auth/AuthContext';
-import { getMenuBadges, type ProtoIdentity } from '../api';
+import { IS_MOCK, getMenuBadges, type ProtoIdentity } from '../api';
 import type { MenuBadges } from '../api/types';
 import { setLanguage } from '../i18n';
 import { ProtoBanner } from './ProtoBanner';
@@ -61,8 +62,8 @@ export function AppLayout() {
         ),
       };
     };
-    return MENU.map(toItem).filter(Boolean) as MenuProps['items'];
-  }, [t, can, badges]);
+    return visibleMenu(me?.menus, can).map(toItem).filter(Boolean) as MenuProps['items'];
+  }, [t, can, badges, me?.menus]);
 
   const [openKeys, setOpenKeys] = useState<string[]>(current?.parent ? [current.parent.key] : []);
   useEffect(() => {
@@ -121,13 +122,15 @@ export function AppLayout() {
           </nav>
         ) : null}
         <div className="header-right">
-          <Dropdown menu={identityMenu} trigger={['click']}>
-            <Button className="identity-btn" icon={<UserSwitchOutlined />} aria-label={t('proto.switchIdentity')}>
-              {isDesktop ? <span>{t('proto.switchIdentity')}：</span> : null}
-              <b>{t(`proto.identity.${identity}`)}</b>
-              <DownOutlined style={{ fontSize: 10 }} />
-            </Button>
-          </Dropdown>
+          {IS_MOCK ? (
+            <Dropdown menu={identityMenu} trigger={['click']}>
+              <Button className="identity-btn" icon={<UserSwitchOutlined />} aria-label={t('proto.switchIdentity')}>
+                {isDesktop ? <span>{t('proto.switchIdentity')}：</span> : null}
+                <b>{t(`proto.identity.${identity}`)}</b>
+                <DownOutlined style={{ fontSize: 10 }} />
+              </Button>
+            </Dropdown>
+          ) : null}
           <Tooltip title={t('common.switchLanguage')}>
             <Button
               type="text"

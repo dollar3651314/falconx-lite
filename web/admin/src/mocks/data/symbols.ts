@@ -100,16 +100,28 @@ function leverageOf(s: Seed): number {
   }
 }
 
-const sessionOf: Record<SymbolCategory, string> = {
-  forex_major: 'S-FX',
-  forex_cross: 'S-FX',
-  cnh: 'S-FX',
-  metal: 'S-METAL',
-  energy: 'S-ENERGY',
-  index: 'S-INDEX',
-  crypto: 'S-CRYPTO',
-  stock: 'S-USSTOCK',
+/** 交易时段（UTC，day 1 = 周一 … 7 = 周日）：时段按品种配置，这里按分类示意 */
+type Range = { day: number; open: string; close: string };
+const weekdays = (open: string, close: string): Range[] => [1, 2, 3, 4, 5].map((day) => ({ day, open, close }));
+const fxWeek = (sundayOpen: string, fridayClose: string): Range[] => [
+  { day: 7, open: sundayOpen, close: '24:00' },
+  ...[1, 2, 3, 4].map((day) => ({ day, open: '00:00', close: '24:00' })),
+  { day: 5, open: '00:00', close: fridayClose },
+];
+const sessionRanges: Record<SymbolCategory, Range[]> = {
+  forex_major: fxWeek('22:00', '22:00'),
+  forex_cross: fxWeek('22:00', '22:00'),
+  cnh: fxWeek('22:00', '22:00'),
+  metal: fxWeek('23:00', '21:58'),
+  energy: fxWeek('23:00', '21:58'),
+  index: fxWeek('23:00', '21:15'),
+  crypto: [1, 2, 3, 4, 5, 6, 7].map((day) => ({ day, open: '00:00', close: '24:00' })),
+  stock: weekdays('13:30', '20:00'),
 };
+
+export function buildSessions(): { symbol: string; ranges: Range[] }[] {
+  return seeds.map((s) => ({ symbol: s.code, ranges: sessionRanges[s.cat] }));
+}
 
 /** 已录入隔夜费率的品种（示意） */
 const swaps: Record<string, [string, string]> = {
@@ -135,20 +147,22 @@ export function buildSymbols(): TradingSymbol[] {
       nameEn: s.en,
       category: s.cat,
       quoteCurrency: s.quote,
-      lpSymbol: `${s.code}${crypto ? '.c' : s.cat === 'stock' ? '.us' : '.lp'}`,
       contractSize: contractSize[s.cat],
       minLots: '0.01',
+      maxLots: crypto ? '50' : '100',
+      lotStep: '0.01',
       maxLeverage: leverageOf(s),
       maintenanceMarginRate: crypto ? '0.5' : s.cat === 'stock' ? '0.4' : '0.3',
       openFeeRate: crypto ? '0.0006' : s.cat === 'stock' ? '0.0004' : '0.00007',
       swapLong: sw ? sw[0] : null,
       swapShort: sw ? sw[1] : null,
-      spreadPoints: crypto ? 25 : s.cat === 'index' ? 12 : s.cat === 'metal' ? 18 : 8,
+      markup: crypto ? '2.5' : s.cat === 'index' ? '1.2' : s.cat === 'metal' ? '0.18' : s.digits === 3 ? '0.008' : '0.00008',
       digits: s.digits,
       hot: HOT.has(s.code),
       // XPD 不在清单；这里让 SOLUSD 处于暂停状态，演示"启用/暂停"
       enabled: s.code !== 'SOLUSD',
-      sessionId: sessionOf[s.cat],
+      openPaused: false,
+      sortOrder: (i + 1) * 10,
       updatedAt: `2026-10-${String(10 + (i % 4)).padStart(2, '0')} ${String(9 + (i % 8)).padStart(2, '0')}:${String((i * 7) % 60).padStart(2, '0')}:00`,
     };
   });
