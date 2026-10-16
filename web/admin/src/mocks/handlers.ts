@@ -374,7 +374,7 @@ export function reviewKyc(id: string, approve: boolean, reason?: string): Promis
 // ============ 资金 ============
 export function listDeposits(q: DepositQuery): Promise<Page<Deposit>> {
   return respond(
-    () => paginate(db.deposits.filter((d) => (!q.chain || d.chain === q.chain) && (!q.status || d.status === q.status) && matches(q.keyword, d.customerName, d.email, d.txHash, d.customerId)), q.page, q.pageSize),
+    () => paginate(db.deposits.filter((d) => (!q.chain || d.chain === q.chain) && (!q.status || d.status === q.status) && matches(q.keyword, d.customerName, d.email, d.txHash, d.customerId, d.id)), q.page, q.pageSize),
     { empty: () => emptyPage(q.page, q.pageSize) },
   );
 }

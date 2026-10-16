@@ -10,7 +10,7 @@ import { availableFunds, closePrice, estimateOrder, execPrice, liquidationAfterA
 import { emit } from './bus';
 import { db } from './db';
 import { mutate, respond } from './delay';
-import { nextId } from './ids';
+import { nextId, snowflakeId } from './ids';
 import { addTickHook, forcePrice, quote, symbolInfo } from './market';
 import { getProtoState } from './scenario';
 import { pushNotification } from './user';
@@ -89,7 +89,7 @@ export function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResult> {
     const margin = toFixed(est.margin, 2);
     if (req.type === 'limit') {
       const order: PendingOrder = {
-        id: nextId('O'),
+        id: snowflakeId(),
         symbol: req.symbol,
         side: req.side,
         lots: req.lots,
@@ -116,7 +116,7 @@ function openPosition(symbol: string, side: Side, lots: string, leverage: number
   const q = quote(symbol)!;
   const est = estimateOrder({ symbol: info, price, lots: dec(lots), leverage, side, quoteToUsd: q.quoteToUsd });
   const pos: Position = {
-    id: nextId('P'),
+    id: snowflakeId(),
     symbol,
     side,
     lots,
@@ -156,7 +156,7 @@ function closeInternal(p: Position, exit: Dec, kind: HistoryKind): Dec {
   db.account.balance = toFixed(add(dec(db.account.balance), pnl), 2);
   addLedger('pnl', pnl, p.symbol);
   db.history.unshift({
-    id: nextId('H'),
+    id: `P${p.id}`,
     symbol: p.symbol,
     side: p.side,
     lots: p.lots,
@@ -233,7 +233,7 @@ export function cancelOrder(id: string): Promise<void> {
     if (!o) throw new ApiError('notFound');
     db.orders = db.orders.filter((x) => x.id !== id);
     db.account.orderFrozen = toFixed(sub(dec(db.account.orderFrozen), dec(o.frozenMargin)), 2);
-    db.history.unshift({ id: nextId('H'), symbol: o.symbol, side: o.side, lots: o.lots, openPrice: o.limitPrice, fee: '0.00', kind: 'cancelled', closedAt: new Date().toISOString() });
+    db.history.unshift({ id: `O${o.id}`, symbol: o.symbol, side: o.side, lots: o.lots, openPrice: o.limitPrice, fee: '0.00', kind: 'cancelled', closedAt: new Date().toISOString() });
     emit({ type: 'orders' });
     emit({ type: 'account' });
   });
