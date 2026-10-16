@@ -457,6 +457,7 @@
     "permissionExceedsOwn": "不能分配或修改超出你自己权限范围的角色。",
     "positionNotOpen": "这个持仓已经平仓了，请刷新后再看。",
     "quoteUnavailable": "这个品种暂时没有可成交的报价，请稍后再试。",
+    "rateLimited": "操作太频繁，请稍后再试。",
     "reasonRequired": "请填写操作原因。",
     "reasonTooLong": "原因太长，请精简后再提交。",
     "roleCodeTaken": "角色编码已存在。",

@@ -59,6 +59,15 @@ describe('后端错误码映射', () => {
     expect(fromServer(409, { code: 'BRAND_NEW' }).reason).toBe('badRequest');
   });
 
+  it('限流 429 RATE_LIMITED 显示"操作太频繁"，带剩余秒数（P-05）', () => {
+    const e = fromServer(429, { code: 'RATE_LIMITED', message: '请求太频繁', fields: [], cooldownSeconds: 12 });
+    expect(e.reason).toBe('rateLimited');
+    expect(e.cooldownSeconds).toBe(12);
+    expect(errorKey(e)).toBe('errors.rateLimited');
+    // 没有响应体的 429 也一样
+    expect(fromServer(429, undefined).reason).toBe('rateLimited');
+  });
+
   it('非接口错误显示"服务暂时不可用"', () => {
     expect(errorKey(new Error('x'))).toBe('errors.server');
     expect(errorKey(new ApiError('network'))).toBe('errors.network');

@@ -6,12 +6,20 @@
 # - 所有容器绑在同 2 个 CPU 核上（cpuset 0,1），模拟 2 核服务器；压测程序用 taskset 绑在其他核上，不抢应用的 CPU。
 # - 端口换成只在本机监听的 18443（Nginx）和 18080（后端，测试代码调替身接口用），不占用 80、443、8080（避免和部署形态的端到端测试冲突）。
 # - 发验证码按 IP 每小时 30 次的限制调大：压测在一台机器上注册几十个客户，全部来自同一个 IP。只在压测里调大。
+# - Nginx 外层限流（P-05）调大：压测的所有请求来自同一个 IP，几十个客户集中下单（每轮几百条）。后端的通用限流由 e2e profile 调大（application-e2e.yml）。
 # 和 e2e/compose.deployed.yml 一样，绝不能用在测试环境或生产（约定 18）。
 services:
   web:
     cpuset: "0,1"
     ports: !override
       - "127.0.0.1:18443:443"
+    environment:
+      FX_NGINX_API_RATE: 10000r/s
+      FX_NGINX_API_BURST: "100000"
+      FX_NGINX_API_CONN: "10000"
+      FX_NGINX_WS_RATE: 10000r/s
+      FX_NGINX_WS_BURST: "100000"
+      FX_NGINX_WS_CONN: "10000"
   app:
     cpuset: "0,1"
     ports: !override

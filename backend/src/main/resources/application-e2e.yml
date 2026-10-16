@@ -6,6 +6,13 @@
 falconx:
   e2e:
     enabled: ${FX_E2E_ENABLED:false}
+  # 通用限流（P-05）：端到端测试和压测（e2e/load/，同样用 e2e profile）的所有请求都来自同一个 IP，压测几十个客户集中下单，上限放大。
+  # 限流本身在后端 RateLimitTest 里单独测；Nginx 那一层见 deploy/nginx/site.conf.template
+  rate-limit:
+    ip-per-minute: 1000000
+    ws-handshake-per-minute: 1000000
+    user-write-per-minute: 1000000
+    admin-login-per-ip: 1000000
   # 模拟行情源：50 个品种都有报价；测试用 /api/e2e/market/move 推动某个品种的价格
   market:
     source: simulated

@@ -21,6 +21,8 @@ export const ERROR_KEYS: Record<string, string> = {
   ACCOUNT_DISABLED: 'errors.accountDisabled',
   INVALID_CREDENTIALS: 'errors.invalidCredentials',
   LOGIN_LOCKED: 'errors.loginLocked',
+  // 通用限流（P-05）：后端按 IP、后台登录按 IP 超限，或 Nginx 外层限流，429 带 Retry-After
+  RATE_LIMITED: 'errors.rateLimited',
   CURRENT_PASSWORD_WRONG: 'errors.currentPasswordWrong',
   SAME_PASSWORD: 'errors.samePassword',
   // 管理员、角色、配置（admin/system）
@@ -83,7 +85,7 @@ interface ErrorBody {
 
 /** 把后端的错误响应转成 ApiError（翻译键 + 字段错误） */
 export function toApiError(status: number, body: ErrorBody | null): ApiError {
-  const code = body?.code ?? (status === 401 ? 'UNAUTHORIZED' : status === 403 ? 'FORBIDDEN' : status >= 500 ? 'INTERNAL_ERROR' : undefined);
+  const code = body?.code ?? (status === 401 ? 'UNAUTHORIZED' : status === 403 ? 'FORBIDDEN' : status === 429 ? 'RATE_LIMITED' : status >= 500 ? 'INTERNAL_ERROR' : undefined);
   const fields = (body?.fields ?? []).filter((f): f is FieldError => !!f && typeof f.field === 'string');
   // 只有"原因"一个字段出错时，直接用已有的提示
   if (code === 'VALIDATION_FAILED' && fields.length === 1 && (fields[0].field === 'reason' || fields[0].field === 'note')) {

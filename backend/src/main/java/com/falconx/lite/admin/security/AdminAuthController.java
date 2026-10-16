@@ -1,5 +1,6 @@
 package com.falconx.lite.admin.security;
 
+import com.falconx.lite.common.ratelimit.RateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
@@ -22,15 +23,22 @@ class AdminAuthController {
 
   private final AdminAuthService auth;
   private final AdminProperties props;
+  private final RateLimiter limiter;
 
-  AdminAuthController(AdminAuthService auth, AdminProperties props) {
+  AdminAuthController(AdminAuthService auth, AdminProperties props, RateLimiter limiter) {
     this.auth = auth;
     this.props = props;
+    this.limiter = limiter;
   }
 
+  /**
+   * 登录。同一 IP 在 {@code falconx.rate-limit.admin-login-window}（默认 15 分钟）内最多请求 {@code admin-login-per-ip} 次（默认 20 次，成功失败都算），
+   * 超过返回 429 {@code RATE_LIMITED}（安全审查 SEC-15：原来只按账号锁定，换着用户名试不受限制）。超限的请求不查库、不记审计（防止刷审计日志）。
+   */
   @AdminPublic
   @PostMapping("/api/admin/auth/login")
   SessionView login(@RequestBody LoginBody body, HttpServletRequest req, HttpServletResponse res) {
+    limiter.check("admin-login", req.getRemoteAddr(), limiter.props().adminLoginPerIp(), limiter.props().adminLoginWindow());
     AdminAuthService.LoginResult r = auth.login(body == null ? null : body.username(), body == null ? null : body.password(), req.getRemoteAddr());
     res.addHeader(HttpHeaders.SET_COOKIE, cookie(r.token(), props.sessionTtl()));
     return new SessionView(r.adminId(), r.username(), r.displayName(), r.mustChangePassword());

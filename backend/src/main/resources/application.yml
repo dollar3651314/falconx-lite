@@ -18,6 +18,23 @@ falconx:
     code-ip-hourly-limit: 30
     cookie-name: fx_session
     cookie-secure: ${FX_COOKIE_SECURE:true}
+  # 通用限流（功能取舍对照表 P-05，common/ratelimit）：Redis 计数，Redis 不可用时放行。超限返回 429 RATE_LIMITED 和 Retry-After。
+  # Nginx 外层还有一道更宽松的限流（deploy/nginx/site.conf.template）。上限填 0 表示这一层不限。
+  # IP 是 Nginx 传来的真实客户端 IP；大陆移动网络很多人共用一个出口 IP，按 IP 的上限留足余量
+  rate-limit:
+    enabled: true
+    key-prefix: "fx:rl:"
+    # 同一 IP 每分钟最多请求 /api/** 几次（不含 /api/health 和 WebSocket 握手）
+    ip-per-minute: 600
+    # 同一 IP 每分钟最多几次 WebSocket 握手（行情、交易推送；只数握手，已建立的连接不受影响）
+    ws-handshake-per-minute: 120
+    # 同一客户每分钟最多几次交易和资金写操作（下单、改单、撤单、平仓、改止盈止损、追加保证金、提现提交、白名单增删，合计）
+    user-write-per-minute: 60
+    # 后台登录：同一 IP 15 分钟内最多请求 20 次（成功失败都算，安全审查 SEC-15）
+    admin-login-per-ip: 20
+    admin-login-window: 15m
+    # Redis 出错后 30 秒内不再访问 Redis、直接放行
+    redis-down-skip: 30s
   # 行情（技术方案/v1-数据库设计.md 第 8 节）。质量守卫阈值沿用现有系统（功能地图 M-05、M-06）
   market:
     # 默认不启动报价源；开发和测试环境设 FX_MARKET_SOURCE=simulated，正式环境接 LP（S20）。防止生产忘了配置时用上模拟价格
@@ -170,6 +187,9 @@ spring:
       host: ${FX_REDIS_HOST:localhost}
       port: ${FX_REDIS_PORT:6379}
       password: ${FX_REDIS_PASSWORD:}
+      # Redis 只用于限次计数（登录失败、发验证码、通用限流）和健康检查；卡住时 2 秒就放弃，不让请求一直等（默认 60 秒）
+      timeout: 2s
+      connect-timeout: 2s
   # KYC 每张图最大 2MB（AC-05），一次提交 3 张
   servlet:
     multipart:
