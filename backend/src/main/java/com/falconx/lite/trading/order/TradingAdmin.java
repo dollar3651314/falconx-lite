@@ -77,43 +77,64 @@ class TradingAdmin implements TradingAdminApi {
     BigDecimal current = q.map(side::closePrice).orElse(null);
     BigDecimal pnl = funds.floatingPnl(p).orElse(null);
     BigDecimal level = pnl == null || p.margin.signum() == 0 ? null : p.margin.add(pnl).divide(p.margin, 6, RoundingMode.DOWN);
-    return new Position(p.id, p.userId, p.symbol, p.side, p.lots, p.openPrice, current, p.leverage, p.margin, pnl, level, p.liquidationPrice, p.stopLoss,
+    return new Position(p.id, p.publicNo, p.userId, p.symbol, p.side, p.lots, p.openPrice, current, p.leverage, p.margin, pnl, level, p.liquidationPrice, p.stopLoss,
         p.takeProfit, p.openedAt);
   }
 
-  private static boolean noUsers(Collection<Long> userIds) {
-    return userIds != null && userIds.isEmpty();
+  /** 客户筛选结果为空、也没有按编号找时直接返回空页（避免 IN () 的 SQL） */
+  private static boolean nothing(Collection<Long> userIds, Long no) {
+    return userIds != null && userIds.isEmpty() && no == null;
+  }
+
+  /** 空列表换成 null（SQL 里不出现 IN ()），由 no 决定 */
+  private static Collection<Long> users(Collection<Long> userIds) {
+    return userIds == null || userIds.isEmpty() ? null : userIds;
   }
 
   @Override
   @Transactional(readOnly = true)
-  public Page<Order> orders(String symbol, String side, String status, Collection<Long> userIds, int offset, int limit) {
-    if (noUsers(userIds)) return new Page<>(List.of(), 0);
-    List<Order> items = mapper.adminOrders(symbol, side, status, userIds, offset, limit).stream()
-        .map(o -> new Order(o.id, o.userId, o.symbol, o.side, o.orderType, o.lots, o.fillPrice != null ? o.fillPrice : o.limitPrice, o.leverage, o.fee, o.status,
+  public Page<Order> orders(String symbol, String side, String status, Collection<Long> userIds, Long no, int offset, int limit) {
+    if (nothing(userIds, no)) return new Page<>(List.of(), 0);
+    Collection<Long> us = users(userIds);
+    List<Order> items = mapper.adminOrders(symbol, side, status, us, no, offset, limit).stream()
+        .map(o -> new Order(o.id, o.publicNo, o.userId, o.symbol, o.side, o.orderType, o.lots, o.fillPrice != null ? o.fillPrice : o.limitPrice, o.leverage, o.fee, o.status,
             o.createdAt))
         .toList();
-    return new Page<>(items, mapper.countAdminOrders(symbol, side, status, userIds));
+    return new Page<>(items, mapper.countAdminOrders(symbol, side, status, us, no));
   }
 
   @Override
   @Transactional(readOnly = true)
-  public Page<Position> positions(String symbol, String side, Collection<Long> userIds, int offset, int limit) {
-    if (noUsers(userIds)) return new Page<>(List.of(), 0);
-    return new Page<>(mapper.adminPositions(symbol, side, userIds, offset, limit).stream().map(this::position).toList(),
-        mapper.countAdminPositions(symbol, side, userIds));
+  public Page<Position> positions(String symbol, String side, Collection<Long> userIds, Long no, int offset, int limit) {
+    if (nothing(userIds, no)) return new Page<>(List.of(), 0);
+    Collection<Long> us = users(userIds);
+    return new Page<>(mapper.adminPositions(symbol, side, us, no, offset, limit).stream().map(this::position).toList(),
+        mapper.countAdminPositions(symbol, side, us, no));
   }
 
   @Override
   @Transactional(readOnly = true)
-  public Page<Pending> pendingOrders(String symbol, String side, Collection<Long> userIds, int offset, int limit) {
-    if (noUsers(userIds)) return new Page<>(List.of(), 0);
-    List<Pending> items = mapper.adminOrders(symbol, side, "PENDING", userIds, offset, limit).stream().map(o -> {
+  public Page<Pending> pendingOrders(String symbol, String side, Collection<Long> userIds, Long no, int offset, int limit) {
+    if (nothing(userIds, no)) return new Page<>(List.of(), 0);
+    Collection<Long> us = users(userIds);
+    List<Pending> items = mapper.adminOrders(symbol, side, "PENDING", us, no, offset, limit).stream().map(o -> {
       Optional<MarketQuote> q = market.quote(o.symbol);
       BigDecimal current = q.map(x -> Side.BUY.name().equals(o.side) ? x.ask() : x.bid()).orElse(null);
-      return new Pending(o.id, o.userId, o.symbol, o.side, o.lots, o.limitPrice, current, o.leverage, o.frozenAmount, o.stopLoss, o.takeProfit, o.createdAt);
+      return new Pending(o.id, o.publicNo, o.userId, o.symbol, o.side, o.lots, o.limitPrice, current, o.leverage, o.frozenAmount, o.stopLoss, o.takeProfit, o.createdAt);
     }).toList();
-    return new Page<>(items, mapper.countAdminOrders(symbol, side, "PENDING", userIds));
+    return new Page<>(items, mapper.countAdminOrders(symbol, side, "PENDING", us, no));
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<Long> positionIdByNo(long no) {
+    return Optional.ofNullable(mapper.positionIdByNo(null, no));
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<Long> orderIdByNo(long no) {
+    return Optional.ofNullable(mapper.orderIdByNo(null, no));
   }
 
   @Override

@@ -229,7 +229,9 @@ class AdminV2Test extends AdminTestSupport {
       assertThat(body(call(get("/api/admin/risk"), m.cookie(), null)).get("symbols").toString()).contains("\"symbol\":\"" + code + "\"");
       assertThat(body(call(get("/api/market/klines?symbol=" + code + "&tf=1m"), c.cookie(), null)).size()).isEqualTo(1);
       // 平仓（不留下没有品种的持仓）
-      assertThat(call(post("/api/trading/positions/" + positionId + "/close"), c.cookie(), null).getStatus()).isEqualTo(200);
+      // 路径里是持仓的对外编号（雪花 ID，v2 第 11.4 节），不是内部 id
+      long positionNo = jdbc.queryForObject("SELECT public_no FROM trading_position WHERE id = ?", Long.class, positionId);
+      assertThat(call(post("/api/trading/positions/" + positionNo + "/close"), c.cookie(), null).getStatus()).isEqualTo(200);
     } finally {
       dropSymbol(code);
       dropSymbol(copy);

@@ -103,9 +103,12 @@ class WithdrawController {
     return new Page<>(mapper.byUser(uid, (p - 1) * size, size).stream().map(WithdrawController::view).toList(), mapper.countByUser(uid), p, size);
   }
 
+  /** 路径里的 id 是对外编号（雪花 ID，字符串）；不是自己的提现当成不存在 */
   @PostMapping("/api/wallet/withdrawals/{id}/cancel")
   WithdrawalView cancel(@PathVariable long id) {
-    return view(withdraws.cancel(CurrentUser.id(), id));
+    long uid = CurrentUser.id();
+    Long internal = mapper.idByNo(uid, id);
+    return view(withdraws.cancel(uid, internal == null ? -1 : internal));
   }
 
   static WhitelistView view(WhitelistRow r) {
@@ -113,7 +116,7 @@ class WithdrawController {
   }
 
   static WithdrawalView view(WithdrawalRow r) {
-    return new WithdrawalView(String.valueOf(r.id), money(r.amount), money(r.fee), r.network, r.address, WithdrawService.apiStatus(r.status), iso(r.createdAt),
+    return new WithdrawalView(String.valueOf(r.publicNo), money(r.amount), money(r.fee), r.network, r.address, WithdrawService.apiStatus(r.status), iso(r.createdAt),
         iso(r.coolingEndsAt), iso(r.delayEndsAt), r.txHash, r.rejectReason);
   }
 

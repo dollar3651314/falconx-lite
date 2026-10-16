@@ -7,10 +7,14 @@ import com.falconx.lite.market.api.QuoteStatus;
 import com.falconx.lite.market.api.SymbolSpec;
 import com.falconx.lite.market.config.SymbolCatalog;
 import com.falconx.lite.market.kline.KlineService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PreDestroy;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +28,8 @@ import org.springframework.stereotype.Component;
 /**
  * 行情主链路（00-架构方案.md 3.3 ①）：报价 → 交易时段 → 质量守卫 → 加点 → 最新报价 → K 线 → 订阅者。
  * 按品种分到固定的处理线程（同一品种严格按顺序），不同品种并行。
+ * <p>监控（E8、E10）：记下每个品种最后一次收到原始报价的时间（不管质量守卫是否通过、是否休市），给行情断流告警
+ * {@link MarketAlert} 和指标 {@code fx_quote_age_seconds}（每个品种最后报价距今的秒数）用；收到的报价数是指标 {@code fx_quotes_received_total}。
  */
 @Component
 public class QuoteProcessor {
@@ -41,13 +47,19 @@ public class QuoteProcessor {
   private final Set<String> changed = ConcurrentHashMap.newKeySet();
   private final ExecutorService[] stripes = new ExecutorService[STRIPES];
   private final Clock clock;
+  /** 品种 → 最后一次收到原始报价的时间 */
+  private final Map<String, Instant> lastReceived = new ConcurrentHashMap<>();
+  private final MeterRegistry metrics;
+  private final Counter received;
 
-  QuoteProcessor(SymbolCatalog catalog, KlineService klines, MarketProperties props, Clock clock) {
+  QuoteProcessor(SymbolCatalog catalog, KlineService klines, MarketProperties props, Clock clock, MeterRegistry metrics) {
     this.catalog = catalog;
     this.klines = klines;
     this.props = props;
     this.guard = new QualityGuard(props);
     this.clock = clock;
+    this.metrics = metrics;
+    this.received = Counter.builder("fx.quotes.received").description("收到的原始报价条数（含被质量守卫拦下和休市的）").register(metrics);
     for (int i = 0; i < STRIPES; i++) {
       int n = i;
       stripes[i] = Executors.newSingleThreadExecutor(r -> new Thread(r, "quote-" + n));
@@ -70,6 +82,7 @@ public class QuoteProcessor {
     Optional<SymbolSpec> spec = catalog.get(q.symbol());
     if (spec.isEmpty()) return QuoteStatus.ABNORMAL; // 没有配置的品种直接丢弃
     Instant now = clock.instant();
+    received(q.symbol(), now);
     if (!catalog.isOpen(q.symbol(), now)) {
       book.markStatus(q.symbol(), QuoteStatus.MARKET_CLOSED);
       return QuoteStatus.MARKET_CLOSED;
@@ -95,6 +108,21 @@ public class QuoteProcessor {
       }
     }
     return st;
+  }
+
+  private void received(String symbol, Instant now) {
+    received.increment();
+    if (lastReceived.put(symbol, now) == null) {
+      Gauge.builder("fx.quote.age", () -> {
+        Instant t = lastReceived.get(symbol);
+        return t == null ? Double.NaN : (clock.millis() - t.toEpochMilli()) / 1000.0;
+      }).description("这个品种最后一次收到报价距今的秒数").baseUnit("seconds").tag("symbol", symbol).register(metrics);
+    }
+  }
+
+  /** 这个品种最后一次收到原始报价的时间；从没收到过时为空 */
+  public Optional<Instant> lastReceived(String symbol) {
+    return Optional.ofNullable(lastReceived.get(symbol));
   }
 
   public void subscribe(QuoteListener l) {

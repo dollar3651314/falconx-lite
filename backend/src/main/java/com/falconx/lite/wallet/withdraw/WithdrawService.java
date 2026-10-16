@@ -4,6 +4,7 @@ import com.falconx.lite.account.api.AccountApi;
 import com.falconx.lite.account.api.KycStatus;
 import com.falconx.lite.common.error.BizException;
 import com.falconx.lite.common.error.ValidationException;
+import com.falconx.lite.common.id.Snowflake;
 import com.falconx.lite.trading.api.Bucket;
 import com.falconx.lite.trading.api.FundsApi;
 import com.falconx.lite.trading.api.LedgerApi;
@@ -50,9 +51,10 @@ public class WithdrawService implements WithdrawAdminApi {
   private final WithdrawLimits limits;
   private final TransactionTemplate tx;
   private final Clock clock;
+  private final Snowflake ids;
 
   WithdrawService(WithdrawMapper mapper, LedgerApi ledger, FundsApi funds, AccountApi account, UserEventsApi events, NotifyApi notify, WithdrawSenders senders,
-      WithdrawLimits limits, TransactionTemplate tx, Clock clock) {
+      WithdrawLimits limits, TransactionTemplate tx, Clock clock, Snowflake ids) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.funds = funds;
@@ -63,6 +65,7 @@ public class WithdrawService implements WithdrawAdminApi {
     this.limits = limits;
     this.tx = tx;
     this.clock = clock;
+    this.ids = ids;
   }
 
   LocalDateTime now() {
@@ -113,6 +116,7 @@ public class WithdrawService implements WithdrawAdminApi {
       if (usedToday(userId).add(amt).compareTo(props().dailyLimit()) >= 0) throw new BizException("DAILY_LIMIT_EXCEEDED", "超过当日提现累计上限");
       if (amt.compareTo(funds.withdrawable(userId)) > 0) throw new BizException("INSUFFICIENT_BALANCE", "可提金额不足");
       WithdrawalRow n = new WithdrawalRow();
+      n.publicNo = ids.next();
       n.userId = userId;
       n.network = network.name();
       n.address = w.address;

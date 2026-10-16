@@ -104,6 +104,7 @@ interface OrderMapper {
   /** 后台（S16c）：订单和它的手续费（成交了才有） */
   class AdminOrderRow {
     long id;
+    long publicNo;
     long userId;
     String symbol;
     String orderType;
@@ -120,16 +121,23 @@ interface OrderMapper {
     LocalDateTime createdAt;
   }
 
+  /** userIds 和 no（对外编号）是"或"：后台搜索框输入数字时两者都可能；都为空时不筛选 */
   List<AdminOrderRow> adminOrders(@Param("symbol") String symbol, @Param("side") String side, @Param("status") String status,
-      @Param("userIds") java.util.Collection<Long> userIds, @Param("offset") int offset, @Param("limit") int limit);
+      @Param("userIds") java.util.Collection<Long> userIds, @Param("no") Long no, @Param("offset") int offset, @Param("limit") int limit);
 
   long countAdminOrders(@Param("symbol") String symbol, @Param("side") String side, @Param("status") String status,
-      @Param("userIds") java.util.Collection<Long> userIds);
+      @Param("userIds") java.util.Collection<Long> userIds, @Param("no") Long no);
 
   List<PositionRow> adminPositions(@Param("symbol") String symbol, @Param("side") String side, @Param("userIds") java.util.Collection<Long> userIds,
-      @Param("offset") int offset, @Param("limit") int limit);
+      @Param("no") Long no, @Param("offset") int offset, @Param("limit") int limit);
 
-  long countAdminPositions(@Param("symbol") String symbol, @Param("side") String side, @Param("userIds") java.util.Collection<Long> userIds);
+  long countAdminPositions(@Param("symbol") String symbol, @Param("side") String side, @Param("userIds") java.util.Collection<Long> userIds,
+      @Param("no") Long no);
+
+  /** 对外编号 → 内部 id；userId 不为空时只认这个客户的。没有时为 null */
+  Long positionIdByNo(@Param("userId") Long userId, @Param("no") long no);
+
+  Long orderIdByNo(@Param("userId") Long userId, @Param("no") long no);
 
   PositionRow positionById(@Param("id") long id);
 

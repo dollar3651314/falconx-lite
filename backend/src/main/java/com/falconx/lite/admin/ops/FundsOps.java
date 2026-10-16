@@ -130,11 +130,11 @@ class FundsOps {
     String kw = Ops.blank(keyword);
     String tx = kw != null && TX_HASH.matcher(kw).matches() ? kw : null;
     List<Long> users = tx == null ? userFilter(kw) : null;
-    var p = wallet.deposits(Ops.blank(chain), depositStatuses(status), tx, users, s.offset(), s.size());
+    var p = wallet.deposits(Ops.blank(chain), depositStatuses(status), tx, users, tx == null ? Ops.number(kw) : null, s.offset(), s.size());
     var cs = customers.customers(p.items().stream().map(WalletAdminApi.Deposit::userId).toList());
     return new Ops.Page<>(p.items().stream().map(d -> {
       var c = cs.get(d.userId());
-      return new DepositView(String.valueOf(d.id()), d.userId(), c == null ? null : c.name(), c == null ? null : c.email(), d.chain(), d.txHash(),
+      return new DepositView(String.valueOf(d.no()), d.userId(), c == null ? null : c.name(), c == null ? null : c.email(), d.chain(), d.txHash(),
           Ops.money(d.amount()), d.confirmations(), d.requiredConfirmations(), depositStatus(d.status()), Ops.time(d.detectedAt()), Ops.time(d.creditedAt()));
     }).toList(), p.total(), s.page(), s.size());
   }
@@ -169,7 +169,7 @@ class FundsOps {
     return ws.stream().map(w -> {
       var c = cs.get(w.userId());
       Long remaining = "DELAYED".equals(w.status()) && w.delayEndsAt() != null ? Math.max(0, Duration.between(now, w.delayEndsAt()).toMinutes()) : null;
-      return new WithdrawalView(String.valueOf(w.id()), w.userId(), c == null ? null : c.name(), c == null ? null : c.email(), Ops.money(w.amount()),
+      return new WithdrawalView(String.valueOf(w.no()), w.userId(), c == null ? null : c.name(), c == null ? null : c.email(), Ops.money(w.amount()),
           Ops.money(w.fee()), w.chain(), w.address(), w.firstUse(), Ops.time(w.whitelistAddedAt()), withdrawStatus(w.status()), remaining,
           Ops.time(w.submittedAt()), w.reviewerId() == null ? null : reviewers.get(w.reviewerId()), w.rejectReason(), w.txHash());
     }).toList();
@@ -178,7 +178,8 @@ class FundsOps {
   @Transactional(readOnly = true)
   Ops.Page<WithdrawalView> withdrawals(String status, String chain, String minAmount, String maxAmount, String keyword, int page, int pageSize) {
     Ops.Slice s = Ops.slice(page, pageSize);
-    var p = wallet.withdrawals(withdrawStatuses(status), Ops.blank(chain), decimal(minAmount), decimal(maxAmount), userFilter(keyword), s.offset(), s.size());
+    var p = wallet.withdrawals(withdrawStatuses(status), Ops.blank(chain), decimal(minAmount), decimal(maxAmount), userFilter(keyword),
+        Ops.number(keyword), s.offset(), s.size());
     return new Ops.Page<>(views(p.items()), p.total(), s.page(), s.size());
   }
 
@@ -204,9 +205,14 @@ class FundsOps {
     return wallet.withdrawal(id).orElseThrow(() -> new BizException("NOT_FOUND", "提现不存在"));
   }
 
+  /** 后台接口路径里是对外编号（雪花 ID）→ 内部 id */
+  private long internal(long no) {
+    return wallet.withdrawalIdByNo(no).orElseThrow(() -> new BizException("NOT_FOUND", "提现不存在"));
+  }
+
   @Transactional(readOnly = true)
-  WithdrawalDetail withdrawal(long id) {
-    WalletAdminApi.Withdrawal w = require(id);
+  WithdrawalDetail withdrawal(long no) {
+    WalletAdminApi.Withdrawal w = require(internal(no));
     WithdrawalView v = views(List.of(w)).getFirst();
     var c = customers.customer(w.userId()).map(CustomerAdminApi.CustomerDetail::customer).orElse(null);
     var f = wallet.customerFunds(w.userId(), 5);
@@ -218,17 +224,19 @@ class FundsOps {
         f.recentWithdrawals().stream().map(x -> new Recent(Ops.time(x.submittedAt()), x.chain(), Ops.money(x.amount()))).toList());
   }
 
-  WithdrawalView approve(AdminContext actor, long id) {
-    audit.run("withdrawal.approve", String.valueOf(id), false, null, () -> {
+  WithdrawalView approve(AdminContext actor, long no) {
+    long id = internal(no);
+    audit.run("withdrawal.approve", String.valueOf(no), false, null, () -> {
       withdraws.approve(id, actor.adminId());
       return Audit.Change.of(null, Map.of("status", "pending"), Map.of("status", withdrawStatus(require(id).status())));
     });
     return views(List.of(require(id))).getFirst();
   }
 
-  WithdrawalView reject(AdminContext actor, long id, String reason) {
+  WithdrawalView reject(AdminContext actor, long no, String reason) {
     String r = Audit.requireReason(reason);
-    audit.run("withdrawal.reject", String.valueOf(id), false, r, () -> {
+    long id = internal(no);
+    audit.run("withdrawal.reject", String.valueOf(no), false, r, () -> {
       withdraws.reject(id, actor.adminId(), r);
       return Audit.Change.of(null, Map.of("status", "pending"), Map.of("status", "rejected"));
     });
@@ -236,9 +244,10 @@ class FundsOps {
   }
 
   /** 大额延迟期内紧急取消（高危，AC-21） */
-  WithdrawalView emergencyCancel(AdminContext actor, long id, String reason) {
+  WithdrawalView emergencyCancel(AdminContext actor, long no, String reason) {
     String r = Audit.requireReason(reason);
-    audit.run("withdrawal.emergency_cancel", String.valueOf(id), true, r, () -> {
+    long id = internal(no);
+    audit.run("withdrawal.emergency_cancel", String.valueOf(no), true, r, () -> {
       withdraws.emergencyCancel(id, actor.adminId(), r);
       return Audit.Change.of(null, Map.of("status", "delayed"), Map.of("status", "cancelled"));
     });

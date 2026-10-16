@@ -41,6 +41,16 @@ import {
   tronAddress,
 } from './seed';
 
+/**
+ * 对外编号（订单、持仓、挂单、出金、入金）：和后端 common/id/Snowflake 同一格式的雪花 ID 字符串
+ * （41 位毫秒时间从 2026-01-01 起 + 节点号 1 + 12 位序号）。超过 JavaScript 安全整数，只用 BigInt 生成、一律当字符串（v2 第 11.4 节）。
+ * 原型数据固定在 2026-10-14，编号也固定，刷新后不变。
+ */
+export function mockNo(minutesBefore: number, seq: number): string {
+  const ms = Date.UTC(2026, 9, 14, 8, 0, 0) - minutesBefore * 60_000 - Date.UTC(2026, 0, 1);
+  return ((BigInt(ms) << 22n) | (1n << 12n) | BigInt(seq & 0xfff)).toString();
+}
+
 const rng = createRng(20261014);
 
 const pinyin = [
@@ -121,7 +131,7 @@ export const deposits: Deposit[] = Array.from({ length: 46 }, (_, i) => {
   const req = requiredConf[chain];
   const detected = rng.int(10 + i * 50, 60 + i * 60);
   return {
-    id: `DP-${20261014 - Math.floor(i / 8)}-${String(900 - i).padStart(6, '0')}`,
+    id: mockNo(i * 180, 900 - i),
     customerId: c.id,
     customerName: c.name,
     email: c.email,
@@ -187,7 +197,7 @@ export const withdrawals: Withdrawal[] = wdSeeds.map((s, i) => {
   const c = customers[s.ci];
   const addr = s.chain === 'TRC20' ? tronAddress(rng) : evmAddress(rng);
   return {
-    id: `WD-20261014-${String(318 - i).padStart(6, '0')}`,
+    id: mockNo(i * 47, 318 - i),
     customerId: c.id,
     customerName: c.name,
     email: c.email,
@@ -296,7 +306,7 @@ export const positions: Position[] = Array.from({ length: 38 }, (_, i) => {
   const pnlNeg = (side === 'buy') !== move > 0;
   const level = i === 3 ? '62.40' : i === 8 ? '98.15' : rng.amount(120, 900);
   return {
-    id: `PS-${String(660000 + 38 - i)}`,
+    id: mockNo(i * 95, 1038 - i),
     customerId: c.id,
     customerName: c.name,
     symbol: sym,
@@ -321,7 +331,7 @@ export const orders: Order[] = Array.from({ length: 64 }, (_, i) => {
   const sym = rng.pick(tradeSymbols);
   const status: Order['status'] = i % 9 === 4 || i % 11 === 6 ? 'cancelled' : i % 13 === 2 ? 'pending' : 'filled';
   return {
-    id: `OD-${String(8812000 + 64 - i)}`,
+    id: mockNo(i * 33, 2064 - i),
     customerId: c.id,
     customerName: c.name,
     symbol: sym,
@@ -341,7 +351,7 @@ export const pendingOrders: PendingOrder[] = Array.from({ length: 27 }, (_, i) =
   const c = customers[(i * 11) % (customers.length - 6)];
   const sym = rng.pick(tradeSymbols);
   return {
-    id: `PO-${String(330000 + 27 - i)}`,
+    id: mockNo(i * 61, 3027 - i),
     customerId: c.id,
     customerName: c.name,
     symbol: sym,

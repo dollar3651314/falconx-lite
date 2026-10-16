@@ -58,11 +58,11 @@ class MatchingEngineTest extends TradingTestSupport {
   }
 
   long limit(long uid, String side, String price, String tp, String sl) {
-    return Long.parseLong(orders.place(uid, new PlaceOrder("XAUUSD", "limit", side, "0.10", 100, price, tp, sl, UUID.randomUUID().toString())).id());
+    return orderId(orders.place(uid, new PlaceOrder("XAUUSD", "limit", side, "0.10", 100, price, tp, sl, UUID.randomUUID().toString())).id());
   }
 
   long marketWith(long uid, String side, int lev, String tp, String sl) {
-    return Long.parseLong(orders.place(uid, new PlaceOrder("XAUUSD", "market", side, "0.10", lev, null, tp, sl, UUID.randomUUID().toString())).id());
+    return orderId(orders.place(uid, new PlaceOrder("XAUUSD", "market", side, "0.10", lev, null, tp, sl, UUID.randomUUID().toString())).id());
   }
 
   @Test

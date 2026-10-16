@@ -3,10 +3,10 @@
 <!-- 订单和持仓。只有 trading 模块使用。 -->
 <mapper namespace="com.falconx.lite.trading.order.OrderMapper">
 
-  <sql id="orderCols">id, user_id, client_order_id, symbol, order_type, side, lots, leverage, limit_price, take_profit, stop_loss,
+  <sql id="orderCols">id, public_no, user_id, client_order_id, symbol, order_type, side, lots, leverage, limit_price, take_profit, stop_loss,
     frozen_amount, notional_usd, status, fill_price, position_id, revision, created_at</sql>
 
-  <sql id="positionCols">id, user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
+  <sql id="positionCols">id, public_no, user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
     margin, fee, swap_total, maintenance_margin_rate, liquidation_price, take_profit, stop_loss, status, opened_at, closed_at</sql>
 
   <select id="findByClientId" resultType="com.falconx.lite.trading.order.OrderRow">
@@ -26,9 +26,9 @@
   </select>
 
   <insert id="insertOrder" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO trading_order (user_id, client_order_id, symbol, order_type, side, lots, leverage, limit_price, take_profit, stop_loss,
+    INSERT INTO trading_order (public_no, user_id, client_order_id, symbol, order_type, side, lots, leverage, limit_price, take_profit, stop_loss,
       frozen_amount, notional_usd, status)
-    VALUES (#{userId}, #{clientOrderId}, #{symbol}, #{orderType}, #{side}, #{lots}, #{leverage}, #{limitPrice}, #{takeProfit}, #{stopLoss},
+    VALUES (#{publicNo}, #{userId}, #{clientOrderId}, #{symbol}, #{orderType}, #{side}, #{lots}, #{leverage}, #{limitPrice}, #{takeProfit}, #{stopLoss},
       #{frozenAmount}, #{notionalUsd}, #{status})
   </insert>
 
@@ -41,9 +41,9 @@
   </update>
 
   <insert id="insertPosition" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO trading_position (user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
+    INSERT INTO trading_position (public_no, user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
       margin, fee, maintenance_margin_rate, liquidation_price, take_profit, stop_loss, status, opened_at)
-    VALUES (#{userId}, #{orderId}, #{symbol}, #{side}, #{lots}, #{leverage}, #{openPrice}, #{contractSize}, #{quoteCcy}, #{openUsdRate}, #{notionalUsd},
+    VALUES (#{publicNo}, #{userId}, #{orderId}, #{symbol}, #{side}, #{lots}, #{leverage}, #{openPrice}, #{contractSize}, #{quoteCcy}, #{openUsdRate}, #{notionalUsd},
       #{margin}, #{fee}, #{maintenanceMarginRate}, #{liquidationPrice}, #{takeProfit}, #{stopLoss}, 'OPEN', UTC_TIMESTAMP(3))
   </insert>
 
@@ -71,10 +71,10 @@
   </update>
 
   <sql id="historyUnion">
-    SELECT CONCAT('P', id) AS id, symbol, side, lots, open_price, close_price, realized_pnl AS pnl, fee, LOWER(close_reason) AS kind, closed_at AS at, id AS seq
+    SELECT CONCAT('P', public_no) AS id, symbol, side, lots, open_price, close_price, realized_pnl AS pnl, fee, LOWER(close_reason) AS kind, closed_at AS at, id AS seq
     FROM trading_position WHERE user_id = #{userId} AND status = 'CLOSED'
     UNION ALL
-    SELECT CONCAT('O', id), symbol, side, lots, limit_price, NULL, NULL, 0, 'cancelled', cancelled_at, id
+    SELECT CONCAT('O', public_no), symbol, side, lots, limit_price, NULL, NULL, 0, 'cancelled', cancelled_at, id
     FROM trading_order WHERE user_id = #{userId} AND status = 'CANCELLED'
   </sql>
 
@@ -182,12 +182,16 @@
       <if test="symbol != null">AND o.symbol = #{symbol}</if>
       <if test="side != null">AND o.side = #{side}</if>
       <if test="status != null">AND o.status = #{status}</if>
-      <if test="userIds != null">AND o.user_id IN <foreach collection="userIds" item="u" open="(" separator="," close=")">#{u}</foreach></if>
+      <!-- 客户和对外编号是"或"（后台搜索框输入数字时两者都可能） -->
+      <if test="userIds != null or no != null">AND (<trim prefixOverrides="OR">
+        <if test="userIds != null">OR o.user_id IN <foreach collection="userIds" item="u" open="(" separator="," close=")">#{u}</foreach></if>
+        <if test="no != null">OR o.public_no = #{no}</if>
+      </trim>)</if>
     </where>
   </sql>
 
   <select id="adminOrders" resultType="com.falconx.lite.trading.order.OrderMapper$AdminOrderRow">
-    SELECT o.id, o.user_id, o.symbol, o.order_type, o.side, o.lots, o.leverage, o.limit_price, o.fill_price, o.take_profit, o.stop_loss, o.frozen_amount,
+    SELECT o.id, o.public_no, o.user_id, o.symbol, o.order_type, o.side, o.lots, o.leverage, o.limit_price, o.fill_price, o.take_profit, o.stop_loss, o.frozen_amount,
       p.fee, o.status, o.created_at
     FROM trading_order o LEFT JOIN trading_position p ON p.order_id = o.id
     <include refid="adminOrderWhere"/> ORDER BY o.id DESC LIMIT #{limit} OFFSET #{offset}
@@ -199,7 +203,10 @@
     WHERE status = 'OPEN'
     <if test="symbol != null">AND symbol = #{symbol}</if>
     <if test="side != null">AND side = #{side}</if>
-    <if test="userIds != null">AND user_id IN <foreach collection="userIds" item="u" open="(" separator="," close=")">#{u}</foreach></if>
+    <if test="userIds != null or no != null">AND (<trim prefixOverrides="OR">
+      <if test="userIds != null">OR user_id IN <foreach collection="userIds" item="u" open="(" separator="," close=")">#{u}</foreach></if>
+      <if test="no != null">OR public_no = #{no}</if>
+    </trim>)</if>
   </sql>
 
   <select id="adminPositions" resultType="com.falconx.lite.trading.order.PositionRow">
@@ -207,6 +214,15 @@
   </select>
 
   <select id="countAdminPositions" resultType="long">SELECT COUNT(*) FROM trading_position <include refid="adminPositionWhere"/></select>
+
+  <!-- 对外编号 → 内部 id；userId 不为空时只查这个客户的（客户接口），为空时不限（后台） -->
+  <select id="positionIdByNo" resultType="java.lang.Long">
+    SELECT id FROM trading_position WHERE public_no = #{no} <if test="userId != null">AND user_id = #{userId}</if>
+  </select>
+
+  <select id="orderIdByNo" resultType="java.lang.Long">
+    SELECT id FROM trading_order WHERE public_no = #{no} <if test="userId != null">AND user_id = #{userId}</if>
+  </select>
 
   <select id="positionById" resultType="com.falconx.lite.trading.order.PositionRow">
     SELECT <include refid="positionCols"/> FROM trading_position WHERE id = #{id}

@@ -48,9 +48,11 @@ class AdminOpsTest extends AdminTestSupport {
   /** 按提现服务的写法建一笔提现（冻结余额） */
   long withdrawal(long uid, String amount, String status) {
     LocalDateTime now = LocalDateTime.now(clock);
-    jdbc.update("INSERT INTO wallet_withdrawal (user_id, network, address, amount, fee, status, cooling_ends_at, created_at) VALUES (?, 'BSC', ?, ?, 0.5, ?, ?, ?)",
-        uid, "0x" + "ab".repeat(20), new BigDecimal(amount), status, now, now);
+    // 按 V22 之前的旧数据写：对外编号等于内部 id（旧数据照常显示、照常能审核，AC2-22）
+    jdbc.update("INSERT INTO wallet_withdrawal (public_no, user_id, network, address, amount, fee, status, cooling_ends_at, created_at) VALUES (?, ?, 'BSC', ?, ?, 0.5, ?, ?, ?)",
+        -System.nanoTime(), uid, "0x" + "ab".repeat(20), new BigDecimal(amount), status, now, now);
     long id = jdbc.queryForObject("SELECT MAX(id) FROM wallet_withdrawal WHERE user_id = ?", Long.class, uid);
+    jdbc.update("UPDATE wallet_withdrawal SET public_no = id WHERE id = ?", id);
     ledger.apply(new LedgerCommand(uid, Bucket.BALANCE, new BigDecimal(amount).negate(), LedgerEntryType.WITHDRAW_FREEZE, "WITHDRAW", String.valueOf(id), "提现冻结"));
     ledger.apply(new LedgerCommand(uid, Bucket.WITHDRAW_FROZEN, new BigDecimal(amount), LedgerEntryType.WITHDRAW_FREEZE, "WITHDRAW", String.valueOf(id), "提现冻结"));
     return id;
@@ -176,6 +178,10 @@ class AdminOpsTest extends AdminTestSupport {
     JsonNode detail = body(call(get("/api/admin/withdrawals/" + small), a.cookie(), null));
     assertThat(detail.get("withdrawal").get("amount").asString()).isEqualTo("100");
     assertThat(detail.get("balance").asString()).isEqualTo("6200");
+    // 旧数据（V22 之前）的编号就是内部 id，照常显示、按编号能搜到（AC2-22）
+    assertThat(detail.get("withdrawal").get("id").asString()).isEqualTo(String.valueOf(small));
+    JsonNode byNo = body(call(get("/api/admin/withdrawals?keyword=" + small), a.cookie(), null));
+    assertThat(byNo.get("items").toString()).contains("\"id\":\"" + small + "\"");
 
     JsonNode ok = body(call(post("/api/admin/withdrawals/" + small + "/approve"), a.cookie(), null));
     assertThat(ok.get("status").asString()).as("待上链显示为上链中").isEqualTo("broadcasting");
@@ -204,8 +210,8 @@ class AdminOpsTest extends AdminTestSupport {
     Admin a = withRoles(role(Permission.DEPOSIT_VIEW));
     long uid = customer("Frank", "0");
     String tx = "0x" + Long.toHexString(System.nanoTime()) + "0".repeat(64 - Long.toHexString(System.nanoTime()).length());
-    jdbc.update("INSERT INTO wallet_deposit (chain, tx_hash, log_index, block_number, block_hash, from_address, to_address, user_id, amount, status, confirmations) "
-        + "VALUES ('ERC20', ?, 0, 1, '0x1', '0xa', '0xb', ?, 0.5, 'BELOW_MIN', 12)", tx.substring(0, 66), uid);
+    jdbc.update("INSERT INTO wallet_deposit (public_no, chain, tx_hash, log_index, block_number, block_hash, from_address, to_address, user_id, amount, status, confirmations) "
+        + "VALUES (?, 'ERC20', ?, 0, 1, '0x1', '0xa', '0xb', ?, 0.5, 'BELOW_MIN', 12)", com.falconx.lite.common.id.Snowflake.shared(1).next(), tx.substring(0, 66), uid);
     JsonNode p = body(call(get("/api/admin/deposits?status=ignored&keyword=" + tx.substring(0, 66)), a.cookie(), null));
     assertThat(p.get("total").asLong()).isEqualTo(1);
     assertThat(p.get("items").get(0).get("status").asString()).isEqualTo("ignored");
@@ -252,13 +258,15 @@ class AdminOpsTest extends AdminTestSupport {
     } finally {
       jdbc.update("UPDATE notify_template SET title_zh = ? WHERE code = 'DEPOSIT_CREDITED'", original);
     }
-    long uid = customer(unique("Grace"), "0");
+    String grace = unique("Grace");
+    long uid = customer(grace, "0");
     assertThat(call(post("/api/admin/notify/send"), a.cookie(), "{\"customerId\":" + uid + ",\"channels\":[\"inbox\"],\"title\":\"t\",\"body\":\"b\"}")
         .getContentAsString()).contains("\"field\":\"reason\"");
     MockHttpServletResponse sent = call(post("/api/admin/notify/send"), a.cookie(),
         "{\"customerId\":" + uid + ",\"channels\":[\"inbox\",\"email\"],\"title\":\"维护通知\",\"body\":\"今晚维护\",\"reason\":\"系统维护\"}");
     assertThat(sent.getStatus()).as(sent.getContentAsString()).isEqualTo(200);
-    JsonNode recs = body(call(get("/api/admin/notify/records?keyword=" + uid), a.cookie(), null));
+    // 按唯一的客户名搜：搜数字（客户号）时，邮箱里含这串数字的其他客户也会匹配到（共用测试库时偶尔失败）
+    JsonNode recs = body(call(get("/api/admin/notify/records?keyword=" + grace), a.cookie(), null));
     assertThat(recs.get("total").asLong()).isEqualTo(2);
     assertThat(recs.get("items").get(0).get("source").asString()).isEqualTo("manual");
     assertThat(recs.get("items").get(0).get("operator").asString()).isEqualTo(a.username());

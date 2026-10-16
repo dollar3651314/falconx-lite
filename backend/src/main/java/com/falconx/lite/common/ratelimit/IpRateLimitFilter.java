@@ -1,5 +1,6 @@
 package com.falconx.lite.common.ratelimit;
 
+import com.falconx.lite.common.trace.TraceIdFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -54,7 +55,7 @@ public class IpRateLimitFilter extends OncePerRequestFilter {
       res.setHeader(HttpHeaders.RETRY_AFTER, String.valueOf(wait));
       res.setContentType(MediaType.APPLICATION_JSON_VALUE);
       res.setCharacterEncoding(StandardCharsets.UTF_8.name());
-      res.getWriter().write("{\"code\":\"" + RateLimiter.CODE + "\",\"message\":\"请求太频繁，请稍后再试\",\"fields\":[],\"cooldownSeconds\":" + wait + "}");
+      res.getWriter().write("{\"code\":\"" + RateLimiter.CODE + "\",\"message\":\"请求太频繁，请稍后再试\",\"fields\":[],\"cooldownSeconds\":" + wait + TraceIdFilter.jsonField() + "}");
       return;
     }
     chain.doFilter(req, res);

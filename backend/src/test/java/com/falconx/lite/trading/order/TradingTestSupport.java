@@ -126,4 +126,14 @@ abstract class TradingTestSupport {
   java.util.List<String> notices(long uid) {
     return jdbc.queryForList("SELECT CONCAT(template_code, ' ', params) FROM notify_message WHERE user_id = ? ORDER BY id", String.class, uid);
   }
+
+  /** 下单结果里的订单号是对外编号（雪花 ID，E11）；测试直接查库时换成内部 id */
+  long orderId(String publicNo) {
+    return jdbc.queryForObject("SELECT id FROM trading_order WHERE public_no = ?", Long.class, Long.parseLong(publicNo));
+  }
+
+  /** 持仓的对外编号 → 内部 id */
+  long positionId(String publicNo) {
+    return jdbc.queryForObject("SELECT id FROM trading_position WHERE public_no = ?", Long.class, Long.parseLong(publicNo));
+  }
 }

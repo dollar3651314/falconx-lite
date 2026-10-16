@@ -77,8 +77,9 @@ class ReconTest {
   /** 造一条充值记录，返回 链:交易:序号 */
   String deposit(long uid, String amount, String status, long id[]) {
     String hash = "0x" + UUID.randomUUID().toString().replace("-", "");
-    jdbc.update("INSERT INTO wallet_deposit (chain, tx_hash, log_index, block_number, block_hash, from_address, to_address, user_id, amount, status) "
-        + "VALUES ('ERC20', ?, 0, 100, '0xblock', '0xa', '0xb', ?, ?, ?)", hash, uid, new BigDecimal(amount), status);
+    jdbc.update("INSERT INTO wallet_deposit (public_no, chain, tx_hash, log_index, block_number, block_hash, from_address, to_address, user_id, amount, status) "
+        + "VALUES (?, 'ERC20', ?, 0, 100, '0xblock', '0xa', '0xb', ?, ?, ?)", com.falconx.lite.common.id.Snowflake.shared(1).next(), hash, uid,
+        new BigDecimal(amount), status);
     if (id != null) id[0] = jdbc.queryForObject("SELECT id FROM wallet_deposit WHERE tx_hash = ?", Long.class, hash);
     return "ERC20:" + hash + ":0";
   }
@@ -162,8 +163,8 @@ class ReconTest {
   @Test
   void 提现_账本和状态不一致_提现冻结和进行中的合计不一致() {
     long uid = user("1000");
-    jdbc.update("INSERT INTO wallet_withdrawal (user_id, network, address, amount, fee, status, cooling_ends_at, created_at) "
-        + "VALUES (?, 'ERC20', '0xa', 100, 5, 'COMPLETED', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))", uid);
+    jdbc.update("INSERT INTO wallet_withdrawal (public_no, user_id, network, address, amount, fee, status, cooling_ends_at, created_at) "
+        + "VALUES (?, ?, 'ERC20', '0xa', 100, 5, 'COMPLETED', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))", com.falconx.lite.common.id.Snowflake.shared(1).next(), uid);
     long wid = jdbc.queryForObject("SELECT MAX(id) FROM wallet_withdrawal WHERE user_id = ?", Long.class, uid);
     // 有冻结，没有转出
     post(uid, Bucket.BALANCE, "-100", LedgerEntryType.WITHDRAW_FREEZE, "WITHDRAW", String.valueOf(wid));

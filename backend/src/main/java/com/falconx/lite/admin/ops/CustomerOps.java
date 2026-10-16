@@ -120,7 +120,7 @@ class CustomerOps {
     CustomerAdminApi.CustomerDetail d = customers.customer(id).orElseThrow(() -> new BizException("NOT_FOUND", "客户不存在"));
     CustomerAdminApi.Customer c = d.customer();
     TradingAdminApi.Metrics m = trading.metrics(id);
-    List<PositionView> positions = trading.openPositions(id).stream().map(p -> new PositionView(String.valueOf(p.id()), id, c.name(), p.symbol(),
+    List<PositionView> positions = trading.openPositions(id).stream().map(p -> new PositionView(String.valueOf(p.no()), id, c.name(), p.symbol(),
         p.side().toLowerCase(), Ops.money(p.lots()), Ops.money(p.openPrice()), Ops.money(p.currentPrice()), p.leverage(), Ops.money(p.margin()),
         p.pnl() == null ? null : p.pnl().setScale(2, RoundingMode.HALF_UP).toPlainString(),
         p.marginLevel() == null ? null : p.marginLevel().multiply(BigDecimal.valueOf(100)).setScale(1, RoundingMode.DOWN).toPlainString(),

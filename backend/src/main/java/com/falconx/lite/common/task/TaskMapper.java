@@ -33,4 +33,7 @@ interface TaskMapper {
   long count(@Param("taskType") String taskType, @Param("status") String status);
 
   int retry(@Param("id") long id);
+
+  /** 积压：已经到期还没处理的任务数（指标 fx_tasks_backlog，E10） */
+  long countDue();
 }
