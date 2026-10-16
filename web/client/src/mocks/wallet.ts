@@ -6,6 +6,7 @@
 import { ApiError } from '../api/errors';
 import type {
   DepositAddress,
+  DepositRecord,
   LedgerItem,
   LedgerQuery,
   Network,
@@ -32,10 +33,43 @@ const CONFIRMATIONS: Record<Network, { n: number; eta: number }> = {
   BSC: { n: 15, eta: 1 },
 };
 
+/** 最小充值 1 USDT（Amos 确认，充值方案 D4） */
+const MIN_DEPOSIT = '1';
+
 export function getDepositAddresses(): Promise<DepositAddress[]> {
   // 地址在注册时生成，空数据场景下也存在
   return respond(() =>
-    (['ERC20', 'TRC20', 'BSC'] as Network[]).map((network) => ({ network, address: db.deposit[network], confirmations: CONFIRMATIONS[network].n, etaMinutes: CONFIRMATIONS[network].eta })),
+    (['ERC20', 'TRC20', 'BSC'] as Network[]).map((network) => ({
+      network,
+      address: db.deposit[network],
+      confirmations: CONFIRMATIONS[network].n,
+      etaMinutes: CONFIRMATIONS[network].eta,
+      minDeposit: MIN_DEPOSIT,
+    })),
+  );
+}
+
+const MOCK_TX = (i: number): string => `0x${(0x7f3a00 + i).toString(16)}${'0'.repeat(52)}e21b${i}`;
+
+/** 充值记录：资金流水里的充值都算已到账，另加一条待确认、一条低于最小充值金额，演示各种状态 */
+export function listDeposits(): Promise<DepositRecord[]> {
+  return respond(
+    () => {
+      const credited: DepositRecord[] = db.ledger
+        .filter((l) => l.type === 'deposit')
+        .map((l, i) => {
+          const network = (['ERC20', 'TRC20', 'BSC'].includes(l.ref) ? l.ref : 'TRC20') as Network;
+          const n = CONFIRMATIONS[network].n;
+          return { id: `D${l.id}`, network, txHash: MOCK_TX(i), amount: l.amount, status: 'credited', confirmations: n, requiredConfirmations: n, time: l.time };
+        });
+      const now = Date.now();
+      const extra: DepositRecord[] = [
+        { id: 'Dpending', network: 'TRC20', txHash: MOCK_TX(90), amount: '500', status: 'pending', confirmations: 7, requiredConfirmations: CONFIRMATIONS.TRC20.n, time: new Date(now - 60_000).toISOString() },
+        { id: 'Dbelow', network: 'BSC', txHash: MOCK_TX(91), amount: '0.5', status: 'belowMin', confirmations: CONFIRMATIONS.BSC.n, requiredConfirmations: CONFIRMATIONS.BSC.n, time: new Date(now - 86_400_000).toISOString() },
+      ];
+      return [...extra, ...credited].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 50);
+    },
+    () => [],
   );
 }
 

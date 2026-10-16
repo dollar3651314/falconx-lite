@@ -112,7 +112,8 @@
     "resetDone": "密码已重置",
     "resetDoneBody": "请用新密码登录",
     "backToLogin": "返回登录",
-    "riskNotice": "风险提示：杠杆交易风险较高，可能损失全部保证金。（正式文案待法务审核）"
+    "riskNotice": "风险提示：杠杆交易风险较高，可能损失全部保证金。（正式文案待法务审核）",
+    "codeSentReal": "验证码已发送到 {{email}}，10 分钟内有效"
   },
   "profile": {
     "section": "个人资料",
@@ -341,7 +342,17 @@
     "warnTitle": "充值前请确认",
     "warnOnly": "只能向此地址转入 {{network}} 网络的 USDT",
     "warnWrong": "转错网络或币种，资金无法找回",
-    "warnConfirm": "到账需要 {{n}} 个区块确认，约 {{m}} 分钟，到账后会通知您"
+    "warnConfirm": "到账需要 {{n}} 个区块确认，约 {{m}} 分钟，到账后会通知您",
+    "warnMin": "单笔最少 {{min}} USDT，低于该金额不会入账",
+    "records": "充值记录",
+    "recordsEmpty": "暂无充值记录",
+    "status": {
+      "pending": "待确认 {{n}}/{{m}}",
+      "credited": "已到账",
+      "dropped": "已作废",
+      "belowMin": "低于最小充值金额",
+      "reversed": "已冲正"
+    }
   },
   "ledger": {
     "filterAll": "全部流水",
@@ -587,7 +598,7 @@
   },
   "errors": {
     "network": "网络连接失败，请检查网络后重试",
-    "server": "服务暂时不可用，请稍后重试（原型模拟：接口出错）",
+    "server": "服务暂时不可用，请稍后重试",
     "timeout": "请求超时，请重试",
     "unauthorized": "登录已失效，请重新登录",
     "invalidCredentials": "邮箱或密码错误",
@@ -609,7 +620,24 @@
     "rateStale": "汇率暂不可用，暂时不能开仓",
     "leverageExceeded": "杠杆超过该品种上限",
     "positionLimit": "超过单个账户的持仓上限",
-    "insufficientBalance": "可用余额不足以支付保证金和手续费"
+    "insufficientBalance": "可用余额不足以支付保证金和手续费",
+    "accountFrozen": "账户已被冻结，请联系客服",
+    "kycPending": "身份认证正在审核中，请耐心等待",
+    "kycApproved": "身份认证已通过，不需要重复提交",
+    "docNumberUsed": "该证件已被其他账户使用",
+    "profileLocked": "身份认证通过后不能修改资料",
+    "notWhitelisted": "请选择白名单里的地址",
+    "whitelistNotActive": "该地址添加未满 24 小时，暂不能使用",
+    "withdrawBelowMin": "低于单笔最小提现金额",
+    "withdrawAboveMax": "超过单笔最大提现金额",
+    "withdrawDailyLimit": "超过今日提现额度",
+    "withdrawInsufficient": "超过可提金额",
+    "walletNotReady": "充值地址暂不可用，请稍后再试",
+    "quoteUnavailable": "暂时没有可成交的报价，请稍后再试",
+    "validationFailed": "提交的内容不符合要求，请检查后重试",
+    "badRequest": "请求无法处理，请刷新页面后重试",
+    "forbidden": "没有权限进行此操作",
+    "fileTooLarge": "文件太大，每张不能超过 2MB"
   },
   "validation": {
     "fixAll": "请修改以上标红的内容后再提交",
@@ -654,7 +682,13 @@
     "passportFormat": "护照号为 6–12 位字母或数字",
     "fileType": "只支持 JPG 或 PNG",
     "fileSize": "文件不能超过 2MB",
-    "marginExceedsAvailable": "超过可用余额"
+    "marginExceedsAvailable": "超过可用余额",
+    "tooLong": "内容太长",
+    "invalid": "内容不正确",
+    "nationalityInvalid": "请选择国籍",
+    "docTypeInvalid": "请选择证件类型",
+    "docNumberInvalid": "证件号码格式不正确",
+    "addressInvalid": "地址格式不正确"
   },
   "countries": {
     "CN": "中国大陆",

@@ -4,8 +4,16 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // 客户端部署在站点根路径 `/`；后台在 `/admin/`（另一个工程）。
+// 接口模式 VITE_API_MODE（src/api/mode.ts）：默认 real（同源 /api）；原型构建（scripts/build-prototype.sh、Vercel）设为 mock。
+// 本地开发：`npm run dev` 把 /api（含 WebSocket）转发到后端，地址用 FX_API_PROXY 指定，默认 http://localhost:8080；
+// 后端要设 FX_COOKIE_SECURE=false，否则 http 下浏览器不保存登录 Cookie。
 export default defineConfig({
   base: '/',
+  server: {
+    proxy: {
+      '/api': { target: process.env.FX_API_PROXY || 'http://localhost:8080', ws: true },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
@@ -31,9 +39,11 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // 后台 /admin/ 是另一个应用，客户端的 Service Worker 不能接管它的导航请求
+        // 后台 /admin/ 是另一个应用、/api/ 是后端，客户端的 Service Worker 不能接管它们的导航请求
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/admin/],
+        navigateFallbackDenylist: [/^\/admin/, /^\/api/],
+        // 收到 Web Push 后显示系统通知、点击打开站内信（public/push-sw.js，S17）
+        importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
       },
     }),
@@ -44,5 +54,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['src/test/setup.ts'],
     css: false,
+    // 页面和模拟层的测试按原型模式运行；真实接口层的测试直接引用 src/api/real/（用 fetch 替身）
+    env: { VITE_API_MODE: 'mock' },
   },
 });

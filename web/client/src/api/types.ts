@@ -8,7 +8,8 @@ export type Lang = 'zh-CN' | 'en';
 
 // ---------- 账户与认证 ----------
 export interface Session {
-  token: string;
+  /** 只有原型（mock 模式）有；真实环境的令牌在 HttpOnly Cookie 里，前端拿不到 */
+  token?: string;
   userId: string;
   email: string;
 }
@@ -216,6 +217,23 @@ export interface DepositAddress {
   address: string;
   confirmations: number;
   etaMinutes: number;
+  /** 最小充值金额（低于它不入账，AC-41） */
+  minDeposit: string;
+}
+
+/** 充值记录状态：待确认 / 已到账 / 已作废（链上回滚）/ 低于最小充值金额 / 已冲正 */
+export type DepositStatus = 'pending' | 'credited' | 'dropped' | 'belowMin' | 'reversed';
+
+export interface DepositRecord {
+  id: string;
+  network: Network;
+  txHash: string;
+  amount: string;
+  status: DepositStatus;
+  /** 当前确认数（待确认时显示进度） */
+  confirmations: number;
+  requiredConfirmations: number;
+  time: string;
 }
 
 export type LedgerType = 'deposit' | 'withdraw' | 'withdrawRefund' | 'margin' | 'pnl' | 'fee' | 'swap' | 'adjust';

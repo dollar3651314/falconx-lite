@@ -112,7 +112,8 @@
     "resetDone": "Password reset",
     "resetDoneBody": "Please log in with your new password",
     "backToLogin": "Back to log in",
-    "riskNotice": "Risk warning: leveraged trading is high risk and you may lose all of your margin. (Final wording pending legal review)"
+    "riskNotice": "Risk warning: leveraged trading is high risk and you may lose all of your margin. (Final wording pending legal review)",
+    "codeSentReal": "Code sent to {{email}}, valid for 10 minutes"
   },
   "profile": {
     "section": "Personal details",
@@ -341,7 +342,17 @@
     "warnTitle": "Before you deposit",
     "warnOnly": "Only send USDT on the {{network}} network to this address",
     "warnWrong": "Funds sent on the wrong network or in another token cannot be recovered",
-    "warnConfirm": "Credited after {{n}} block confirmations (about {{m}} min). We will notify you."
+    "warnConfirm": "Credited after {{n}} block confirmations (about {{m}} min). We will notify you.",
+    "warnMin": "Minimum {{min}} USDT per deposit. Smaller amounts will not be credited",
+    "records": "Deposit history",
+    "recordsEmpty": "No deposits yet",
+    "status": {
+      "pending": "Confirming {{n}}/{{m}}",
+      "credited": "Credited",
+      "dropped": "Dropped",
+      "belowMin": "Below minimum deposit",
+      "reversed": "Reversed"
+    }
   },
   "ledger": {
     "filterAll": "All",
@@ -587,7 +598,7 @@
   },
   "errors": {
     "network": "Network error. Please check your connection and retry",
-    "server": "Service temporarily unavailable. Please retry later (prototype: simulated API error)",
+    "server": "Service temporarily unavailable. Please try again later.",
     "timeout": "Request timed out. Please retry",
     "unauthorized": "Session expired. Please log in again",
     "invalidCredentials": "Incorrect email or password",
@@ -609,7 +620,24 @@
     "rateStale": "Exchange rate unavailable; opening is temporarily disabled",
     "leverageExceeded": "Leverage exceeds the symbol limit",
     "positionLimit": "Exceeds the account position limit",
-    "insufficientBalance": "Insufficient balance for margin and fee"
+    "insufficientBalance": "Insufficient balance for margin and fee",
+    "accountFrozen": "Your account has been frozen. Please contact support.",
+    "kycPending": "Your identity verification is under review.",
+    "kycApproved": "Your identity is already verified.",
+    "docNumberUsed": "This ID document is already used by another account.",
+    "profileLocked": "Your profile cannot be changed after identity verification.",
+    "notWhitelisted": "Please choose an address from your whitelist.",
+    "whitelistNotActive": "This address was added less than 24 hours ago and cannot be used yet.",
+    "withdrawBelowMin": "Below the minimum withdrawal amount.",
+    "withdrawAboveMax": "Above the maximum amount per withdrawal.",
+    "withdrawDailyLimit": "Exceeds today's withdrawal limit.",
+    "withdrawInsufficient": "Exceeds the withdrawable amount.",
+    "walletNotReady": "Deposit addresses are not available yet. Please try again later.",
+    "quoteUnavailable": "No tradable quote right now. Please try again later.",
+    "validationFailed": "Some fields are invalid. Please check and try again.",
+    "badRequest": "The request could not be processed. Please refresh the page and try again.",
+    "forbidden": "You are not allowed to do this.",
+    "fileTooLarge": "File too large. Each file must be 2 MB or less."
   },
   "validation": {
     "fixAll": "Please fix the highlighted fields",
@@ -654,7 +682,13 @@
     "passportFormat": "Passport number is 6–12 letters or digits",
     "fileType": "JPG or PNG only",
     "fileSize": "File must be 2MB or smaller",
-    "marginExceedsAvailable": "Exceeds available balance"
+    "marginExceedsAvailable": "Exceeds available balance",
+    "tooLong": "Too long",
+    "invalid": "Invalid value",
+    "nationalityInvalid": "Please choose your nationality",
+    "docTypeInvalid": "Please choose a document type",
+    "docNumberInvalid": "Invalid document number",
+    "addressInvalid": "Invalid address format"
   },
   "countries": {
     "CN": "Mainland China",

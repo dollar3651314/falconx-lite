@@ -31,18 +31,20 @@ const NotifyPrefs = lazy(() => import('./pages/me/NotifyPrefs'));
 const ChangePassword = lazy(() => import('./pages/me/ChangePassword'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
-// 原型：行情驱动的挂单成交、止盈止损、强平在浏览器内模拟
+// 原型：行情驱动的挂单成交、止盈止损、强平在浏览器内模拟（真实环境在服务端，这里什么都不做）
 startEngine();
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { session } = useAuth();
+  const { session, checking } = useAuth();
   const location = useLocation();
+  if (checking) return <Loading rows={4} />;
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return <>{children}</>;
 }
 
 function GuestOnly({ children }: { children: ReactNode }) {
-  const { session } = useAuth();
+  const { session, checking } = useAuth();
+  if (checking) return <Loading rows={4} />;
   return session ? <Navigate to="/" replace /> : <>{children}</>;
 }
 

@@ -1,5 +1,5 @@
 import { dec, toFixed } from './decimal';
-import { estimateOrder, execPrice, liquidationAfterAddMargin, pnlAt } from './trading';
+import { availableFunds, estimateOrder, execPrice, liquidationAfterAddMargin, pnlAt } from './trading';
 import type { SymbolInfo } from '../api/types';
 
 const base: Omit<SymbolInfo, 'code' | 'category' | 'digits' | 'contractSize' | 'unit' | 'baseCcy' | 'quoteCcy' | 'maxLeverage'> = {
@@ -53,5 +53,21 @@ describe('下单预估（A-01 合约大小）', () => {
     const pos = { id: 'p', symbol: 'XAUUSD', side: 'buy' as const, lots: '0.10', leverage: 50, openPrice: '4126.75', margin: '825.35', maintenanceMarginRate: '0.0025', liquidationPrice: '4054.53', openedAt: '' };
     // 追加 619 USDT 后，可承受亏损多 61.90 美元/盎司
     expect(liquidationAfterAddMargin(pos, XAU, '1', dec('619'))).toBe('3992.63');
+  });
+});
+
+describe('可用余额（和后端 Funds 同一口径，DF-02）', () => {
+  it('浮动亏损减少可用，浮动盈利不计入', () => {
+    // 余额 10,000，挂单冻结 500；持仓 A 保证金 1,000 浮盈 +300，持仓 B 保证金 800 浮亏 −200
+    const v = availableFunds(dec('10000'), dec('500'), [
+      { margin: dec('1000'), pnl: dec('300') },
+      { margin: dec('800'), pnl: dec('-200') },
+    ]);
+    // 10,000 − 500 − 1,000 − 800 − 200 = 7,500（浮盈 300 不算）
+    expect(toFixed(v, 2)).toBe('7500.00');
+  });
+
+  it('没有持仓时 = 余额 − 挂单冻结', () => {
+    expect(toFixed(availableFunds(dec('100'), dec('30'), []), 2)).toBe('70.00');
   });
 });

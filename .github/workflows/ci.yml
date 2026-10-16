@@ -57,6 +57,11 @@ jobs:
         run: npm test
       - name: 构建
         run: npm run build
+      - name: 原型模式构建（客户端 VITE_API_MODE=mock，Vercel 原型站用）
+        if: matrix.app == 'client'
+        run: npm run build
+        env:
+          VITE_API_MODE: mock
       - name: 依赖安全检查（高危漏洞不允许）
         run: npm audit --audit-level=high --omit=dev
   backend:

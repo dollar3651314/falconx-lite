@@ -110,6 +110,21 @@ export function changePercent(open: string, last: string): Dec {
   return mul(div(sub(dec(last), o), o), dec(100));
 }
 
+/**
+ * 可用余额，和后端 `trading.order.Funds.available` 同一口径（数据库设计第 10 节，DF-02）：
+ * 可用 = 余额 − 挂单冻结 − 已用保证金 + 各持仓的浮动亏损。**浮动盈利不计入**（不能拿来开新仓、追加保证金、提现）。
+ * 下单前校验、追加保证金、账户条显示都用它。
+ * @param positions 每个持仓的保证金和浮动盈亏（取不到报价的持仓浮动盈亏按 0 算，和后端一致）
+ */
+export function availableFunds(balance: Dec, orderFrozen: Dec, positions: Array<{ margin: Dec; pnl: Dec }>): Dec {
+  let v = sub(balance, orderFrozen);
+  for (const p of positions) {
+    v = sub(v, p.margin);
+    if (cmp(p.pnl, ZERO) < 0) v = add(v, p.pnl);
+  }
+  return v;
+}
+
 /** 保证金水平 = 净值 ÷ 已用保证金 × 100%；没有持仓时返回 null */
 export function marginLevel(equity: Dec, usedMargin: Dec): Dec | null {
   if (usedMargin === ZERO) return null;

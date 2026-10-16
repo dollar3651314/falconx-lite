@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "echo 依赖在 build-prototype.sh 里安装",
-  "buildCommand": "bash scripts/build-prototype.sh",
+  "buildCommand": "VITE_API_MODE=mock bash scripts/build-prototype.sh",
   "outputDirectory": "dist",
   "redirects": [
     {

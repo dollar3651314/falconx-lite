@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../app/contexts';
+import { syncPushSubscription } from '../api/webPush';
 import { notificationPermission, requestNotificationPermission } from '../lib/notify';
 import { Icon } from './Icon';
 
@@ -62,7 +63,10 @@ export function InstallPrompt() {
     const r = await requestNotificationPermission();
     dismiss();
     setPerm(r);
-    if (r === 'granted') toast.show({ tone: 'success', title: t('install.permGranted') });
+    if (r === 'granted') {
+      toast.show({ tone: 'success', title: t('install.permGranted') });
+      void syncPushSubscription();
+    }
     else if (r === 'denied') toast.show({ tone: 'warn', title: t('install.permDenied') });
     else if (r === 'unsupported') toast.show({ tone: 'warn', title: t('install.permUnsupported') });
   };

@@ -8,6 +8,8 @@ import type { Dec } from '../lib/decimal';
 // ---------- 登录状态 ----------
 export interface AuthValue {
   session: Session | null;
+  /** 真实环境打开页面时正在向后端确认登录状态 */
+  checking: boolean;
   setSession: (s: Session | null) => void;
   logout: () => Promise<void>;
 }

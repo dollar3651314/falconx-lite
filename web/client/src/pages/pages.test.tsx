@@ -80,3 +80,15 @@ describe('下单面板手数', () => {
     });
   });
 });
+
+import { DepositCard } from './assets/DepositCard';
+
+describe('充值', () => {
+  it('选网络后显示最小充值金额；下方显示充值记录的各种状态（AC-41）', async () => {
+    renderPage(<DepositCard />, '/assets');
+    expect(await screen.findByText('低于最小充值金额')).toBeInTheDocument();
+    expect(screen.getByText(/待确认 7\/20/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /TRC20/ }));
+    expect(await screen.findByText('单笔最少 1 USDT，低于该金额不会入账')).toBeInTheDocument();
+  });
+});
