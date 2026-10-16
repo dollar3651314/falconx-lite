@@ -4,7 +4,7 @@
  * 请求都从浏览器页面里发（同源 fetch），走的是浏览器的域名解析和 HTTPS，和真实用户一样。
  */
 import { expect, test, type Page } from '@playwright/test';
-import { ADMIN_URL, CLIENT_URL, DEPLOYED } from './targets';
+import { ADMIN_URL, CLIENT_URL, DEPLOYED, SITE_URL } from './targets';
 
 test.skip(!DEPLOYED, '只在部署形态运行（e2e/run-deployed.sh）');
 
@@ -65,6 +65,34 @@ test('Nginx：两个域名的路由、跳转和安全响应头', async ({ browse
     for (const p of ['/api/me/session', '/api/e2e/mail/code?email=x%40example.com', '/actuator/health']) {
       expect((await status(page, p)).status, `后台域名 ${p} 应为 404`).toBe(404);
     }
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('Nginx：官网域名只开放页面、公开行情和健康检查（v2）', async ({ browser }) => {
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: true, serviceWorkers: 'block' });
+  const page = await ctx.newPage();
+  try {
+    await page.goto(SITE_URL.replace(/^https:/, 'http:') + '/');
+    expect(page.url(), '官网 http 跳到 https').toBe(`${SITE_URL}/`);
+    const res = await page.goto(`${SITE_URL}/`);
+    const h = res!.headers();
+    expect(h['strict-transport-security'], 'HSTS').toContain('max-age=');
+    expect(h['x-frame-options']).toBe('DENY');
+    // 页面里的客户端地址由 Nginx 填成客户端域名（注册、登录跳过去）
+    expect(await page.locator('meta[name="qc-client-url"]').getAttribute('content')).toBe(CLIENT_URL);
+    expect((await status(page, '/api/public/quotes')).status, '公开行情经 Nginx 到后端（不需要登录）').toBe(200);
+    expect((await status(page, '/api/health')).status).toBe(200);
+    for (const p of ['/api/me/session', '/api/market/quotes', '/api/public/quotes;x', '/api/admin/me', '/api/e2e/mail/code?email=x%40example.com', '/actuator/health']) {
+      expect((await status(page, p)).status, `官网域名 ${p} 应为 404`).toBe(404);
+    }
+    for (const p of ['/terms', '/privacy', '/risk', '/terms/']) {
+      const r = await status(page, p);
+      expect(r.status, `直接打开 ${p}`).toBe(200);
+      expect(r.type).toContain('text/html');
+    }
+    expect((await status(page, '/assets/not-exist-0000.js')).status, '不存在的脚本').toBe(404);
   } finally {
     await ctx.close();
   }

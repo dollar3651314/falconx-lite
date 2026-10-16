@@ -45,19 +45,19 @@ for p in 18443 18080; do
   if (exec 3<> "/dev/tcp/127.0.0.1/$p") 2> /dev/null; then die "本机端口 $p 已被占用；本脚本不会去停别人的进程"; fi
 done
 
-# ---------- 1. 构建 jar 和两个前端 ----------
+# ---------- 1. 构建 jar 和三个前端（web 镜像里有官网） ----------
 if [ -z "${LOAD_SKIP_BUILD:-}" ]; then
   say "构建后端 jar"
   # shellcheck disable=SC2086
   mvn -B -ntp -q ${LOAD_MVN_ARGS:-} -f backend package -DskipTests
-  for app in client admin; do
+  for app in client admin site; do
     say "构建 web/$app（真实接口模式）"
     [ -d "web/$app/node_modules" ] || npm ci --prefix "web/$app" --no-audit --no-fund
     (unset VITE_API_MODE; npm run build --prefix "web/$app" > "$LOGS/build-$app.log" 2>&1) || { tail -40 "$LOGS/build-$app.log" >&2; exit 1; }
   done
 fi
 ls backend/target/falconx-lite-*.jar > /dev/null 2>&1 || die "没有 backend/target/falconx-lite-*.jar"
-for app in client admin; do [ -f "web/$app/dist/index.html" ] || die "没有 web/$app/dist（去掉 LOAD_SKIP_BUILD 重跑）"; done
+for app in client admin site; do [ -f "web/$app/dist/index.html" ] || die "没有 web/$app/dist（去掉 LOAD_SKIP_BUILD 重跑）"; done
 
 # ---------- 2. 两个镜像（和测试环境同样的 Dockerfile） ----------
 SHA=$(git rev-parse HEAD 2> /dev/null || echo dev)

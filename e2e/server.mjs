@@ -1,7 +1,9 @@
 // 端到端测试用的站点（S19）：只用 Node 自带模块，不引入额外依赖。
 // - 客户端构建产物（web/client/dist）在 `/`，后台（web/admin/dist）在 `/admin/`，找不到的页面路径回到各自的 index.html（浏览器路由）
 // - `/api/**`（含 WebSocket）原样转发到后端（默认 http://127.0.0.1:8080），保留浏览器的 Host 头（后端的 WebSocket 只接受同源），和测试环境 Nginx 的同源方式一致
-// 环境变量：E2E_PORT（默认 4173）、E2E_BACKEND（默认 http://127.0.0.1:8080）
+// - 官网（v2，web/site/dist）在另一个端口 E2E_SITE_PORT（默认 4174）：和测试环境的官网域名一样，只转发 /api/public/quotes 和 /api/health，
+//   其他 /api/ 返回 404；页面里的客户端地址占位符换成本站客户端地址（Nginx 换成 https://${APP_DOMAIN}，见 deploy/nginx/site.conf.template）
+// 环境变量：E2E_PORT（默认 4173）、E2E_SITE_PORT（默认 4174）、E2E_BACKEND（默认 http://127.0.0.1:8080）
 import http from 'node:http';
 import net from 'node:net';
 import fs from 'node:fs';
@@ -10,7 +12,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.E2E_PORT || 4173);
+const SITE_PORT = Number(process.env.E2E_SITE_PORT || 4174);
 const BACKEND = new URL(process.env.E2E_BACKEND || 'http://127.0.0.1:8080');
+const WWW_DIR = path.join(root, 'web/site/dist');
+const WWW_API = new Set(['/api/public/quotes', '/api/health']);
 const SITES = [
   { prefix: '/admin/', dir: path.join(root, 'web/admin/dist') },
   { prefix: '/', dir: path.join(root, 'web/client/dist') },
@@ -29,9 +34,9 @@ const TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-for (const s of SITES) {
-  if (!fs.existsSync(path.join(s.dir, 'index.html'))) {
-    console.error(`缺少构建产物 ${s.dir}/index.html：先在 web/client 和 web/admin 里运行 npm run build`);
+for (const dir of [...SITES.map((s) => s.dir), WWW_DIR]) {
+  if (!fs.existsSync(path.join(dir, 'index.html'))) {
+    console.error(`缺少构建产物 ${dir}/index.html：先在 web/client、web/admin、web/site 里运行 npm run build`);
     process.exit(1);
   }
 }
@@ -98,6 +103,36 @@ server.on('upgrade', (req, socket, head) => {
   });
   up.on('error', () => socket.destroy());
   socket.on('error', () => up.destroy());
+});
+
+// 官网：静态页面（找不到的页面路径回到 index.html），只放行两个接口
+function serveWww(req, res) {
+  const url = new URL(req.url, 'http://x');
+  if (url.pathname.startsWith('/api/')) {
+    if (WWW_API.has(url.pathname)) proxy(req, res);
+    else res.writeHead(404, { 'Content-Type': 'application/json' }).end('{"code":"NOT_FOUND","message":"not found","fields":[]}');
+    return;
+  }
+  const rel = decodeURIComponent(url.pathname).slice(1);
+  let file = path.join(WWW_DIR, rel);
+  if (!file.startsWith(WWW_DIR)) {
+    res.writeHead(400).end();
+    return;
+  }
+  if (!rel || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    if (path.extname(rel)) {
+      res.writeHead(404).end();
+      return;
+    }
+    file = path.join(WWW_DIR, 'index.html');
+  }
+  const type = TYPES[path.extname(file)] || 'application/octet-stream';
+  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });
+  if (file.endsWith('.html')) res.end(fs.readFileSync(file, 'utf8').replace('__QC_CLIENT_URL__', `http://127.0.0.1:${PORT}`));
+  else fs.createReadStream(file).pipe(res);
+}
+http.createServer(serveWww).listen(SITE_PORT, '127.0.0.1', () => {
+  console.log(`端到端测试官网 http://127.0.0.1:${SITE_PORT}（/api/public/quotes、/api/health → ${BACKEND.origin}）`);
 });
 
 server.listen(PORT, '127.0.0.1', () => {

@@ -1,8 +1,9 @@
-# 前端 + Nginx 镜像（S20，部署方案 v1.1 第 4、7 节）。先构建两个前端（真实接口模式，不设 VITE_API_MODE），再在仓库根目录构建：
+# 前端 + Nginx 镜像（S20，部署方案 v1.1 第 4、7 节；v2 加官网）。先构建三个前端（真实接口模式，不设 VITE_API_MODE），再在仓库根目录构建：
 #   npm ci --prefix web/client && npm run build --prefix web/client
 #   npm ci --prefix web/admin && npm run build --prefix web/admin
+#   npm ci --prefix web/site && npm run build --prefix web/site
 #   docker build -f deploy/web.Dockerfile --build-arg FX_VERSION=<提交号> -t falconx-lite-web:<提交号> .
-# 里面有：两个前端的构建产物、Nginx 配置、服务器端部署工具包（/falconx-kit，deploy.sh 每次更新时从这里同步到服务器）。
+# 里面有：客户端、后台、官网的构建产物（官网里的客户端地址由 Nginx 在运行时填 https://${APP_DOMAIN}，不在构建时写死）、Nginx 配置、服务器端部署工具包（/falconx-kit，deploy.sh 每次更新时从这里同步到服务器）。
 FROM nginx:1.27-bookworm
 ARG FX_VERSION=dev
 LABEL org.opencontainers.image.source="https://github.com/dollar3651314/falconx-lite" \
@@ -22,5 +23,6 @@ COPY deploy/nginx/proxy.inc /etc/nginx/snippets/proxy.inc
 COPY deploy/nginx/security.inc /etc/nginx/snippets/security.inc
 COPY web/client/dist /usr/share/nginx/client
 COPY web/admin/dist /usr/share/nginx/admin
+COPY web/site/dist /usr/share/nginx/site
 COPY deploy/kit /falconx-kit
 RUN echo "${FX_VERSION}" > /falconx-kit/VERSION

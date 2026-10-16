@@ -1,0 +1,147 @@
+{
+  "meta": {
+    "title": "Quick Come | Trade global markets, one step ahead",
+    "description": "Trade CFDs on gold, forex, indices, oil and crypto with USDT. Open it in your phone browser and trade, no download needed."
+  },
+  "common": {
+    "brand": "Quick Come",
+    "login": "Log in",
+    "register": "Sign up free",
+    "registerNow": "Sign up now",
+    "menu": "Menu",
+    "close": "Close",
+    "langLabel": "Language",
+    "envTest": "Test environment",
+    "backHome": "Back to home",
+    "tbd": "To be provided"
+  },
+  "risk": {
+    "bar": "Risk warning: CFDs are complex instruments. Because of leverage, losses can grow quickly and you may lose all of your margin.",
+    "barShort": "CFDs are high risk. You may lose all of your margin.",
+    "link": "Risk Disclosure",
+    "full": "Risk warning: CFDs are complex instruments. Because of leverage, losses can grow quickly and you may lose all of your margin. Make sure you understand how they work and can afford the risk. Nothing on this website is investment advice."
+  },
+  "nav": {
+    "markets": "Markets",
+    "products": "Instruments",
+    "platform": "Why us",
+    "safety": "Security",
+    "faq": "FAQ"
+  },
+  "hero": {
+    "titleA": "One step ahead,",
+    "titleB": "trade global markets",
+    "sub": "Trade CFDs on gold, forex, indices, oil and crypto with USDT. Open it in your phone browser and trade, no download needed.",
+    "subMobile": "Trade CFDs on gold, forex, indices and crypto with USDT, right in your phone browser.",
+    "p1": "USDT deposits and withdrawals",
+    "p2": "About 50 instruments",
+    "p3": "Works on phone and desktop"
+  },
+  "board": {
+    "title": "Live prices",
+    "sample": "Sample prices",
+    "sampleNote": "Prices in the test environment come from a simulated feed, not the real market.",
+    "liveNote": "Prices are for reference only; the trading page prevails.",
+    "tabsLabel": "Categories",
+    "colSymbol": "Instrument",
+    "colTrend": "Trend",
+    "colBid": "Sell",
+    "colChange": "Today",
+    "closed": "Closed",
+    "noQuote": "No quote",
+    "loading": "Loading",
+    "empty": "No instruments in this category yet",
+    "footHint": "Pick any instrument and sign up to trade it",
+    "all": "See all instruments →",
+    "rowLabel": "{name}: sign up to trade"
+  },
+  "cat": {
+    "hot": "Popular",
+    "fx": "Forex",
+    "metal": "Metals",
+    "index": "Indices",
+    "energy": "Energy",
+    "crypto": "Crypto"
+  },
+  "adv": {
+    "title": "Why Quick Come",
+    "sub": "A CFD trading platform built for USDT users",
+    "a1t": "One USDT account",
+    "a1d": "Deposit USDT and trade every instrument. Margin, profit and loss and fees are all settled in USDT, no currency exchange needed.",
+    "a2t": "Clear pricing",
+    "a2d": "Buy and sell prices side by side; before you place an order you see the required margin, the fee and the estimated liquidation price.",
+    "a3t": "Mobile first",
+    "a3d": "Ordering and position management designed for phones. Add it to your home screen, open it like an app and get fill and liquidation alerts.",
+    "a4t": "Contained risk",
+    "a4d": "Isolated margin, take profit and stop loss, margin call alerts: the risk of each position is limited to that position's margin."
+  },
+  "hot": {
+    "title": "Popular instruments",
+    "sub": "Forex, metals, indices, energy and crypto, all from one account",
+    "metal": "XAUUSD Gold · XAGUSD Silver",
+    "fx": "EURUSD · GBPUSD · USDJPY · USDCNH",
+    "index": "NAS100 Nasdaq · US30 Dow · GER40 DAX",
+    "energy": "XTIUSD US Crude · XBRUSD Brent Crude",
+    "crypto": "BTCUSD Bitcoin · ETHUSD Ethereum"
+  },
+  "steps": {
+    "title": "Start in three steps",
+    "s1t": "Sign up",
+    "s1d": "Sign up with your email and a verification code. It takes about a minute.",
+    "s2t": "Deposit",
+    "s2d": "Send USDT to your own deposit address on ERC20, TRC20 or BSC (BEP20). The minimum is 1 USDT.",
+    "s3t": "Trade",
+    "s3d": "Pick an instrument and a size, then buy or sell in one tap, with take profit and stop loss if you like."
+  },
+  "safe": {
+    "title": "Funds and security",
+    "sub": "Only what the system actually does",
+    "s1t": "Your own deposit address",
+    "s1d": "Every account has its own USDT deposit address and deposits are credited automatically after on-chain confirmation. The private keys of deposit addresses are not stored on our servers.",
+    "s2t": "Withdrawal whitelist",
+    "s2d": "Withdrawals only go to addresses on your whitelist; a newly added address can be used after 24 hours.",
+    "s3t": "Cooling-off period and manual review",
+    "s3d": "Every withdrawal starts with a cooling-off period (you can cancel during it) and is then reviewed by a person; large withdrawals are also held for a while after approval.",
+    "s4t": "Identity verification",
+    "s4d": "Withdrawals require identity verification (KYC), so a stolen login alone cannot move your funds out.",
+    "license": "Regulatory and licence information: to be provided"
+  },
+  "faq": {
+    "title": "FAQ",
+    "q1": "What is a CFD?",
+    "a1": "A contract for difference settles profit and loss on price changes: you do not own the underlying asset and you can buy (go long) or sell (go short). Leverage magnifies both gains and losses; please read the Risk Disclosure first.",
+    "q2": "Which deposit networks are supported? What is the minimum?",
+    "a2": "Only USDT, on ERC20 (Ethereum), TRC20 (TRON) or BSC (BEP20). The minimum deposit is 1 USDT; smaller transfers are not credited. Choose the network carefully: transfers on the wrong network or of other tokens cannot be recovered.",
+    "q3": "How long does a withdrawal take?",
+    "a3": "After you submit a withdrawal there is a 2-hour cooling-off period (you can cancel during it), then a manual review, and after approval it is sent on chain. Withdrawals of 3,000 USDT or more are held for another 6 hours after approval. Arrival also depends on how fast the blockchain confirms.",
+    "q4": "What do I need to withdraw?",
+    "a4": "You need to complete identity verification (KYC) and you can only withdraw to whitelisted addresses; a new address becomes usable 24 hours after it is added. Withdrawal fees and limits are shown on the withdrawal page.",
+    "q5": "When can I trade?",
+    "a5": "Crypto trades 24 hours a day, every day. Forex, metals, indices and oil trade roughly Monday to Friday (from Sunday 22:00 to Friday 21:00 UTC); the trading page shows the exact sessions. You cannot open or close positions while a market is closed.",
+    "q6": "How do I use it on my phone?",
+    "a6": "Open the client in your phone browser to sign up and trade; no app download is needed. You can also add it to your home screen to open it like an app and receive alerts.",
+    "q7": "Can I lose more than I deposit?",
+    "a7": "Each position uses isolated margin, and when its margin level falls below the maintenance margin the system closes it automatically to limit the loss. In fast or gapping markets the liquidation price can be worse than estimated, and you may lose all the margin of that position."
+  },
+  "final": {
+    "title": "Sign up and start trading",
+    "sub": "Free to sign up, deposit from 1 USDT"
+  },
+  "footer": {
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "risk": "Risk Disclosure",
+    "contact": "Contact us: {email}",
+    "company": "Company information: to be provided",
+    "copyright": "© Quick Come"
+  },
+  "legal": {
+    "review": "Legal review required",
+    "reviewNote": "This page is a draft template. It must be reviewed by legal counsel before it is used as a formal document.",
+    "updated": "Last updated",
+    "contents": "Contents"
+  },
+  "notFound": {
+    "title": "Page not found"
+  }
+}
