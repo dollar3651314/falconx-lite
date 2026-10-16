@@ -2,7 +2,8 @@
 # 仓库为私有、GitHub 免费版时开不了分支保护：合并前人工确认本检查是绿的，并在 PR 或汇报里附运行链接。
 # 原则：不需要任何密钥（外部服务用替身）；用到数据库的，用 GitHub 提供的数据库容器在真实数据库上跑（C37）。
 # v0.2：项目地图和索引检查、密钥扫描；客户端和后台的 lint、单元测试、构建、依赖安全检查。
-# v0.3（S2）：后端 Maven 测试，用 GitHub 的 MySQL、Redis 服务容器（C37）。端到端测试在 S19 加上。
+# v0.3（S2）：后端 Maven 测试，用 GitHub 的 MySQL、Redis 服务容器（C37）。
+# v0.4（S19）：端到端测试（Playwright），后端以 e2e profile 启动，外部服务全部用替身。
 name: ci
 on:
   pull_request:
@@ -100,3 +101,76 @@ jobs:
           cache: maven
       - name: 单元测试和模块边界检查
         run: mvn -B -ntp verify
+  # S19 端到端测试（测试报告/v1-端到端测试方案.md）：真实模式构建的客户端和后台 + 后端（profile e2e，外部依赖用替身）+ MySQL、Redis 容器，
+  # Playwright（Chromium）跑主流程：注册 → 充值 → 下单 → 止盈止损 → 平仓 → 提现，后台审核。失败时上传 trace、截图、录像和后端日志。
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          # 一次性测试容器的密码，只在 CI 里用，不是任何环境的密钥
+          MYSQL_ROOT_PASSWORD: ci_only_not_a_secret
+          MYSQL_DATABASE: falconx_e2e
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -uroot -pci_only_not_a_secret --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      FX_DB_URL: jdbc:mysql://127.0.0.1:3306/falconx_e2e
+      FX_DB_USERNAME: root
+      FX_DB_PASSWORD: ci_only_not_a_secret
+      FX_REDIS_HOST: 127.0.0.1
+      # 第一个超管（后台方案 G1）：一次性测试值，只在 CI 的临时数据库里用，不是任何环境的密钥；测试里首次登录会改成另一个一次性值
+      FX_ADMIN_INIT_USERNAME: e2e_admin
+      FX_ADMIN_INIT_PASSWORD: ci_only_admin_init_1
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/client/package-lock.json
+            web/admin/package-lock.json
+            e2e/package-lock.json
+      - name: 构建后端
+        run: mvn -B -ntp -f backend package -DskipTests
+      - name: 构建客户端（真实接口模式）
+        working-directory: web/client
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: 构建后台（真实接口模式）
+        working-directory: web/admin
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: 安装 Playwright 和 Chromium
+        working-directory: e2e
+        run: npm ci --no-audit --no-fund && npx playwright install --with-deps chromium
+      - name: 启动后端（profile e2e）
+        run: bash e2e/start-backend.sh
+      - name: 端到端测试
+        working-directory: e2e
+        run: npx playwright test
+      - name: 上传失败记录（trace、截图、录像、后端日志）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            e2e/logs/backend.log
+          retention-days: 14
+      - name: 停止后端
+        if: always()
+        run: kill "$(cat e2e/logs/backend.pid)" 2> /dev/null || true

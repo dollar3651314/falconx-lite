@@ -1,5 +1,5 @@
 {
-  "_说明": "项目地图和项目索引的检查配置（agents 规则 C53）。由 scripts/check-project-index.mjs 读取，CI 每次 PR 都会运行。v0.2：加入两个前端——每个前端的根目录配置文件、接口层 src/api、翻译文件 src/i18n 逐个列出；其余代码按目录列出（C53 v0.9 补充）。v0.3（S2）：加入后端——根目录配置文件和 src/main/resources 逐个列出，Java 代码按模块目录列出。",
+  "_说明": "项目地图和项目索引的检查配置（agents 规则 C53）。由 scripts/check-project-index.mjs 读取，CI 每次 PR 都会运行。v0.2：加入两个前端——每个前端的根目录配置文件、接口层 src/api、翻译文件 src/i18n 逐个列出；其余代码按目录列出（C53 v0.9 补充）。v0.3（S2）：加入后端——根目录配置文件和 src/main/resources 逐个列出，Java 代码按模块目录列出。v0.4（S19）：加入端到端测试 e2e/ 的根目录文件和 e2e/tests/。",
   "map": "项目地图.md",
   "index": "项目索引.md",
   "entry": [
@@ -23,7 +23,9 @@
       "web/*/src/api/**",
       "web/*/src/i18n/**",
       "backend/*",
-      "backend/src/main/resources/**"
+      "backend/src/main/resources/**",
+      "e2e/*",
+      "e2e/tests/**"
     ],
     "exclude": [
       "**/package-lock.json",
