@@ -48,7 +48,7 @@ export function availableNow(): Dec {
   const positions = db.positions.map((p) => {
     const info = symbolInfo(p.symbol);
     const q = quote(p.symbol);
-    return { margin: dec(p.margin), pnl: info && q ? positionPnl(p, info, q) : ZERO };
+    return { margin: dec(p.margin), pnl: (info && q ? positionPnl(p, info, q) : null) ?? ZERO };
   });
   return availableFunds(dec(db.account.balance), dec(db.account.orderFrozen), positions);
 }

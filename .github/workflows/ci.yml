@@ -60,6 +60,8 @@ jobs:
         run: npm test
       - name: 构建
         run: npm run build
+      - name: 真实接口模式的构建不含原型模拟层（src/mocks/）
+        run: node ../../scripts/check-no-mocks.mjs src/mocks dist
       - name: 原型模式构建（客户端 VITE_API_MODE=mock，Vercel 原型站用）
         if: matrix.app == 'client'
         run: npm run build

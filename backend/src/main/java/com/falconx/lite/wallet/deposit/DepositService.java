@@ -7,12 +7,14 @@ import com.falconx.lite.trading.api.FundsApi;
 import com.falconx.lite.trading.api.LedgerApi;
 import com.falconx.lite.trading.api.LedgerCommand;
 import com.falconx.lite.trading.api.LedgerEntryType;
+import com.falconx.lite.trading.api.UserEventsApi;
 import com.falconx.lite.wallet.Chain;
 import com.falconx.lite.wallet.Confirmations;
 import com.falconx.lite.wallet.WalletProperties;
 import com.falconx.lite.wallet.address.AddressService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -29,6 +31,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>复查：入账后的 2 倍确认数内区块哈希变了 → 冲正，余额不够扣的挂账并通知风控（F4）</li>
  * </ol>
  * 只认配置好的 USDT 合约（修复 F3）：没有配置合约的链不扫块；客户端返回的事件合约不对也不记，打日志（AC-08）。
+ * <p>充值记录每次变化（发现、确认数变化、入账、作废、冲正）都在写库以后推给本人
+ * {"type":"deposit","status":"pending","network":"ERC20","amount":"100","confirmations":1}（修复 E2E-2：原来只有入账时才有推送，
+ * 客户端看不到"待确认"）。推送失败不影响扫块和入账。
  */
 @Service
 public class DepositService {
@@ -46,9 +51,10 @@ public class DepositService {
   private final RiskApi risk;
   private final NotifyApi notify;
   private final Confirmations confirmations;
+  private final UserEventsApi events;
 
   DepositService(DepositMapper mapper, ChainClients clients, AddressService addresses, LedgerApi ledger, WalletProperties props, TransactionTemplate tx,
-      FundsApi funds, RiskApi risk, NotifyApi notify, Confirmations confirmations) {
+      FundsApi funds, RiskApi risk, NotifyApi notify, Confirmations confirmations, UserEventsApi events) {
     this.mapper = mapper;
     this.clients = clients;
     this.addresses = addresses;
@@ -59,6 +65,7 @@ public class DepositService {
     this.risk = risk;
     this.notify = notify;
     this.confirmations = confirmations;
+    this.events = events;
   }
 
   /** 每 15 秒：每条链先扫块再确认 */
@@ -114,6 +121,7 @@ public class DepositService {
       return rest;
     });
     if (shortfall == null) return;
+    push(d.userId(), Chain.valueOf(d.chain()), "REVERSED", d.amount(), d.confirmations());
     log.warn("充值被链上回滚，已冲正 chain={} tx={} user={} amount={} 挂账={}", d.chain(), d.txHash(), d.userId(), d.amount(), shortfall);
     if (shortfall.signum() > 0) {
       risk.notifyStaff("DEPOSIT_SUSPENSE", Map.of("chain", d.chain(), "txHash", d.txHash(), "userId", String.valueOf(d.userId()),
@@ -147,6 +155,9 @@ public class DepositService {
       String status = amount.compareTo(props.minDeposit()) < 0 ? "BELOW_MIN" : "PENDING";
       if (mapper.insertIgnore(chain.name(), t.txHash(), t.logIndex(), t.blockNumber(), t.blockHash(), t.from(), t.to(), user.get(), amount, status) == 1) {
         log.info("发现充值 chain={} tx={} user={} amount={} status={}", chain, t.txHash(), user.get(), amount, status);
+        // 低于最小充值金额的不会再变，这里就推；待确认的由同一次 run 里紧接着的 confirm 推（新记录的确认数是 0，一定会变），
+        // 避免同一笔推两次。插入是自动提交的，客户端收到后重新拉取时记录已经能查到
+        if ("BELOW_MIN".equals(status)) push(user.get(), chain, status, amount, (int) Math.max(0, head - t.blockNumber() + 1));
       }
     }
     mapper.saveCursor(chain.name(), to);
@@ -157,11 +168,16 @@ public class DepositService {
       int conf = (int) Math.max(0, head - d.blockNumber() + 1);
       if (conf < confirmations.of(chain)) {
         mapper.updateConfirmations(d.id(), conf);
+        // 确认数变了才推（包括刚发现的：库里是 0），客户端刷新进度（例如 3/12）
+        if (conf != d.confirmations()) push(d.userId(), chain, "PENDING", d.amount(), conf);
         continue;
       }
       Optional<String> hash = client.blockHash(d.blockNumber());
       if (hash.isEmpty() || !hash.get().equalsIgnoreCase(d.blockHash())) {
-        if (mapper.finish(d.id(), "DROPPED", conf) == 1) log.warn("充值所在区块被回滚，作废 chain={} tx={}", chain, d.txHash());
+        if (mapper.finish(d.id(), "DROPPED", conf) == 1) {
+          log.warn("充值所在区块被回滚，作废 chain={} tx={}", chain, d.txHash());
+          push(d.userId(), chain, "DROPPED", d.amount(), conf);
+        }
         continue;
       }
       credit(d, conf);
@@ -170,14 +186,49 @@ public class DepositService {
 
   /** 状态改成已入账和记账在同一个事务里；幂等键 链:交易:日志序号 */
   private void credit(DepositMapper.DepositRow d, int conf) {
-    tx.executeWithoutResult(st -> {
-      if (mapper.finish(d.id(), "CREDITED", conf) != 1) return;
+    Boolean done = tx.execute(st -> {
+      if (mapper.finish(d.id(), "CREDITED", conf) != 1) return false;
       ledger.apply(new LedgerCommand(d.userId(), Bucket.BALANCE, d.amount(), LedgerEntryType.DEPOSIT, BIZ_DEPOSIT,
           d.chain() + ":" + d.txHash() + ":" + d.logIndex(), "充值 " + d.chain()));
       // 到账通知（AC-07），和入账同一事务
       notify.toUser(d.userId(), "DEPOSIT_CREDITED", Map.of("amount", d.amount().stripTrailingZeros().toPlainString(), "chain", d.chain()));
+      return true;
     });
+    if (!Boolean.TRUE.equals(done)) return;
+    // 事务提交以后再推：充值记录和余额都变了
+    push(d.userId(), Chain.valueOf(d.chain()), "CREDITED", d.amount(), conf);
+    send(d.userId(), Map.of("type", "account"));
     log.info("充值入账 chain={} tx={} user={} amount={}", d.chain(), d.txHash(), d.userId(), d.amount());
+  }
+
+  /**
+   * 推给本人：充值记录变了。status 和充值记录接口（WalletController）的口径一致：pending / credited / dropped / belowMin / reversed。
+   * 推送只是提醒客户端重新拉取充值记录，失败只打日志。
+   */
+  private void push(long userId, Chain chain, String dbStatus, BigDecimal amount, int conf) {
+    Map<String, Object> e = new LinkedHashMap<>();
+    e.put("type", "deposit");
+    e.put("status", apiStatus(dbStatus));
+    e.put("network", chain.name());
+    e.put("amount", amount.stripTrailingZeros().toPlainString());
+    e.put("confirmations", conf);
+    send(userId, e);
+  }
+
+  private void send(long userId, Map<String, Object> e) {
+    try {
+      events.send(userId, e);
+    } catch (RuntimeException ex) {
+      log.debug("充值推送失败 user={}", userId, ex);
+    }
+  }
+
+  /** 数据库状态 → 客户端状态名（DepositStatus） */
+  public static String apiStatus(String s) {
+    return switch (s) {
+      case "BELOW_MIN" -> "belowMin";
+      default -> s.toLowerCase();
+    };
   }
 
   /** 以太坊体系合约地址不区分大小写；TRON 原样比较 */

@@ -31,9 +31,12 @@ interface MarketMsg {
   bar?: Kline;
 }
 
-/** 汇率暂时取不到时（后端返回 null）沿用上一次的值，避免前端计算出错 */
+/**
+ * 汇率暂时取不到时（后端返回 null）沿用上一次的值；从来没有拿到过就留空，页面按"—"显示
+ * （原来补成 '0'，预估的保证金、浮动盈亏会显示成 0，误导客户）。
+ */
 function normalize(q: Quote): Quote {
-  return { ...q, quoteToUsd: q.quoteToUsd ?? cache[q.symbol]?.quoteToUsd ?? '0' };
+  return { ...q, quoteToUsd: q.quoteToUsd ?? cache[q.symbol]?.quoteToUsd };
 }
 
 export function handleMarketMessage(msg: unknown): void {

@@ -39,10 +39,7 @@ class WalletController {
     return deposits.history(CurrentUser.id(), 50).stream().map(d -> {
       WalletProperties.ChainConfig cfg = props.chain(d.chain());
       int required = cfg == null ? 0 : confirmations.of(d.chain());
-      String status = switch (d.status()) {
-        case "BELOW_MIN" -> "belowMin";
-        default -> d.status().toLowerCase();
-      };
+      String status = DepositService.apiStatus(d.status());
       return new DepositView(String.valueOf(d.id()), d.chain().name(), d.txHash(), d.amount().stripTrailingZeros().toPlainString(), status,
           Math.min(d.confirmations(), required), required, d.createdAt().toInstant(java.time.ZoneOffset.UTC).toString());
     }).toList();

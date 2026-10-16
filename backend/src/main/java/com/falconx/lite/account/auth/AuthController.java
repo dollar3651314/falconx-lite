@@ -34,10 +34,12 @@ class AuthController {
     this.props = props;
   }
 
+  /** 发验证码的结果：还要等多少秒才能重发，客户端按它倒计时（60 秒内重发是 429，错误响应体也带剩余的 cooldownSeconds） */
+  record CodeSent(int cooldownSeconds) {}
+
   @PostMapping("/api/auth/email-code")
-  ResponseEntity<Void> sendCode(@Valid @RequestBody SendCode r) {
-    auth.sendCode(r.email(), r.purpose());
-    return ResponseEntity.noContent().build();
+  CodeSent sendCode(@Valid @RequestBody SendCode r) {
+    return new CodeSent(auth.sendCode(r.email(), r.purpose()));
   }
 
   @PostMapping("/api/auth/register")

@@ -30,7 +30,8 @@ export function sendEmailCode(email: string, purpose: EmailCodePurpose): Promise
   return mutate(() => {
     const k = `${purpose}|${email.toLowerCase()}`;
     const last = lastCodeSent.get(k) ?? 0;
-    if (Date.now() - last < 60_000) throw new ApiError('codeTooFrequent');
+    // 和后端一致：60 秒内重发是 429，带还要等的秒数
+    if (Date.now() - last < 60_000) throw new ApiError('codeTooFrequent', undefined, 429, Math.ceil((60_000 - (Date.now() - last)) / 1000));
     if (purpose === 'register' && email.toLowerCase() === 'taken@example.com') throw new ApiError('emailTaken');
     lastCodeSent.set(k, Date.now());
     return { cooldownSeconds: 60 };

@@ -50,13 +50,16 @@ export class ApiError extends Error {
   readonly fieldErrors?: Record<string, string[]>;
   /** HTTP 状态码（真实接口才有） */
   readonly status?: number;
+  /** 操作太频繁时还要等多少秒（后端 429 的 cooldownSeconds，例如验证码 60 秒内重发） */
+  readonly cooldownSeconds?: number;
 
-  constructor(reason: ApiErrorReason, fieldErrors?: Record<string, string[]>, status?: number) {
+  constructor(reason: ApiErrorReason, fieldErrors?: Record<string, string[]>, status?: number, cooldownSeconds?: number) {
     super(reason);
     this.name = 'ApiError';
     this.reason = reason;
     this.fieldErrors = fieldErrors;
     this.status = status;
+    this.cooldownSeconds = cooldownSeconds;
   }
 }
 
@@ -177,6 +180,13 @@ export interface ServerErrorBody {
   code?: string;
   message?: string;
   fields?: Array<{ field?: string; code?: string }>;
+  /** 只在"操作太频繁"（429）时有：还要等多少秒 */
+  cooldownSeconds?: number;
+}
+
+/** 合法的冷却秒数（正整数）才用，否则当成没有 */
+export function validCooldown(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.ceil(v) : undefined;
 }
 
 export interface ServerErrorOptions {
@@ -208,5 +218,5 @@ export function fromServer(status: number, body: ServerErrorBody | undefined, op
   }
   const onField = opt.codeFields?.[code];
   if (onField) add(onField, `errors.${reason}`);
-  return new ApiError(reason, fieldErrors, status);
+  return new ApiError(reason, fieldErrors, status, validCooldown(body?.cooldownSeconds));
 }

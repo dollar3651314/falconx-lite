@@ -55,6 +55,7 @@ class DepositFlowTest {
   @Autowired com.falconx.lite.risk.api.RiskApi risk;
   @Autowired com.falconx.lite.notification.api.NotifyApi notify;
   @Autowired com.falconx.lite.wallet.Confirmations confirmations;
+  @Autowired com.falconx.lite.trading.api.UserEventsApi events;
   @MockitoBean MailApi mail;
 
   @AfterEach
@@ -202,7 +203,7 @@ class DepositFlowTest {
   void 没有配置USDT合约的链不扫块_F3() {
     var noContract = new WalletProperties(props.ethXpub(), props.tronXpub(), props.minDeposit(),
         Map.of(Chain.ERC20, new WalletProperties.ChainConfig(null, "", 6, 12, 12, 200, null)));
-    DepositService service = new DepositService(mapper, clients, addresses, ledger, noContract, tx, funds, risk, notify, confirmations);
+    DepositService service = new DepositService(mapper, clients, addresses, ledger, noContract, tx, funds, risk, notify, confirmations, events);
     FakeChain f = chain(Chain.ERC20, 8000);
     service.run(Chain.ERC20);
     assertThat(f.calls).isZero();
@@ -241,7 +242,7 @@ class DepositFlowTest {
     ledger.apply(new com.falconx.lite.trading.api.LedgerCommand(uid, com.falconx.lite.trading.api.Bucket.ORDER_FROZEN, new BigDecimal("80"),
         com.falconx.lite.trading.api.LedgerEntryType.ORDER_FREEZE, "TEST", "frz-" + uid, "测试冻结"));
     com.falconx.lite.risk.api.RiskApi riskMock = org.mockito.Mockito.mock(com.falconx.lite.risk.api.RiskApi.class);
-    DepositService service = new DepositService(mapper, clients, addresses, ledger, props, tx, funds, riskMock, notify, confirmations);
+    DepositService service = new DepositService(mapper, clients, addresses, ledger, props, tx, funds, riskMock, notify, confirmations, events);
     f.reorg(10000);
     service.run(Chain.ERC20);
     assertThat(jdbc.queryForObject("SELECT status FROM wallet_deposit WHERE id = ?", String.class, id)).isEqualTo("REVERSED");
@@ -249,6 +250,80 @@ class DepositFlowTest {
     assertThat(ledger.snapshot(uid).orderFrozen()).isEqualByComparingTo("80");
     assertThat(jdbc.queryForObject("SELECT amount FROM wallet_suspense WHERE deposit_id = ?", BigDecimal.class, id)).isEqualByComparingTo("80");
     org.mockito.Mockito.verify(riskMock).notifyStaff(eq("DEPOSIT_SUSPENSE"), org.mockito.ArgumentMatchers.argThat(m -> "80.00000000".equals(m.get("shortfall"))));
+  }
+
+  /** 记下推给每个用户的事件（代替 WebSocket） */
+  static final class RecordingEvents implements com.falconx.lite.trading.api.UserEventsApi {
+    final java.util.List<Map<String, Object>> sent = new java.util.concurrent.CopyOnWriteArrayList<>();
+    final long only;
+
+    RecordingEvents(long only) {
+      this.only = only;
+    }
+
+    @Override
+    public void send(long userId, Map<String, Object> event) {
+      if (userId == only) sent.add(event);
+    }
+
+    java.util.List<Map<String, Object>> deposits() {
+      return sent.stream().filter(e -> "deposit".equals(e.get("type"))).toList();
+    }
+  }
+
+  @Test
+  void 发现待确认的充值就推送_确认数变化_入账_都推给本人_E2E2() {
+    long uid = newUser();
+    RecordingEvents rec = new RecordingEvents(uid);
+    DepositService service = new DepositService(mapper, clients, addresses, ledger, props, tx, funds, risk, notify, confirmations, rec);
+    String to = addresses.addressOf(uid, Chain.ERC20).orElseThrow();
+    FakeChain f = chain(Chain.ERC20, 12000);
+    f.transfer(12000, ERC20_USDT, to, usdt6("100"));
+    f.transfer(12000, ERC20_USDT, to, usdt6("0.5"));
+    service.run(Chain.ERC20);
+    // 发现时就推（原来只有入账时才推，客户端看不到"待确认"），每笔只推一次
+    assertThat(rec.deposits()).containsExactly(
+        Map.of("type", "deposit", "status", "belowMin", "network", "ERC20", "amount", "0.5", "confirmations", 1),
+        Map.of("type", "deposit", "status", "pending", "network", "ERC20", "amount", "100", "confirmations", 1));
+    rec.sent.clear();
+    service.run(Chain.ERC20);
+    assertThat(rec.sent).as("没有变化不推").isEmpty();
+    f.head = 12005;
+    service.run(Chain.ERC20);
+    assertThat(rec.deposits()).as("确认数变了").containsExactly(Map.of("type", "deposit", "status", "pending", "network", "ERC20", "amount", "100", "confirmations", 6));
+    rec.sent.clear();
+    f.head = 12011;
+    service.run(Chain.ERC20);
+    assertThat(rec.sent).as("入账后推充值记录和账户").containsExactly(
+        Map.of("type", "deposit", "status", "credited", "network", "ERC20", "amount", "100", "confirmations", 12), Map.of("type", "account"));
+    assertThat(balance(uid)).isEqualByComparingTo("100");
+  }
+
+  @Test
+  void 作废时也推送_推送失败不影响扫块() {
+    long uid = newUser();
+    RecordingEvents rec = new RecordingEvents(uid);
+    DepositService service = new DepositService(mapper, clients, addresses, ledger, props, tx, funds, risk, notify, confirmations, rec);
+    String to = addresses.addressOf(uid, Chain.ERC20).orElseThrow();
+    FakeChain f = chain(Chain.ERC20, 13000);
+    String txHash = f.transfer(13000, ERC20_USDT, to, usdt6("30"));
+    service.run(Chain.ERC20);
+    f.reorg(13000);
+    f.head = 13020;
+    rec.sent.clear();
+    service.run(Chain.ERC20);
+    assertThat(rec.deposits()).extracting(e -> e.get("status")).containsExactly("dropped");
+    // 推送抛异常：照样记录、照样入账
+    com.falconx.lite.trading.api.UserEventsApi broken = (u, e) -> {
+      throw new IllegalStateException("连接断了");
+    };
+    DepositService failing = new DepositService(mapper, clients, addresses, ledger, props, tx, funds, risk, notify, confirmations, broken);
+    String ok = f.transfer(13021, ERC20_USDT, to, usdt6("7"));
+    f.head = 13032;
+    failing.run(Chain.ERC20);
+    assertThat(status(Chain.ERC20, ok)).isEqualTo("CREDITED");
+    assertThat(status(Chain.ERC20, txHash)).isEqualTo("DROPPED");
+    assertThat(balance(uid)).isEqualByComparingTo("7");
   }
 
   @SuppressWarnings("unchecked")

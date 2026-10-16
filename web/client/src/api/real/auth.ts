@@ -1,5 +1,5 @@
 /** 认证的真实接口：`/api/auth/*`、`/api/me/session`（`account/auth/AuthController.java`） */
-import { ApiError } from '../errors';
+import { ApiError, validCooldown } from '../errors';
 import { get, post } from '../http';
 import type { EmailCodePurpose, RegisterRequest, Session } from '../types';
 
@@ -13,8 +13,8 @@ const toSession = (v: SessionView): Session => ({ userId: v.userId, email: v.ema
 /** 后端的验证码用途是枚举 REGISTER / RESET_PASSWORD */
 const PURPOSE: Record<EmailCodePurpose, string> = { register: 'REGISTER', resetPassword: 'RESET_PASSWORD' };
 
-/** 后端的重发间隔（`falconx.auth.code-resend-seconds`），接口没有返回，按配置写 */
-const RESEND_SECONDS = 60;
+/** 旧版后端（返回 204、没有响应体）时的重发间隔，和后端默认的 `falconx.auth.code-resend-seconds` 一致 */
+const DEFAULT_RESEND_SECONDS = 60;
 
 export async function login(email: string, password: string): Promise<Session> {
   return toSession(await post<SessionView>('/api/auth/login', { email, password }, { quiet401: true }));
@@ -24,9 +24,13 @@ export async function register(req: RegisterRequest): Promise<Session> {
   return toSession(await post<SessionView>('/api/auth/register', req, { codeFields: { CODE_INVALID: 'code', EMAIL_TAKEN: 'email' } }));
 }
 
+/**
+ * 发验证码：后端返回 200 `{"cooldownSeconds":60}`，按它倒计时；兼容旧版的 204（没有响应体）按 60 秒。
+ * 60 秒内重发是 429 `CODE_TOO_FREQUENT`，ApiError.cooldownSeconds 是还要等的秒数。
+ */
 export async function sendEmailCode(email: string, purpose: EmailCodePurpose): Promise<{ cooldownSeconds: number }> {
-  await post<void>('/api/auth/email-code', { email, purpose: PURPOSE[purpose] });
-  return { cooldownSeconds: RESEND_SECONDS };
+  const r = await post<{ cooldownSeconds?: number } | undefined>('/api/auth/email-code', { email, purpose: PURPOSE[purpose] });
+  return { cooldownSeconds: validCooldown(r?.cooldownSeconds) ?? DEFAULT_RESEND_SECONDS };
 }
 
 export async function resetPassword(email: string, code: string, password: string): Promise<void> {

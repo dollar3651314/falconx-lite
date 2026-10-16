@@ -608,7 +608,7 @@
     "accountLocked": "Too many failed attempts. Account locked for 15 minutes",
     "emailTaken": "This email is already registered",
     "codeInvalid": "Invalid or expired code",
-    "codeTooFrequent": "Too many requests. Try again in 60 seconds",
+    "codeTooFrequent": "Too many requests. Please wait for the countdown to finish",
     "passwordWrong": "Current password is incorrect",
     "kycRequired": "Please complete identity verification first",
     "whitelistFull": "Up to 10 whitelisted addresses",

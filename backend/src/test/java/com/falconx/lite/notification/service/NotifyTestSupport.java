@@ -105,7 +105,7 @@ abstract class NotifyTestSupport {
   /** 真实注册流程：验证码邮件经过任务表和 SMTP 发出，从收到的邮件里取验证码 */
   User register() throws Exception {
     String email = "n" + System.nanoTime() + "@example.com";
-    assertThat(call(post("/api/auth/email-code"), null, "{\"email\":\"" + email + "\",\"purpose\":\"REGISTER\"}").getStatus()).isEqualTo(204);
+    assertThat(call(post("/api/auth/email-code"), null, "{\"email\":\"" + email + "\",\"purpose\":\"REGISTER\"}").getStatus()).isEqualTo(200);
     worker.drain();
     List<MimeMessage> mails = mailsTo(email);
     assertThat(mails).hasSize(1);

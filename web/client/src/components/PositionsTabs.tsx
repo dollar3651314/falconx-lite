@@ -84,7 +84,7 @@ function PositionList({ positions, table, onAction, onSelectSymbol }: { position
     .map((p) => {
       const s = map[p.symbol];
       const q = quotes[p.symbol];
-      return s ? { p, s, q, pnl: q ? positionPnl(p, s, q) : undefined } : null;
+      return s ? { p, s, q, pnl: (q && positionPnl(p, s, q)) ?? undefined } : null;
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
   const ops = (p: Position, s: SymbolInfo) => (
