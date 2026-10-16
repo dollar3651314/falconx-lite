@@ -43,4 +43,17 @@ class ClientLedgerTest extends TradingTestSupport {
     assertThat(mvc.perform(get("/api/trading/ledger?range=1y").cookie(c)).andReturn().getResponse().getStatus()).isEqualTo(400);
     assertThat(getJson("/api/me/profile", c).get("registeredAt").asString()).as("时间带时区").endsWith("Z");
   }
+
+  @Test
+  void 流水的ref取品种或网络_不显示平仓原因和后台调余额原因() {
+    assertThat(TradingController.ref("平仓盈亏 XAUUSD CLOSED")).isEqualTo("XAUUSD");
+    assertThat(TradingController.ref("平仓盈亏 ETHUSD TP")).isEqualTo("ETHUSD");
+    assertThat(TradingController.ref("开仓手续费 XAUUSD")).isEqualTo("XAUUSD");
+    assertThat(TradingController.ref("隔夜费 XAUUSD 2026-10-14")).isEqualTo("XAUUSD");
+    assertThat(TradingController.ref("充值 TRC20")).isEqualTo("TRC20");
+    assertThat(TradingController.ref("充值被链上回滚，冲正 BSC")).isEqualTo("BSC");
+    assertThat(TradingController.ref("提现冻结")).isEmpty();
+    assertThat(TradingController.ref("后台调余额：补偿 ABC123")).isEmpty();
+    assertThat(TradingController.ref(null)).isEmpty();
+  }
 }

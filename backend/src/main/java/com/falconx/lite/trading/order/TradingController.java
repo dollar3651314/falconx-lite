@@ -142,12 +142,15 @@ class TradingController {
     return entryType.toLowerCase();
   }
 
-  /** 备注最后一段是品种或网络（例如"开仓手续费 XAUUSD"、"充值 TRC20"）；没有时为空 */
+  /**
+   * 备注第二段是品种或网络（例如"开仓手续费 XAUUSD"、"充值 TRC20"、"平仓盈亏 XAUUSD TAKE_PROFIT"、"隔夜费 XAUUSD 2026-10-14"）；没有时为空。
+   * 后台调余额的备注是管理员写的原因，不给客户看（E2E-3）。
+   */
   static String ref(String remark) {
-    if (remark == null) return "";
+    if (remark == null || remark.startsWith("后台调余额")) return "";
     String[] parts = remark.strip().split("\\s+");
-    String last = parts[parts.length - 1];
-    return last.matches("[A-Z0-9]{3,12}") ? last : "";
+    if (parts.length < 2) return "";
+    return parts[1].matches("[A-Z0-9]{3,12}") ? parts[1] : "";
   }
 
   /**

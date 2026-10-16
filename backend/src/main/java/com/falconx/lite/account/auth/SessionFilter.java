@@ -1,5 +1,6 @@
 package com.falconx.lite.account.auth;
 
+import com.falconx.lite.common.e2e.E2eGuard;
 import com.falconx.lite.common.web.CurrentUser;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -9,6 +10,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -26,10 +29,13 @@ class SessionFilter extends OncePerRequestFilter {
 
   private final SessionService sessions;
   private final AuthProperties props;
+  /** 端到端测试模式（profile e2e，S19）：/api/e2e/** 不检查登录。其他配置下这些接口根本不存在，照常要求登录（返回 401） */
+  private final boolean e2e;
 
-  SessionFilter(SessionService sessions, AuthProperties props) {
+  SessionFilter(SessionService sessions, AuthProperties props, Environment env) {
     this.sessions = sessions;
     this.props = props;
+    this.e2e = env.acceptsProfiles(Profiles.of(E2eGuard.PROFILE));
   }
 
   static String token(HttpServletRequest req, String cookieName) {
@@ -42,7 +48,7 @@ class SessionFilter extends OncePerRequestFilter {
   @Override
   protected boolean shouldNotFilter(HttpServletRequest req) {
     String p = req.getRequestURI();
-    return !p.startsWith("/api/") || p.startsWith("/api/admin/") || PUBLIC.contains(p);
+    return !p.startsWith("/api/") || p.startsWith("/api/admin/") || PUBLIC.contains(p) || (e2e && p.startsWith(E2eGuard.PATH_PREFIX));
   }
 
   @Override

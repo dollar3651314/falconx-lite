@@ -62,10 +62,35 @@ class SimulatedQuoteSource {
   private void tick() {
     Instant now = Instant.now();
     for (Walk w : walks) {
-      w.price()[0] *= 1 + random.nextGaussian() * 0.0002;
-      BigDecimal bid = BigDecimal.valueOf(w.price()[0]).setScale(w.scale(), RoundingMode.HALF_UP);
-      processor.submit(new RawQuote(w.symbol(), bid, bid.add(w.spread()), now));
+      synchronized (w) {
+        w.price()[0] *= 1 + random.nextGaussian() * 0.0002;
+        processor.submit(quote(w, now));
+      }
     }
+  }
+
+  private static RawQuote quote(Walk w, Instant now) {
+    BigDecimal bid = BigDecimal.valueOf(w.price()[0]).setScale(w.scale(), RoundingMode.HALF_UP);
+    return new RawQuote(w.symbol(), bid, bid.add(w.spread()), now);
+  }
+
+  /**
+   * 把某个品种的原始卖价（不含加点）移到 bid，立即推一条报价，之后从这里继续随机游走。
+   * 只给端到端测试用（{@link E2eMarket}，profile e2e），让止盈止损按测试的节奏触发。
+   *
+   * @return 推出的那条原始报价；没有这个品种时为空
+   */
+  java.util.Optional<RawQuote> moveTo(String symbol, BigDecimal bid) {
+    for (Walk w : walks) {
+      if (!w.symbol().equals(symbol)) continue;
+      synchronized (w) {
+        w.price()[0] = bid.doubleValue();
+        RawQuote q = quote(w, Instant.now());
+        processor.submit(q);
+        return java.util.Optional.of(q);
+      }
+    }
+    return java.util.Optional.empty();
   }
 
   @PreDestroy
