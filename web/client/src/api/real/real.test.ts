@@ -253,6 +253,7 @@ describe('实时推送', () => {
     const ws = FakeWS.instances.find((w) => w.url.endsWith('/api/ws/trading'))!;
     expect(ws.url).toMatch(/^ws:\/\/.+\/api\/ws\/trading$/);
     ws.open();
+    got.length = 0; // 连上时补发的 account / positions / orders 在下一个用例里检查
     ws.push({ type: 'positions' });
     ws.push({ type: 'trade', kind: 'tp', symbol: 'XAUUSD', pnl: '12.5' });
     ws.push({ type: 'deposit', status: 'pending', network: 'ERC20', amount: '100', confirmations: 1 });
@@ -266,13 +267,16 @@ describe('实时推送', () => {
     off();
   });
 
-  it('断线自动重连，重连后让页面重新拉取账户、持仓、挂单；退出登录后不再重连', () => {
+  it('第一次连上和断线重连后都让页面重新拉取账户、持仓、挂单（D-2）；退出登录后不再重连', () => {
     vi.useFakeTimers();
     const got: string[] = [];
     const off = subscribeEvents((e) => got.push(e.type));
     setLoggedIn(true);
     const first = FakeWS.instances.at(-1)!;
     first.open();
+    // 第一次连上之前发生的变化收不到推送，所以第一次连上也要重新拉取
+    expect(got).toEqual(['account', 'positions', 'orders']);
+    got.length = 0;
     first.drop();
     vi.advanceTimersByTime(1000);
     const second = FakeWS.instances.at(-1)!;

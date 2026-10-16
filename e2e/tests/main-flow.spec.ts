@@ -126,7 +126,7 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
     });
 
     await step(`客户：链上转入 ${DEPOSIT} USDT（TRC20），先显示待确认，确认数够了到账`, async () => {
-      // 先等交易推送连上再转账：连上之前发生的变化页面收不到推送（问题 D-2，经过 Nginx 和 TLS 时更容易碰上）
+      // 先等交易推送连上再转账。D-2 已修（每次连上都重新拉取），保留这一步让测试不依赖时间窗口
       await waitSocketOpen(page, '/api/ws/trading');
       const r = await e2e.deposit(request, 'TRC20', address, DEPOSIT);
       expect(r.status).toBe('PENDING');
