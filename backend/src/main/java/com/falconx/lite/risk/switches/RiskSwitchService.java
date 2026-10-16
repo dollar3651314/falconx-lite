@@ -142,4 +142,9 @@ class RiskSwitchService implements RiskApi {
   private RiskSwitchMapper.SymbolRow row(String symbol) {
     return mapper.symbols().stream().filter(r -> r.symbol().equals(symbol)).findFirst().orElseThrow();
   }
+
+  @Override
+  public List<Event> events(int limit) {
+    return mapper.events(Math.min(Math.max(limit, 1), 200));
+  }
 }

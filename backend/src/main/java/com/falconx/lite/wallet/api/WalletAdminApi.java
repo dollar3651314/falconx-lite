@@ -47,4 +47,7 @@ public interface WalletAdminApi {
   CustomerFunds customerFunds(long userId, int recent);
 
   long pendingReview();
+
+  /** 仪表盘（S16c）：从 since 起入账的充值（按入账时间） */
+  Bucket creditedSince(LocalDateTime since);
 }

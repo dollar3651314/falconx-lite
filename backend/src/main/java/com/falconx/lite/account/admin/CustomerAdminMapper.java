@@ -68,4 +68,8 @@ interface CustomerAdminMapper {
   KycRow kyc(@Param("id") long id);
 
   long pendingKyc();
+
+  long registeredSince(@Param("since") LocalDateTime since);
+
+  long activeSince(@Param("since") LocalDateTime since);
 }

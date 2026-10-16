@@ -55,4 +55,10 @@ public interface CustomerAdminApi {
   Optional<Image> kycImage(long applicationId, String side);
 
   long pendingKyc();
+
+  /** 仪表盘（S16c）：从 since 起注册的客户数 */
+  long registeredSince(java.time.LocalDateTime since);
+
+  /** 仪表盘：从 since 起有活动的客户数（登录会话在这段时间里有请求） */
+  long activeSince(java.time.LocalDateTime since);
 }

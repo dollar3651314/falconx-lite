@@ -71,4 +71,10 @@
   </select>
 
   <select id="pendingKyc" resultType="long">SELECT COUNT(*) FROM account_kyc_application WHERE status = 'PENDING'</select>
+
+  <select id="registeredSince" resultType="long">SELECT COUNT(*) FROM account_user WHERE created_at &gt;= #{since}</select>
+
+  <select id="activeSince" resultType="long">
+    SELECT COUNT(DISTINCT user_id) FROM account_session WHERE revoked_at IS NULL AND last_seen_at &gt;= #{since}
+  </select>
 </mapper>
