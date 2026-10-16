@@ -237,6 +237,26 @@ class AdminV2Test extends AdminTestSupport {
   }
 
   @Test
+  void 模拟起始价_不是模拟报价源时忽略_不校验不保存_列表告诉前端不是模拟源() throws Exception {
+    Admin m = withRoles(role(Permission.SYMBOL_VIEW, Permission.SYMBOL_EDIT, Permission.SYMBOL_CREATE));
+    assertThat(body(call(get("/api/admin/symbols?pageSize=1"), m.cookie(), null)).get("simulatedQuotes").asBoolean()).as("测试配置的报价源是 none").isFalse();
+    String code = newCode();
+    try {
+      // 格式不对也不报错：这一项整个被忽略
+      JsonNode s = body(call(post("/api/admin/symbols"), m.cookie(), createBody(code, ",\"sessionTemplate\":\"crypto\",\"simStartPrice\":\"abc\",\"reason\":\"上新\"")));
+      assertThat(s.get("code").asString()).isEqualTo(code);
+      assertThat(s.get("simStartPrice").isNull()).isTrue();
+      assertThat(s.get("lastQuoteAt").isNull()).isTrue();
+      JsonNode e = body(call(put("/api/admin/symbols/" + code), m.cookie(), "{\"simStartPrice\":\"100\",\"reason\":\"补价\"}"));
+      assertThat(e.get("simStartPrice").isNull()).isTrue();
+      assertThat(jdbc.queryForObject("SELECT sim_start_price FROM market_symbol WHERE code = ?", BigDecimal.class, code)).isNull();
+      assertThat(processor.latest(code)).isEmpty();
+    } finally {
+      dropSymbol(code);
+    }
+  }
+
+  @Test
   void E6_品种列表有最后报价时间_休市品种标出不在交易时段() throws Exception {
     Admin m = withRoles(role(Permission.SYMBOL_VIEW));
     processor.process(new RawQuote("EURUSD", new BigDecimal("1.16342"), new BigDecimal("1.16352"), FixedClockConfig.NOW));

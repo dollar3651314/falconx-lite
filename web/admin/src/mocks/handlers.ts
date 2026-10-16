@@ -42,6 +42,7 @@ import {
   type TradingParamsInput,
   type RiskOverview,
   type SymbolCreateInput,
+  type SymbolPage,
   type SymbolPatch,
   type TradingSymbol,
   type WithdrawalDetail,
@@ -53,7 +54,7 @@ import { MENU, type MenuItemDef } from '../config/menu';
 import { PERMISSIONS, SUPER_ADMIN_ROLE } from '../config/permissions';
 import { sanitizeAuditPayload } from '../utils/audit';
 import { compareAmounts, fromScaled, isValidAmountInput, sumAmounts, toScaled, usagePercent } from '../utils/money';
-import { CURRENCY_RE, SYMBOL_CODE_RE, birthDateProblems, nameProblems, nationalityProblems } from '../utils/validators';
+import { CURRENCY_RE, SYMBOL_CODE_RE, birthDateProblems, nameProblems, nationalityProblems, simStartPriceProblems } from '../utils/validators';
 import * as db from './data/db';
 import { NOW_MS, createRng, minutesAgo, nowString } from './data/seed';
 import { emptyPage, matches, mutate, paginate, respond } from './runtime';
@@ -737,6 +738,23 @@ export function setPerUserLimit(limit: string, reason: string): Promise<void> {
  */
 const STALE_DEMO = 'HK50';
 const quotedSymbols = new Set(db.symbols.map((s) => s.code));
+
+/**
+ * 原型模拟的是测试环境：报价源是模拟源（品种列表的 simulatedQuotes 为 true，页面显示"模拟起始价"）。
+ * 测试里可以切成"不是模拟源"（例如接了 LP），看输入框是否隐藏、这一项是否被忽略。
+ */
+let simulatedQuotes = true;
+export function setMockSimulatedQuotes(on: boolean) {
+  simulatedQuotes = on;
+}
+
+/** 模拟起始价的校验（和后端一致）：返回后端的字段错误代码，合法时返回规范化的值（去掉末尾的 0） */
+function checkSimStartPrice(v: string, digits: number): { code: string } | { value: string } {
+  const p = simStartPriceProblems(v, digits);
+  if (p.length) return { code: p[0] === 'validation.simStartPriceDecimals' ? 'tooManyDecimals' : 'invalid' };
+  const t = v.trim();
+  return { value: t.includes('.') ? t.replace(/0+$/, '').replace(/\.$/, '') : t };
+}
 function withQuoteTime(s: TradingSymbol): TradingSymbol {
   const tradingOpen = s.enabled && s.category !== 'stock';
   if (!s.enabled || !quotedSymbols.has(s.code)) return { ...s, lastQuoteAt: null, tradingOpen };
@@ -744,10 +762,10 @@ function withQuoteTime(s: TradingSymbol): TradingSymbol {
   return { ...s, lastQuoteAt: new Date(Date.now() - ageMs).toISOString(), tradingOpen };
 }
 
-export function listSymbols(q: SymbolQuery): Promise<Page<TradingSymbol>> {
+export function listSymbols(q: SymbolQuery): Promise<SymbolPage> {
   return respond(
-    () =>
-      paginate(
+    () => ({
+      ...paginate(
         db.symbols.filter(
           (s) =>
             (!q.category || s.category === q.category) &&
@@ -758,7 +776,9 @@ export function listSymbols(q: SymbolQuery): Promise<Page<TradingSymbol>> {
         q.page,
         q.pageSize,
       ),
-    { empty: () => emptyPage(q.page, q.pageSize) },
+      simulatedQuotes,
+    }),
+    { empty: () => ({ ...emptyPage<TradingSymbol>(q.page, q.pageSize), simulatedQuotes }) },
   );
 }
 
@@ -768,15 +788,24 @@ export function updateSymbol(code: string, patch: SymbolPatch, reason: string): 
     const r = requireReason(reason);
     const s = db.symbols.find((x) => x.code === code);
     if (!s) throw new ApiError('errors.notFound');
+    // 模拟起始价：只在模拟报价源下生效，否则忽略；还没有报价的品种补填后开始"报价"（已经在报价的只保存）
+    const { simStartPrice: sim, ...rest } = patch;
+    const next: Partial<TradingSymbol> = { ...rest };
+    if (simulatedQuotes && sim !== undefined && sim.trim() !== '') {
+      const c = checkSimStartPrice(sim, s.digits);
+      if ('code' in c) throw fieldError([{ field: 'simStartPrice', code: c.code }]);
+      next.simStartPrice = c.value;
+    }
     const before: Record<string, AuditValue> = {};
     const after: Record<string, AuditValue> = {};
-    (Object.keys(patch) as (keyof SymbolPatch)[]).forEach((k) => {
-      if (patch[k] !== s[k]) {
-        before[k] = s[k] as AuditValue;
-        after[k] = patch[k] as AuditValue;
+    (Object.keys(next) as (keyof TradingSymbol)[]).forEach((k) => {
+      if (next[k] !== s[k]) {
+        before[k] = (s[k] ?? null) as AuditValue;
+        after[k] = next[k] as AuditValue;
       }
     });
-    Object.assign(s, patch, { updatedAt: nowString() });
+    Object.assign(s, next, { updatedAt: nowString() });
+    if (next.simStartPrice) quotedSymbols.add(code);
     audit('symbol.update', code, true, r, before, after);
   });
 }
@@ -810,6 +839,13 @@ export function createSymbol(input: SymbolCreateInput, reason: string): Promise<
     const copy = input.copySessionsFrom?.trim();
     if (!copy && !input.sessionTemplate) bad('sessions', 'required');
     else if (copy && !db.sessions.some((s) => s.symbol === copy)) bad('copySessionsFrom', 'invalid');
+    // 模拟起始价（可选）：只在模拟报价源下生效，否则忽略（不校验、不保存）
+    let sim: string | null = null;
+    if (simulatedQuotes && input.simStartPrice?.trim()) {
+      const c = checkSimStartPrice(input.simStartPrice, input.digits);
+      if ('code' in c) bad('simStartPrice', c.code);
+      else sim = c.value;
+    }
     if (problems.length) throw fieldError(problems);
     if (db.symbols.some((s) => s.code === code)) throw new ApiError('errors.symbolExists', undefined, { status: 409, code: 'SYMBOL_EXISTS' });
     const ranges = copy
@@ -841,8 +877,11 @@ export function createSymbol(input: SymbolCreateInput, reason: string): Promise<
       openPaused: true,
       sortOrder: Math.max(0, ...db.symbols.map((x) => x.sortOrder)) + 10,
       updatedAt: nowString(),
+      simStartPrice: sim,
     };
     db.symbols.push(s);
+    // 有起始价：模拟报价源立即开始给它报价（原型里就是"有最后报价时间"）
+    if (sim) quotedSymbols.add(code);
     db.sessions.push({ symbol: code, ranges });
     const after: Record<string, AuditValue> = { ...(s as unknown as Record<string, AuditValue>), sessions: copy ? `copy:${copy}` : `template:${input.sessionTemplate}` };
     audit('symbol.create', code, true, r, null, after);

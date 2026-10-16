@@ -28,6 +28,8 @@ interface MarketAdminMapper {
     BigDecimal feeRate;
     BigDecimal maintenanceMarginRate;
     BigDecimal markup;
+    /** 模拟起始价（v2 补充，V23）：只在模拟报价源下使用；没填为空 */
+    BigDecimal simStartPrice;
     BigDecimal swapLong;
     BigDecimal swapShort;
     boolean hot;
@@ -52,6 +54,9 @@ interface MarketAdminMapper {
   }
 
   List<SymbolRow> symbols();
+
+  /** 填了模拟起始价的品种（模拟报价源启动时读） */
+  List<SymbolRow> symbolsWithSimStartPrice();
 
   SymbolRow symbol(@Param("code") String code);
 
