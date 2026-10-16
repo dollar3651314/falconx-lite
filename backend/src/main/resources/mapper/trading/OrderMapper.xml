@@ -227,4 +227,23 @@
     SELECT COALESCE(SUM(amount), 0) FROM trading_ledger WHERE bucket = 'BALANCE' AND entry_type = #{type} AND created_at &gt;= #{since}
   </select>
 
+  <!-- 客户端资金流水（S17 补充） -->
+  <sql id="userLedgerWhere">
+    FROM trading_ledger l JOIN trading_account a ON a.id = l.account_id
+    WHERE a.user_id = #{userId} AND l.bucket = 'BALANCE'
+      AND l.entry_type IN <foreach collection="types" item="t" open="(" separator="," close=")">#{t}</foreach>
+      <if test="since != null">AND l.created_at &gt;= #{since}</if>
+  </sql>
+
+  <select id="userLedger" resultType="com.falconx.lite.trading.order.OrderMapper$LedgerRow">
+    SELECT l.id, l.entry_type, l.amount, l.value_after, l.biz_type, l.biz_id, l.created_at <include refid="userLedgerWhere"/>
+    ORDER BY l.id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countUserLedger" resultType="long">SELECT COUNT(*) <include refid="userLedgerWhere"/></select>
+
+  <select id="ledgerRemarks" resultType="com.falconx.lite.trading.order.OrderMapper$LedgerRemark">
+    SELECT id, remark FROM trading_ledger WHERE id IN <foreach collection="ids" item="i" open="(" separator="," close=")">#{i}</foreach>
+  </select>
+
 </mapper>

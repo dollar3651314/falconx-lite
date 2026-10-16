@@ -10,6 +10,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,13 +52,18 @@ class TradingController {
   private final Funds funds;
   private final LedgerApi ledger;
   private final MarketApi market;
+  private final OrderMapper mapper;
+  private final java.time.Clock clock;
 
-  TradingController(OrderService orders, PositionService positions, Funds funds, LedgerApi ledger, MarketApi market) {
+  TradingController(OrderService orders, PositionService positions, Funds funds, LedgerApi ledger, MarketApi market, OrderMapper mapper,
+      java.time.Clock clock) {
     this.orders = orders;
     this.positions = positions;
     this.funds = funds;
     this.ledger = ledger;
     this.market = market;
+    this.mapper = mapper;
+    this.clock = clock;
   }
 
   @GetMapping("/api/trading/account")
@@ -116,6 +122,63 @@ class TradingController {
   @PutMapping("/api/trading/orders/{id}")
   void modify(@PathVariable long id, @RequestBody OrderService.ModifyOrder req) {
     orders.modify(CurrentUser.id(), id, req);
+  }
+
+  /** 资金流水的一条，字段和客户端 LedgerItem 一致；ref 是相关的品种或网络 */
+  record LedgerView(String id, String type, String amount, String ref, String time) {}
+
+  /** 客户端流水类型 → 账本类型（只看余额的变动） */
+  static final Map<String, List<String>> LEDGER_TYPES = Map.of(
+      "deposit", List.of("DEPOSIT", "DEPOSIT_REVERSAL"),
+      "withdraw", List.of("WITHDRAW_FREEZE"),
+      "withdrawRefund", List.of("WITHDRAW_UNFREEZE"),
+      "pnl", List.of("REALIZED_PNL"),
+      "fee", List.of("TRADE_FEE"),
+      "swap", List.of("SWAP"),
+      "adjust", List.of("ADMIN_ADJUST"));
+
+  static String ledgerType(String entryType) {
+    for (var e : LEDGER_TYPES.entrySet()) if (e.getValue().contains(entryType)) return e.getKey();
+    return entryType.toLowerCase();
+  }
+
+  /** 备注最后一段是品种或网络（例如"开仓手续费 XAUUSD"、"充值 TRC20"）；没有时为空 */
+  static String ref(String remark) {
+    if (remark == null) return "";
+    String[] parts = remark.strip().split("\\s+");
+    String last = parts[parts.length - 1];
+    return last.matches("[A-Z0-9]{3,12}") ? last : "";
+  }
+
+  /**
+   * 资金流水（S17 补充）：余额的变动，最新在前。type：deposit / withdraw / withdrawRefund / margin / pnl / fee / swap / adjust，不传表示全部；
+   * range：7d / 30d / 90d / all。margin（追加保证金）不改变余额，所以没有记录。
+   */
+  @GetMapping("/api/trading/ledger")
+  Page<LedgerView> ledger(@RequestParam(required = false) String type, @RequestParam(defaultValue = "30d") String range,
+      @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int pageSize) {
+    int p = Math.max(page, 1);
+    int size = Math.min(Math.max(pageSize, 1), 100);
+    if (type != null && !type.isBlank() && !"all".equals(type) && !"margin".equals(type) && !LEDGER_TYPES.containsKey(type)) {
+      throw new com.falconx.lite.common.error.ValidationException(List.of(new com.falconx.lite.common.error.ValidationException.Field("type", "invalid")));
+    }
+    if ("margin".equals(type)) return new Page<>(List.of(), 0, p, size);
+    List<String> types = type == null || type.isBlank() || "all".equals(type) ? LEDGER_TYPES.values().stream().flatMap(List::stream).toList() : LEDGER_TYPES.get(type);
+    java.time.LocalDateTime now = java.time.LocalDateTime.now(clock);
+    java.time.LocalDateTime since = switch (range) {
+      case "7d" -> now.minusDays(7);
+      case "30d" -> now.minusDays(30);
+      case "90d" -> now.minusDays(90);
+      case "all" -> null;
+      default -> throw new com.falconx.lite.common.error.ValidationException(List.of(new com.falconx.lite.common.error.ValidationException.Field("range", "invalid")));
+    };
+    long uid = CurrentUser.id();
+    List<OrderMapper.LedgerRow> rows = mapper.userLedger(uid, types, since, (p - 1) * size, size);
+    Map<Long, String> remarks = new java.util.HashMap<>();
+    if (!rows.isEmpty()) for (var r : mapper.ledgerRemarks(rows.stream().map(r -> r.id).toList())) remarks.put(r.id, r.remark);
+    List<LedgerView> items = rows.stream().map(r -> new LedgerView(String.valueOf(r.id), ledgerType(r.entryType), money(r.amount), ref(remarks.get(r.id)),
+        iso(r.createdAt))).toList();
+    return new Page<>(items, mapper.countUserLedger(uid, types, since), p, size);
   }
 
   /** 历史：已平仓的持仓和已撤销的挂单，按时间倒序分页 */
