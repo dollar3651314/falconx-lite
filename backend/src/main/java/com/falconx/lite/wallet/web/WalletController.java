@@ -40,7 +40,7 @@ class WalletController {
       WalletProperties.ChainConfig cfg = props.chain(d.chain());
       int required = cfg == null ? 0 : confirmations.of(d.chain());
       String status = DepositService.apiStatus(d.status());
-      return new DepositView(String.valueOf(d.id()), d.chain().name(), d.txHash(), d.amount().stripTrailingZeros().toPlainString(), status,
+      return new DepositView(String.valueOf(d.no()), d.chain().name(), d.txHash(), d.amount().stripTrailingZeros().toPlainString(), status,
           Math.min(d.confirmations(), required), required, d.createdAt().toInstant(java.time.ZoneOffset.UTC).toString());
     }).toList();
   }

@@ -10,8 +10,12 @@ import com.falconx.lite.trading.api.Bucket;
 import com.falconx.lite.trading.api.LedgerApi;
 import com.falconx.lite.trading.api.LedgerCommand;
 import com.falconx.lite.trading.api.LedgerEntryType;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.annotation.PreDestroy;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -72,9 +77,18 @@ class MatchingEngine {
   private final ExecutorService pool;
   private final ExecutorService workers;
   private final AtomicBoolean enabled;
+  private final MeterRegistry metrics;
+  private final Map<String, Timer> timers = new ConcurrentHashMap<>();
 
   MatchingEngine(OrderMapper mapper, PositionService positions, Funds funds, LedgerApi ledger, MarketApi market, RiskApi risk,
       TransactionTemplate tx, TradingEvents events, NotifyApi notify, TradingProperties props) {
+    this(mapper, positions, funds, ledger, market, risk, tx, events, notify, props, new SimpleMeterRegistry());
+  }
+
+  @Autowired
+  MatchingEngine(OrderMapper mapper, PositionService positions, Funds funds, LedgerApi ledger, MarketApi market, RiskApi risk,
+      TransactionTemplate tx, TradingEvents events, NotifyApi notify, TradingProperties props, MeterRegistry metrics) {
+    this.metrics = metrics;
     this.mapper = mapper;
     this.positions = positions;
     this.funds = funds;
@@ -244,11 +258,19 @@ class MatchingEngine {
     events.trade(userId, kind, out.symbol(), TradingController.money(out.closed().pnl()), out.closed().price().setScale(out.digits(), java.math.RoundingMode.HALF_UP).toPlainString());
   }
 
-  /** AC-13：从收到触发价格到写入成交记录，超过 1 秒记警告（压测按日志统计） */
+  /** AC-13：从收到触发价格到写入成交记录，超过 1 秒记警告（压测按日志统计，日志格式不要改）；同时记进指标 fx_matching_latency_seconds（E10） */
   private void logLatency(String what, long id, long receivedNanos) {
-    long ms = (System.nanoTime() - receivedNanos) / 1_000_000;
+    long nanos = System.nanoTime() - receivedNanos;
+    latency(what).record(nanos, java.util.concurrent.TimeUnit.NANOSECONDS);
+    long ms = nanos / 1_000_000;
     if (ms > 1000) log.warn("撮合耗时超过 1 秒：{} id={} 耗时 {}ms", what, id, ms);
     else log.info("撮合完成：{} id={} 耗时 {}ms", what, id, ms);
+  }
+
+  /** 撮合耗时直方图（按类型：挂单成交、TP、SL、LIQUIDATED），分桶到 5 秒 */
+  private Timer latency(String what) {
+    return timers.computeIfAbsent(what, k -> Timer.builder("fx.matching.latency").description("从收到触发价格到成交记录所在事务提交的耗时（AC-13）")
+        .tag("type", k).publishPercentileHistogram().minimumExpectedValue(Duration.ofMillis(1)).maximumExpectedValue(Duration.ofSeconds(5)).register(metrics));
   }
 
   @PreDestroy

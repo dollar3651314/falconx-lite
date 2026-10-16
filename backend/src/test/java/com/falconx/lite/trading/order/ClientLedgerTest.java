@@ -25,7 +25,9 @@ class ClientLedgerTest extends TradingTestSupport {
     String r = mvc.perform(post("/api/trading/orders").cookie(c).contentType(MediaType.APPLICATION_JSON)
         .content("{\"symbol\":\"XAUUSD\",\"type\":\"market\",\"side\":\"buy\",\"lots\":\"0.10\",\"leverage\":100,\"clientOrderId\":\"l-" + System.nanoTime() + "\"}"))
         .andReturn().getResponse().getContentAsString();
-    String positionId = jdbc.queryForObject("SELECT position_id FROM trading_order WHERE id = ?", String.class, json.readTree(r).get("id").asString());
+    // 接口里的编号都是对外编号（E11）
+    String positionId = jdbc.queryForObject("SELECT p.public_no FROM trading_order o JOIN trading_position p ON p.id = o.position_id WHERE o.public_no = ?",
+        String.class, json.readTree(r).get("id").asString());
     mvc.perform(post("/api/trading/positions/" + positionId + "/close").cookie(c));
 
     JsonNode all = getJson("/api/trading/ledger?range=all", c);

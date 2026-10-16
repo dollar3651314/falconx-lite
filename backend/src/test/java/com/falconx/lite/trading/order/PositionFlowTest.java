@@ -142,7 +142,7 @@ class PositionFlowTest extends TradingTestSupport {
   @Test
   void 改单_冻结多退少补_账本和冻结一致_AC11() {
     long uid = newUser("2000");
-    long id = Long.parseLong(orders.place(uid, new PlaceOrder("XAUUSD", "limit", "buy", "0.10", 100, "4100.00", null, null, UUID.randomUUID().toString())).id());
+    long id = orderId(orders.place(uid, new PlaceOrder("XAUUSD", "limit", "buy", "0.10", 100, "4100.00", null, null, UUID.randomUUID().toString())).id());
     assertThat(bucket(uid, "order_frozen")).isEqualByComparingTo("412.05");
     // 4000 × 0.2 × 100 = 80,000：保证金 800 + 手续费 4
     orders.modify(uid, id, new OrderService.ModifyOrder("4000.00", "0.20", "4100.00", "3900.00"));

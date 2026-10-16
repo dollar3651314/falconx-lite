@@ -28,6 +28,12 @@ interface WithdrawMapper {
 
   WithdrawalRow byId(@Param("id") long id);
 
+  /** 客户自己的提现：对外编号 → 内部 id；没有时为 null */
+  Long idByNo(@Param("userId") long userId, @Param("no") long no);
+
+  /** 对外编号 → 内部 id（不限客户：后台、端到端测试替身用）；没有时为 null */
+  Long idByPublicNo(@Param("no") long no);
+
   List<WithdrawalRow> byUser(@Param("userId") long userId, @Param("offset") int offset, @Param("limit") int limit);
 
   long countByUser(@Param("userId") long userId);

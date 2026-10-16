@@ -6,6 +6,7 @@
   <resultMap id="row" type="com.falconx.lite.wallet.deposit.DepositMapper$DepositRow">
     <constructor>
       <arg column="id" javaType="_long"/>
+      <arg column="public_no" javaType="_long"/>
       <arg column="chain" javaType="string"/>
       <arg column="tx_hash" javaType="string"/>
       <arg column="log_index" javaType="_int"/>
@@ -19,7 +20,7 @@
     </constructor>
   </resultMap>
 
-  <sql id="cols">id, chain, tx_hash, log_index, block_number, block_hash, user_id, amount, status, confirmations, created_at</sql>
+  <sql id="cols">id, public_no, chain, tx_hash, log_index, block_number, block_hash, user_id, amount, status, confirmations, created_at</sql>
 
   <select id="cursor" resultType="long">
     SELECT last_block FROM wallet_chain_cursor WHERE chain = #{chain}
@@ -30,8 +31,8 @@
   </insert>
 
   <insert id="insertIgnore">
-    INSERT IGNORE INTO wallet_deposit (chain, tx_hash, log_index, block_number, block_hash, from_address, to_address, user_id, amount, status)
-    VALUES (#{chain}, #{txHash}, #{logIndex}, #{blockNumber}, #{blockHash}, #{from}, #{to}, #{userId}, #{amount}, #{status})
+    INSERT IGNORE INTO wallet_deposit (public_no, chain, tx_hash, log_index, block_number, block_hash, from_address, to_address, user_id, amount, status)
+    VALUES (#{publicNo}, #{chain}, #{txHash}, #{logIndex}, #{blockNumber}, #{blockHash}, #{from}, #{to}, #{userId}, #{amount}, #{status})
   </insert>
 
   <select id="pending" resultMap="row">

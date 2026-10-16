@@ -33,7 +33,21 @@ test('Nginx：两个域名的路由、跳转和安全响应头', async ({ browse
     const health = await page.evaluate(async () => (await fetch('/api/health', { cache: 'no-store' })).json());
     expect(health.status).toBe('UP');
     expect(health.env, '健康检查带测试环境标识').toBe('test');
-    for (const p of ['/api/e2e/mail/code?email=x%40example.com', '/api/admin/me', '/actuator/health']) {
+    // 监控告警（v2 E8）：业务告警在 alerts 里，不影响 status；模拟报价源在跑，行情不是断流
+    expect(health.alert, '告警汇总').toMatch(/^(OK|ALERT)$/);
+    expect(health.alerts.market, '模拟报价源算报价源，行情正常').toBe('UP');
+    // 追踪号（v2 E9）：Nginx 生成 $request_id，用它覆盖客户端自己带的 X-Request-Id，后端沿用并放进响应头和错误响应体
+    const trace = await page.evaluate(async () => {
+      const a = await fetch('/api/health', { cache: 'no-store' });
+      const b = await fetch('/api/health', { cache: 'no-store', headers: { 'X-Request-Id': 'client-forged-0001' } });
+      const e = await fetch('/api/me/session', { cache: 'no-store' });
+      return { a: a.headers.get('x-request-id'), b: b.headers.get('x-request-id'), e: e.headers.get('x-request-id'), body: await e.json() };
+    });
+    expect(trace.a, 'Nginx 的 $request_id（32 位十六进制）').toMatch(/^[0-9a-f]{32}$/);
+    expect(trace.b, '客户端伪造的追踪号被 Nginx 覆盖').toMatch(/^[0-9a-f]{32}$/);
+    expect(trace.b).not.toBe(trace.a);
+    expect(trace.body.traceId, '错误响应体带同一个追踪号').toBe(trace.e);
+    for (const p of ['/api/e2e/mail/code?email=x%40example.com', '/api/admin/me', '/actuator/health', '/actuator/prometheus']) {
       expect((await status(page, p)).status, `客户端域名 ${p} 应为 404（Nginx 不转发）`).toBe(404);
     }
     expect((await status(page, '/api/me/session')).status, '客户端接口经 Nginx 到后端（未登录 401）').toBe(401);
@@ -62,7 +76,7 @@ test('Nginx：两个域名的路由、跳转和安全响应头', async ({ browse
     expect(page.url(), '后台域名 / 跳到 /admin/').toMatch(/\/admin\/(login)?$/);
     expect((await status(page, '/api/health')).status).toBe(200);
     expect((await status(page, '/api/admin/me')).status, '后台接口经 Nginx 到后端（未登录 401）').toBe(401);
-    for (const p of ['/api/me/session', '/api/e2e/mail/code?email=x%40example.com', '/actuator/health']) {
+    for (const p of ['/api/me/session', '/api/e2e/mail/code?email=x%40example.com', '/actuator/health', '/actuator/prometheus']) {
       expect((await status(page, p)).status, `后台域名 ${p} 应为 404`).toBe(404);
     }
   } finally {

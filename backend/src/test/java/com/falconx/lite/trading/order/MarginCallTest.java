@@ -13,7 +13,7 @@ class MarginCallTest extends TradingTestSupport {
 
   long open(long uid) {
     // 200 倍：保证金 206.3375，手续费 2.063375，强平价 4116.43（测试里撮合引擎关闭，不会强平）
-    return Long.parseLong(orders.place(uid, new PlaceOrder("XAUUSD", "market", "buy", "0.10", 200, null, null, null, UUID.randomUUID().toString())).id());
+    return orderId(orders.place(uid, new PlaceOrder("XAUUSD", "market", "buy", "0.10", 200, null, null, null, UUID.randomUUID().toString())).id());
   }
 
   long marginCalls(long uid) {

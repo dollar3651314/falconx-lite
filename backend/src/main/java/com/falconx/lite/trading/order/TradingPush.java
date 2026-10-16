@@ -1,5 +1,6 @@
 package com.falconx.lite.trading.order;
 
+import com.falconx.lite.common.trace.TraceWebSocket;
 import com.falconx.lite.common.web.CurrentUser;
 import java.io.IOException;
 import java.util.Map;
@@ -66,7 +67,7 @@ class TradingPush extends TextWebSocketHandler {
     }
   }
 
-  /** 注册 /api/ws/trading，握手时把登录用户记到连接属性里 */
+  /** 注册 /api/ws/trading，握手时把登录用户记到连接属性里；连接上的处理带握手请求的追踪号（E9） */
   @Configuration
   static class Config implements WebSocketConfigurer {
 
@@ -78,7 +79,7 @@ class TradingPush extends TextWebSocketHandler {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-      registry.addHandler(push, "/api/ws/trading").addInterceptors(new HandshakeInterceptor() {
+      registry.addHandler(TraceWebSocket.wrap(push), "/api/ws/trading").addInterceptors(TraceWebSocket.handshake(), new HandshakeInterceptor() {
         @Override
         public boolean beforeHandshake(ServerHttpRequest req, ServerHttpResponse res, WebSocketHandler h, Map<String, Object> attrs) {
           if (!(req instanceof ServletServerHttpRequest sr)) return false;

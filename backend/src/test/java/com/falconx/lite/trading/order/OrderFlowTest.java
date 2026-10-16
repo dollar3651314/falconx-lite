@@ -111,14 +111,14 @@ class OrderFlowTest extends TradingTestSupport {
     // 4100 × 0.1 × 100 = 41,000；保证金 410 + 手续费 2.05
     assertThat(bucket(uid, "order_frozen")).isEqualByComparingTo("412.05");
     assertThat(orders.pendingOrders(uid).getFirst().takeProfit).isEqualByComparingTo("4200");
-    orders.cancel(uid, Long.parseLong(r.id()));
+    orders.cancel(uid, orderId(r.id()));
     assertThat(bucket(uid, "order_frozen")).isEqualByComparingTo("0");
     assertThat(bucket(uid, "balance")).as("撤单不收手续费").isEqualByComparingTo("1000");
     assertThat(ledgerSum(uid, "ORDER_FROZEN")).isEqualByComparingTo("0");
-    assertThat(code(() -> orders.cancel(uid, Long.parseLong(r.id())))).isEqualTo("NOT_FOUND");
+    assertThat(code(() -> orders.cancel(uid, orderId(r.id())))).isEqualTo("NOT_FOUND");
     long other = newUser("0");
     var r2 = orders.place(uid, new PlaceOrder("XAUUSD", "limit", "buy", "0.10", 100, "4100.00", null, null, UUID.randomUUID().toString()));
-    assertThat(code(() -> orders.cancel(other, Long.parseLong(r2.id())))).as("不能撤别人的单").isEqualTo("NOT_FOUND");
+    assertThat(code(() -> orders.cancel(other, orderId(r2.id())))).as("不能撤别人的单").isEqualTo("NOT_FOUND");
   }
 
   @Test

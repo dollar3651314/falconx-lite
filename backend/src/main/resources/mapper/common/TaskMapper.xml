@@ -12,6 +12,11 @@
 
   <select id="lastInsertId" resultType="long">SELECT LAST_INSERT_ID()</select>
 
+  <!-- 指标：到期未处理的任务数（走 idx_common_task_pick） -->
+  <select id="countDue" resultType="long">
+    SELECT COUNT(*) FROM common_task WHERE status = 'PENDING' AND next_run_at &lt;= UTC_TIMESTAMP(3)
+  </select>
+
   <select id="lockDue" resultType="long">
     SELECT id FROM common_task
     WHERE status = 'PENDING' AND task_type = #{taskType} AND next_run_at &lt;= UTC_TIMESTAMP(3)

@@ -183,6 +183,40 @@ class BroadcastFlowTest {
     assertThat(jdbc.queryForObject("SELECT tx_hash FROM wallet_withdrawal WHERE id = ?", String.class, a)).isEqualTo(hash);
   }
 
+  /**
+   * F-22：BSC 出金和 ERC20 共用以太坊体系的广播器，但 USDT 是 18 位小数、chainId 是 97（测试网）/ 56（主网）。
+   * 检查：金额按 18 位换算（扣掉 0.5 手续费）、签名带 BSC 的 chainId（EIP-155，换到别的链上不能重放）、签名人是热钱包、确认 15 个后完成。
+   */
+  @Test
+  void BSC_18位精度和chainId97签名广播_确认15个后完成_F22() throws Exception {
+    String usdtBsc = "0x55d398326f99059fF775485246999027B3197955";
+    node = req -> req.contains("eth_call")
+        ? "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x" + new java.math.BigInteger("1000000").multiply(java.math.BigInteger.TEN.pow(18)).toString(16) + "\"}"
+        : evm(req);
+    senders.register(Chain.BSC, new EvmWithdrawSender(Chain.BSC, new JsonRpc(url(), json), SigningTest.TEST_KEY, usdtBsc, 18, 97L, 15, hotProps, txs, tx, risk,
+        clock));
+    long a = reviewing("BSC", ETH_TO, "100");
+    withdraws.approve(a, 9L);
+    assertThat(status(a)).isEqualTo("BROADCASTING");
+    String raw = attempts(a).getFirst().rawTx();
+    // 100 - 0.5 手续费 = 99.5 USDT = 99.5 × 10^18
+    assertThat(EvmWithdrawSender.decodeData(raw)).contains("5aaeb6053f3e94c9b9a09f33669435e7ef1beaed")
+        .endsWith(new BigDecimal("99.5").movePointRight(18).toBigIntegerExact().toString(16));
+    var signed = (org.web3j.crypto.SignedRawTransaction) org.web3j.crypto.TransactionDecoder.decode(raw);
+    assertThat(signed.getChainId()).as("EIP-155 chainId = BSC 测试网").isEqualTo(97L);
+    assertThat(signed.getFrom()).isEqualToIgnoringCase(SigningTest.TEST_KEY.getAddress());
+    assertThat(signed.getTo()).as("调用的是 BSC 的 USDT 合约").isEqualToIgnoringCase(usdtBsc);
+    assertThat(calls).anyMatch(c -> c.contains("eth_sendRawTransaction"));
+
+    String hash = attempts(a).getFirst().txHash();
+    receipt = "{\"status\":\"0x1\",\"blockNumber\":\"0x" + Long.toHexString(head - 13) + "\",\"transactionHash\":\"" + hash + "\"}";
+    withdraws.track();
+    assertThat(status(a)).as("14 个确认").isEqualTo("BROADCASTING");
+    head += 1;
+    withdraws.track();
+    assertThat(status(a)).isEqualTo("COMPLETED");
+  }
+
   @Test
   void 热钱包余额不够_留在待上链并通知() {
     node = req -> req.contains("eth_getBalance") ? "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x0\"}" : evm(req);

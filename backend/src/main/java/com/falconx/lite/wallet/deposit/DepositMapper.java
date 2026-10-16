@@ -10,14 +10,15 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 interface DepositMapper {
 
-  record DepositRow(long id, String chain, String txHash, int logIndex, long blockNumber, String blockHash, long userId, BigDecimal amount, String status,
+  /** publicNo：对外编号（雪花 ID，V22 之前的旧数据等于 id） */
+  record DepositRow(long id, long publicNo, String chain, String txHash, int logIndex, long blockNumber, String blockHash, long userId, BigDecimal amount, String status,
       int confirmations, LocalDateTime createdAt) {}
 
   Long cursor(@Param("chain") String chain);
 
   int saveCursor(@Param("chain") String chain, @Param("block") long block);
 
-  int insertIgnore(@Param("chain") String chain, @Param("txHash") String txHash, @Param("logIndex") int logIndex, @Param("blockNumber") long blockNumber,
+  int insertIgnore(@Param("publicNo") long publicNo, @Param("chain") String chain, @Param("txHash") String txHash, @Param("logIndex") int logIndex, @Param("blockNumber") long blockNumber,
       @Param("blockHash") String blockHash, @Param("from") String from, @Param("to") String to, @Param("userId") long userId,
       @Param("amount") BigDecimal amount, @Param("status") String status);
 

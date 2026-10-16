@@ -5,6 +5,25 @@ falconx:
   # 测试环境标识（S20）：测试环境设 FX_ENV_LABEL=test，生产不设。非空时健康检查返回 env 字段，页面顶部显示"测试环境"标识条，
   # 邮件和推送标题前加"[测试] / [TEST] "
   env-label: ${FX_ENV_LABEL:}
+  # 对外编号（雪花 ID，v2 第 11.4 节，common/id/Snowflake）：节点号 0–1023，单实例默认 1；以后多实例时每个实例必须不同
+  id:
+    node: ${FX_ID_NODE:1}
+  # 监控告警（v2 E8，common/health/AlertCheck）：行情全部断流、扫块停滞、链节点连不上、邮件连续发送失败。
+  # 健康检查 /api/health 的 alerts 里显示每一项（不影响 status 和 HTTP 状态码，部署脚本不会因此回滚）；异常和恢复时给告警邮箱发邮件。
+  # 告警邮箱 FX_ALERT_EMAILS 逗号分隔，代码里没有默认值（默认值在部署配置 deploy/kit/docker-compose.yml），为空时只记日志
+  alert:
+    enabled: true
+    emails: ${FX_ALERT_EMAILS:}
+    # 同一项告警多长时间内不重复发邮件
+    throttle: 30m
+    # 开市的品种多长时间没收到任何报价算"行情全部断流"
+    market-silence: 30s
+    # 扫块多长时间没推进（或者落后的区块折合超过这个时间）算"停滞"
+    scan-stall: 10m
+    # 连续几次连不上节点算"节点不通"（扫块每 15 秒一次）
+    node-failures: 3
+    # 连续几封邮件发送失败算"邮件发送失败"
+    mail-failures: 5
   # 登录参数，默认值沿用现有系统（技术方案/v1-数据库设计.md 2.5–2.7）
   auth:
     login-failure-limit: 5
@@ -50,6 +69,18 @@ falconx:
     # 没有对应外汇品种的币种：港币按联系汇率（1 USD = 7.78 HKD）
     fixed-usd-rates:
       HKD: 0.12853470
+    # K 线保留条数（v2 第 11.2 节，market/kline/KlineRetention）：每个品种每个周期只保留最近 N 根，每天 UTC 20:10 分批清理一次
+    kline-retention:
+      enabled: true
+      cron: "0 10 20 * * *"
+      batch-size: 5000
+      keep:
+        1m: 10080
+        5m: 8640
+        15m: 8640
+        1h: 8760
+        4h: 4380
+        1d: 3650
   trading:
     # 单个用户的持仓上限（USD 名义价值，含挂单），沿用原型的 3,000,000；S16 改为后台可配置
     position-limit-usd: 3000000
@@ -204,7 +235,15 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
-# 应用管理端点只在内网端口监听，Nginx 不转发（修复 fxsystem S3）
+# 日志：级别后面带追踪号（v2 E9，common/trace/TraceId）：[32 位十六进制]（HTTP 请求和 WebSocket 连接，和响应头 X-Request-Id 相同）、
+# [job-…]（定时任务每次执行一个），没有时是 [-]。按追踪号查一个请求的全部日志：grep 追踪号
+logging:
+  pattern:
+    correlation: "[%X{traceId:--}] "
+
+# 应用管理端点只在内网端口监听，Nginx 不转发（修复 fxsystem S3）。
+# 指标（v2 E10）：GET http://127.0.0.1:8081/actuator/prometheus（Prometheus 格式）、/actuator/metrics；自定义指标都以 fx_ 开头，
+# 见 部署方案/v1-部署方案.md 第 12 节。只在服务器本机（容器里）能访问，不对外
 management:
   server:
     port: ${FX_MANAGEMENT_PORT:8081}
@@ -212,4 +251,4 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus

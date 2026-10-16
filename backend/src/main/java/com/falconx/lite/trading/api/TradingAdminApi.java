@@ -14,8 +14,11 @@ public interface TradingAdminApi {
    */
   record Metrics(BigDecimal balance, BigDecimal usedMargin, BigDecimal available, BigDecimal floatingPnl, BigDecimal withdrawFrozen, BigDecimal orderFrozen) {}
 
-  /** 一个持仓；currentPrice、pnl、marginLevel 没有报价时为空。marginLevel = (保证金 + 浮动盈亏) ÷ 保证金，小数 */
-  record Position(long id, long userId, String symbol, String side, BigDecimal lots, BigDecimal openPrice, BigDecimal currentPrice, int leverage,
+  /**
+   * 一个持仓；currentPrice、pnl、marginLevel 没有报价时为空。marginLevel = (保证金 + 浮动盈亏) ÷ 保证金，小数。
+   * no 是对外编号（雪花 ID，旧数据等于 id）：后台显示、搜索、接口路径都用它。
+   */
+  record Position(long id, long no, long userId, String symbol, String side, BigDecimal lots, BigDecimal openPrice, BigDecimal currentPrice, int leverage,
       BigDecimal margin, BigDecimal pnl, BigDecimal marginLevel, BigDecimal liquidationPrice, BigDecimal stopLoss, BigDecimal takeProfit,
       LocalDateTime openedAt) {}
 
@@ -39,23 +42,32 @@ public interface TradingAdminApi {
 
   record Page<T>(List<T> items, long total) {}
 
-  /** 一笔订单；price 是成交价（成交了）或限价；fee 只有成交了才有。status：PENDING / FILLED / CANCELLED */
-  record Order(long id, long userId, String symbol, String side, String type, BigDecimal lots, BigDecimal price, int leverage, BigDecimal fee,
+  /** 一笔订单；price 是成交价（成交了）或限价；fee 只有成交了才有。status：PENDING / FILLED / CANCELLED。no 是对外编号 */
+  record Order(long id, long no, long userId, String symbol, String side, String type, BigDecimal lots, BigDecimal price, int leverage, BigDecimal fee,
       String status, LocalDateTime createdAt) {}
 
-  /** 一笔挂单；currentPrice 是成交方向的当前价（买看 ask、卖看 bid），没有报价时为空 */
-  record Pending(long id, long userId, String symbol, String side, BigDecimal lots, BigDecimal limitPrice, BigDecimal currentPrice, int leverage,
+  /** 一笔挂单；currentPrice 是成交方向的当前价（买看 ask、卖看 bid），没有报价时为空。no 是对外编号 */
+  record Pending(long id, long no, long userId, String symbol, String side, BigDecimal lots, BigDecimal limitPrice, BigDecimal currentPrice, int leverage,
       BigDecimal frozen, BigDecimal stopLoss, BigDecimal takeProfit, LocalDateTime createdAt) {}
 
   /** 后台强平的结果 */
   record Liquidated(long positionId, long userId, String symbol, BigDecimal price, BigDecimal pnl) {}
 
-  /** symbol、side 为空表示不筛选；side 是 BUY / SELL；userIds 不为空时只查这些客户 */
-  Page<Order> orders(String symbol, String side, String status, Collection<Long> userIds, int offset, int limit);
+  /**
+   * symbol、side 为空表示不筛选；side 是 BUY / SELL；userIds 不为空时只查这些客户；no 不为空时也匹配这个对外编号（和 userIds 是"或"：
+   * 后台搜索框输入数字时，既可能是客户号也可能是编号）。userIds 是空列表并且 no 为空时返回空页。
+   */
+  Page<Order> orders(String symbol, String side, String status, Collection<Long> userIds, Long no, int offset, int limit);
 
-  Page<Position> positions(String symbol, String side, Collection<Long> userIds, int offset, int limit);
+  Page<Position> positions(String symbol, String side, Collection<Long> userIds, Long no, int offset, int limit);
 
-  Page<Pending> pendingOrders(String symbol, String side, Collection<Long> userIds, int offset, int limit);
+  Page<Pending> pendingOrders(String symbol, String side, Collection<Long> userIds, Long no, int offset, int limit);
+
+  /** 持仓的对外编号 → 内部 id（后台接口路径里是对外编号） */
+  java.util.Optional<Long> positionIdByNo(long no);
+
+  /** 订单的对外编号 → 内部 id */
+  java.util.Optional<Long> orderIdByNo(long no);
 
   /**
    * 后台手动强平：按当前市价平掉（多单 bid、空单 ask），需要在交易时段内、报价可成交；亏损最多等于保证金（AC-14）；通知客户（强平模板）。

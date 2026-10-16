@@ -1,12 +1,14 @@
 package com.falconx.lite.notification.service;
 
 import com.falconx.lite.account.api.AccountApi;
+import com.falconx.lite.common.health.AlertProperties;
 import com.falconx.lite.common.task.Task;
 import com.falconx.lite.common.task.TaskService;
 import com.falconx.lite.common.task.TaskStatus;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
@@ -31,9 +33,16 @@ class NotifyWorker {
   private final ObjectMapper json;
   private final WebPush webPush;
   private final EnvLabel envLabel;
+  private final MailHealth mailHealth;
 
+  /** 测试用：不关心邮件告警时 */
+  NotifyWorker(TaskService tasks, NotifyMapper mapper, MailTransport transport, AccountApi accounts, ObjectMapper json, WebPush webPush, String envLabel) {
+    this(tasks, mapper, transport, accounts, json, webPush, envLabel, new MailHealth(AlertProperties.defaults(), true));
+  }
+
+  @Autowired
   NotifyWorker(TaskService tasks, NotifyMapper mapper, MailTransport transport, AccountApi accounts, ObjectMapper json, WebPush webPush,
-      @Value("${falconx.env-label:}") String envLabel) {
+      @Value("${falconx.env-label:}") String envLabel, MailHealth mailHealth) {
     this.tasks = tasks;
     this.mapper = mapper;
     this.transport = transport;
@@ -41,6 +50,7 @@ class NotifyWorker {
     this.json = json;
     this.webPush = webPush;
     this.envLabel = new EnvLabel(envLabel);
+    this.mailHealth = mailHealth;
   }
 
   /** 把到期的邮件和推送任务全部发完，返回处理的数量 */
@@ -89,6 +99,7 @@ class NotifyWorker {
         text = new Render.Text(envLabel.prefix(null) + p.get("subject"), String.valueOf(p.get("body")));
       }
       transport.send(to, text.title(), text.body());
+      mailHealth.succeeded();
       tasks.succeed(t.id());
       if (recordId != null) mapper.updateRecord(recordId, "SENT", null);
     } catch (MailTransport.NotConfigured e) {
@@ -98,6 +109,8 @@ class NotifyWorker {
     } catch (Exception e) {
       String msg = e.getClass().getSimpleName() + ": " + e.getMessage();
       log.warn("邮件发送失败 task={} 第 {} 次：{}", t.id(), t.attempts(), msg);
+      // 告警（E8）：连续失败算一次；模板不存在、没有收件人这类和邮件服务器无关的错误也算进去（同样需要人处理）
+      mailHealth.failed(msg);
       tasks.fail(t.id(), msg);
       if (recordId != null) {
         Task after = tasks.find(t.id());

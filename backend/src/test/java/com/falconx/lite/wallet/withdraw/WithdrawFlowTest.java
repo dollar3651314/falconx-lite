@@ -384,6 +384,12 @@ class WithdrawFlowTest {
     assertThat(sub).contains("\"amount\":\"100.00\",\"fee\":\"5.00\",\"network\":\"ERC20\"").contains("\"status\":\"cooling\"")
         .contains("\"coolingEndsAt\":\"2026-10-14T12:00:00Z\"");
     String id = sub.replaceAll(".*\"id\":\"(\\d+)\".*", "$1");
+    // 提现单号是雪花 ID（字符串，超过 JavaScript 的安全整数），不是内部 id（AC2-22）
+    assertThat(Long.parseLong(id)).isGreaterThan((1L << 53) - 1);
+    long internal = jdbc.queryForObject("SELECT id FROM wallet_withdrawal WHERE public_no = ?", Long.class, Long.parseLong(id));
+    assertThat(String.valueOf(internal)).isNotEqualTo(id);
+    assertThat(mvc.perform(post("/api/wallet/withdrawals/" + internal + "/cancel").cookie(c)).andReturn().getResponse().getStatus())
+        .as("内部 id 不能当编号用").isEqualTo(404);
     assertThat(mvc.perform(get("/api/wallet/withdrawals").cookie(c)).andReturn().getResponse().getContentAsString())
         .contains("\"total\":1").contains("\"id\":\"" + id + "\"");
     assertThat(mvc.perform(get("/api/wallet/withdraw-info").cookie(c)).andReturn().getResponse().getContentAsString())

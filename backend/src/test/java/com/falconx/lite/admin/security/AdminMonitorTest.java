@@ -32,6 +32,7 @@ class AdminMonitorTest extends AdminTestSupport {
 
   @Autowired LedgerApi ledger;
   @Autowired QuoteProcessor processor;
+  @Autowired com.falconx.lite.market.config.SymbolCatalog catalog;
   final ObjectMapper json = new ObjectMapper();
 
   record Customer(long id, String name, Cookie cookie) {}
@@ -102,7 +103,7 @@ class AdminMonitorTest extends AdminTestSupport {
 
     JsonNode liq = body(call(post("/api/admin/positions/" + pos.get("id").asString() + "/liquidate"), ops.cookie(), "{\"reason\":\"风险过高\"}"));
     assertThat(liq.get("price").asString()).isEqualTo("4126.35");
-    assertThat(jdbc.queryForObject("SELECT CONCAT(status, ' ', close_reason) FROM trading_position WHERE id = ?", String.class,
+    assertThat(jdbc.queryForObject("SELECT CONCAT(status, ' ', close_reason) FROM trading_position WHERE public_no = ?", String.class,
         Long.parseLong(pos.get("id").asString()))).isEqualTo("CLOSED LIQUIDATED");
     assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message WHERE user_id = ? AND template_code = 'LIQUIDATED'", Long.class, c.id())).isEqualTo(1);
     assertThat(call(post("/api/admin/positions/" + pos.get("id").asString() + "/liquidate"), ops.cookie(), "{\"reason\":\"再来\"}").getContentAsString())
@@ -155,6 +156,58 @@ class AdminMonitorTest extends AdminTestSupport {
       config.refresh();
       jdbc.update("UPDATE risk_switch SET global_open_paused = 0, auto_global_paused = 0, auto_liquidation = 1");
       jdbc.update("DELETE FROM risk_symbol WHERE symbol = 'XAUUSD'");
+    }
+  }
+
+  /** AC2-22：后台显示和搜索用对外编号（雪花 ID，字符串）；搜索框输入数字时既按客户号也按编号找 */
+  @Test
+  void 后台按对外编号搜索订单持仓挂单_显示的是编号_AC2_22() throws Exception {
+    Admin view = withRoles(role(Permission.ORDER_VIEW, Permission.POSITION_VIEW, Permission.PENDING_VIEW));
+    Customer c = customer("10000");
+    String orderNo = order(c, "market", "buy", null);
+    String pendingNo = order(c, "limit", "buy", "4000.00");
+    assertThat(Long.parseLong(orderNo)).isGreaterThan((1L << 53) - 1);
+    JsonNode byNo = body(call(get("/api/admin/orders?keyword=" + orderNo), view.cookie(), null));
+    assertThat(byNo.get("total").asLong()).isEqualTo(1);
+    assertThat(byNo.get("items").get(0).get("id").asString()).isEqualTo(orderNo);
+    assertThat(byNo.get("items").get(0).get("customerId").asLong()).isEqualTo(c.id());
+    JsonNode byCustomer = body(call(get("/api/admin/orders?keyword=" + c.id()), view.cookie(), null));
+    assertThat(byCustomer.get("total").asLong()).as("客户号照常能搜").isEqualTo(2);
+    assertThat(body(call(get("/api/admin/pending?keyword=" + pendingNo), view.cookie(), null)).get("items").get(0).get("id").asString()).isEqualTo(pendingNo);
+    String posNo = jdbc.queryForObject("SELECT p.public_no FROM trading_position p JOIN trading_order o ON o.position_id = p.id WHERE o.public_no = ?", String.class,
+        Long.parseLong(orderNo));
+    JsonNode pos = body(call(get("/api/admin/positions?keyword=" + posNo), view.cookie(), null));
+    assertThat(pos.get("total").asLong()).isEqualTo(1);
+    assertThat(pos.get("items").get(0).get("id").asString()).isEqualTo(posNo);
+    assertThat(body(call(get("/api/admin/orders?keyword=999999999999999999"), view.cookie(), null)).get("total").asLong()).as("没有这个编号").isEqualTo(0);
+  }
+
+  /** M-19（修复 fxsystem T2"改了不同步"）：后台改加点后，下一条报价立即按新加点算买卖价，只加一次；改回 0 后也立即生效 */
+  @Test
+  void 后台改加点后下一条报价立即按新加点_M19() throws Exception {
+    Admin m = withRoles(role(Permission.SYMBOL_VIEW, Permission.SYMBOL_EDIT));
+    String before = jdbc.queryForObject("SELECT markup FROM market_symbol WHERE code = 'GBPUSD'", String.class);
+    try {
+      processor.process(new RawQuote("GBPUSD", new BigDecimal("1.27000"), new BigDecimal("1.27010"), FixedClockConfig.NOW));
+      var q0 = processor.book().get("GBPUSD").orElseThrow().quote();
+      assertThat(q0.bid()).isEqualByComparingTo(new BigDecimal("1.27000").subtract(new BigDecimal(before)));
+
+      JsonNode u = body(call(put("/api/admin/symbols/GBPUSD"), m.cookie(), "{\"markup\":\"0.00020\",\"reason\":\"调整加点\"}"));
+      assertThat(u.get("markup").asString()).isEqualTo("0.0002");
+      processor.process(new RawQuote("GBPUSD", new BigDecimal("1.27002"), new BigDecimal("1.27012"), FixedClockConfig.NOW.plusSeconds(1)));
+      var q1 = processor.book().get("GBPUSD").orElseThrow().quote();
+      assertThat(q1.bid()).as("卖价减新加点").isEqualByComparingTo("1.26982");
+      assertThat(q1.ask()).as("买价加新加点").isEqualByComparingTo("1.27032");
+      assertThat(q1.mid()).as("中间价不含加点（K 线用）").isEqualByComparingTo("1.27007");
+
+      body(call(put("/api/admin/symbols/GBPUSD"), m.cookie(), "{\"markup\":\"0\",\"reason\":\"取消加点\"}"));
+      processor.process(new RawQuote("GBPUSD", new BigDecimal("1.27004"), new BigDecimal("1.27014"), FixedClockConfig.NOW.plusSeconds(2)));
+      var q2 = processor.book().get("GBPUSD").orElseThrow().quote();
+      assertThat(q2.bid()).isEqualByComparingTo("1.27004");
+      assertThat(q2.ask()).isEqualByComparingTo("1.27014");
+    } finally {
+      jdbc.update("UPDATE market_symbol SET markup = ? WHERE code = 'GBPUSD'", before);
+      catalog.reload();
     }
   }
 

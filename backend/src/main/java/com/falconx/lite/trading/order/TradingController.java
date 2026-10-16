@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 交易接口（S7）：账户、下单、持仓、挂单、撤单。字段名和客户端 web/client/src/api/types.ts 一致，数字一律用字符串。
  * S8 加了平仓、改止盈止损、追加保证金、改单、历史。
+ * <p>订单号、持仓号（返回的 id、路径里的 {id}）都是对外编号（雪花 ID，E11），字符串；内部自增 id 不出现在接口里。
+ * 路径里的编号不是这个客户的，当成不存在（和以前按内部 id 查不到一样的错误）。
  */
 @RestController
 class TradingController {
@@ -96,16 +98,28 @@ class TradingController {
 
   private PositionView view(PositionRow p) {
     int d = digits(p.symbol);
-    return new PositionView(String.valueOf(p.id), p.symbol, p.side.toLowerCase(), lots(p.lots), p.leverage, price(p.openPrice, d), money(p.margin),
+    return new PositionView(String.valueOf(p.publicNo), p.symbol, p.side.toLowerCase(), lots(p.lots), p.leverage, price(p.openPrice, d), money(p.margin),
         plain(p.maintenanceMarginRate), price(p.liquidationPrice, d), price(p.takeProfit, d), price(p.stopLoss, d), iso(p.openedAt),
         money(p.swapTotal == null ? BigDecimal.ZERO : p.swapTotal));
+  }
+
+  /** 持仓的对外编号 → 内部 id；不是这个客户的返回 -1（后面按"持仓不存在"处理） */
+  private long position(long uid, long no) {
+    Long id = mapper.positionIdByNo(uid, no);
+    return id == null ? -1 : id;
+  }
+
+  private long order(long uid, long no) {
+    Long id = mapper.orderIdByNo(uid, no);
+    return id == null ? -1 : id;
   }
 
   /** 全额平仓 */
   @UserWriteLimited
   @PostMapping("/api/trading/positions/{id}/close")
   CloseView close(@PathVariable long id) {
-    PositionService.Closed c = positions.close(CurrentUser.id(), id);
+    long uid = CurrentUser.id();
+    PositionService.Closed c = positions.close(uid, position(uid, id));
     return new CloseView(money(c.pnl()), plain(c.price()));
   }
 
@@ -113,21 +127,24 @@ class TradingController {
   @UserWriteLimited
   @PutMapping("/api/trading/positions/{id}/tpsl")
   void tpSl(@PathVariable long id, @RequestBody TpSlRequest req) {
-    positions.updateTpSl(CurrentUser.id(), id, req.takeProfit(), req.stopLoss());
+    long uid = CurrentUser.id();
+    positions.updateTpSl(uid, position(uid, id), req.takeProfit(), req.stopLoss());
   }
 
   /** 追加保证金，返回更新后的持仓（新强平价） */
   @UserWriteLimited
   @PostMapping("/api/trading/positions/{id}/margin")
   PositionView addMargin(@PathVariable long id, @RequestBody MarginRequest req) {
-    return view(positions.addMargin(CurrentUser.id(), id, req.amount()));
+    long uid = CurrentUser.id();
+    return view(positions.addMargin(uid, position(uid, id), req.amount()));
   }
 
   /** 修改挂单：限价、手数、止盈止损 */
   @UserWriteLimited
   @PutMapping("/api/trading/orders/{id}")
   void modify(@PathVariable long id, @RequestBody OrderService.ModifyOrder req) {
-    orders.modify(CurrentUser.id(), id, req);
+    long uid = CurrentUser.id();
+    orders.modify(uid, order(uid, id), req);
   }
 
   /** 资金流水的一条，字段和客户端 LedgerItem 一致；ref 是相关的品种或网络 */
@@ -208,7 +225,7 @@ class TradingController {
   List<PendingOrderView> pending() {
     return orders.pendingOrders(CurrentUser.id()).stream().map(o -> {
       int d = digits(o.symbol);
-      return new PendingOrderView(String.valueOf(o.id), o.symbol, o.side.toLowerCase(), lots(o.lots), o.leverage, price(o.limitPrice, d),
+      return new PendingOrderView(String.valueOf(o.publicNo), o.symbol, o.side.toLowerCase(), lots(o.lots), o.leverage, price(o.limitPrice, d),
           price(o.takeProfit, d), price(o.stopLoss, d), money(o.frozenAmount), iso(o.createdAt));
     }).toList();
   }
@@ -216,7 +233,8 @@ class TradingController {
   @UserWriteLimited
   @DeleteMapping("/api/trading/orders/{id}")
   void cancel(@PathVariable long id) {
-    orders.cancel(CurrentUser.id(), id);
+    long uid = CurrentUser.id();
+    orders.cancel(uid, order(uid, id));
   }
 
   private int digits(String symbol) {

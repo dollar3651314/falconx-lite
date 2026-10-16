@@ -27,40 +27,53 @@ class WalletAdmin implements WalletAdminApi {
 
   private Deposit deposit(WalletAdminMapper.DepositRow r) {
     int need = confirmations.of(Chain.valueOf(r.chain));
-    return new Deposit(r.id, r.userId, r.chain, r.txHash, r.amount, Math.min(r.confirmations, need), need, r.status, r.createdAt, r.creditedAt);
+    return new Deposit(r.id, r.publicNo, r.userId, r.chain, r.txHash, r.amount, Math.min(r.confirmations, need), need, r.status, r.createdAt, r.creditedAt);
   }
 
   private static Withdrawal withdrawal(WalletAdminMapper.WithdrawalRow r) {
-    return new Withdrawal(r.id, r.userId, r.amount, r.fee, r.network, r.address, r.firstUse, r.whitelistAddedAt, r.status, r.delayEndsAt, r.createdAt,
+    return new Withdrawal(r.id, r.publicNo, r.userId, r.amount, r.fee, r.network, r.address, r.firstUse, r.whitelistAddedAt, r.status, r.delayEndsAt, r.createdAt,
         r.reviewerId, r.rejectReason, r.txHash);
   }
 
-  /** 客户筛选结果为空时直接返回空页（避免 IN () 的 SQL） */
-  private static boolean noUsers(Collection<Long> userIds) {
-    return userIds != null && userIds.isEmpty();
+  /** 客户筛选结果为空、也没有按编号找时直接返回空页（避免 IN () 的 SQL） */
+  private static boolean nothing(Collection<Long> userIds, Long no) {
+    return userIds != null && userIds.isEmpty() && no == null;
+  }
+
+  /** 空列表换成 null（SQL 里不出现 IN ()），由 no 决定 */
+  private static Collection<Long> users(Collection<Long> userIds) {
+    return userIds == null || userIds.isEmpty() ? null : userIds;
   }
 
   @Override
   @Transactional(readOnly = true)
-  public Page<Deposit> deposits(String chain, Collection<String> statuses, String txHash, Collection<Long> userIds, int offset, int limit) {
-    if (noUsers(userIds)) return new Page<>(List.of(), 0);
-    return new Page<>(mapper.deposits(chain, statuses, txHash, userIds, offset, limit).stream().map(this::deposit).toList(),
-        mapper.countDeposits(chain, statuses, txHash, userIds));
+  public Page<Deposit> deposits(String chain, Collection<String> statuses, String txHash, Collection<Long> userIds, Long no, int offset, int limit) {
+    if (nothing(userIds, no)) return new Page<>(List.of(), 0);
+    Collection<Long> us = users(userIds);
+    return new Page<>(mapper.deposits(chain, statuses, txHash, us, no, offset, limit).stream().map(this::deposit).toList(),
+        mapper.countDeposits(chain, statuses, txHash, us, no));
   }
 
   @Override
   @Transactional(readOnly = true)
-  public Page<Withdrawal> withdrawals(Collection<String> statuses, String chain, BigDecimal minAmount, BigDecimal maxAmount, Collection<Long> userIds,
+  public Page<Withdrawal> withdrawals(Collection<String> statuses, String chain, BigDecimal minAmount, BigDecimal maxAmount, Collection<Long> userIds, Long no,
       int offset, int limit) {
-    if (noUsers(userIds)) return new Page<>(List.of(), 0);
-    return new Page<>(mapper.withdrawals(statuses, chain, minAmount, maxAmount, userIds, null, offset, limit).stream().map(WalletAdmin::withdrawal).toList(),
-        mapper.countWithdrawals(statuses, chain, minAmount, maxAmount, userIds));
+    if (nothing(userIds, no)) return new Page<>(List.of(), 0);
+    Collection<Long> us = users(userIds);
+    return new Page<>(mapper.withdrawals(statuses, chain, minAmount, maxAmount, us, no, null, offset, limit).stream().map(WalletAdmin::withdrawal).toList(),
+        mapper.countWithdrawals(statuses, chain, minAmount, maxAmount, us, no));
   }
 
   @Override
   @Transactional(readOnly = true)
   public Optional<Withdrawal> withdrawal(long id) {
-    return mapper.withdrawals(null, null, null, null, null, id, 0, 1).stream().findFirst().map(WalletAdmin::withdrawal);
+    return mapper.withdrawals(null, null, null, null, null, null, id, 0, 1).stream().findFirst().map(WalletAdmin::withdrawal);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<Long> withdrawalIdByNo(long no) {
+    return Optional.ofNullable(mapper.withdrawalIdByNo(no));
   }
 
   @Override
@@ -79,14 +92,14 @@ class WalletAdmin implements WalletAdminApi {
   @Transactional(readOnly = true)
   public CustomerFunds customerFunds(long userId, int recent) {
     List<Long> one = List.of(userId);
-    return new CustomerFunds(mapper.totalDeposit(userId), mapper.deposits(null, List.of("CREDITED"), null, one, 0, recent).stream().map(this::deposit).toList(),
-        mapper.withdrawals(List.of("COMPLETED"), null, null, null, one, null, 0, recent).stream().map(WalletAdmin::withdrawal).toList());
+    return new CustomerFunds(mapper.totalDeposit(userId), mapper.deposits(null, List.of("CREDITED"), null, one, null, 0, recent).stream().map(this::deposit).toList(),
+        mapper.withdrawals(List.of("COMPLETED"), null, null, null, one, null, null, 0, recent).stream().map(WalletAdmin::withdrawal).toList());
   }
 
   @Override
   @Transactional(readOnly = true)
   public long pendingReview() {
-    return mapper.countWithdrawals(List.of("REVIEWING"), null, null, null, null);
+    return mapper.countWithdrawals(List.of("REVIEWING"), null, null, null, null, null);
   }
 
   @Override

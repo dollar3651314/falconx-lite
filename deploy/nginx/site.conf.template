@@ -53,6 +53,7 @@ server {
   # 用正则而不是 location /api/admin/：后端（Spring）匹配路径时忽略分号后面的内容，/api/admin;x/me 会被当成 /api/admin/me，
   # 前缀写法拦不住（安全审查 SEC-02）；这里把 /api/admin 后面跟 / ; 或结尾的都拦下，大小写都算（正则里有分号，必须加引号）。后端也拒绝带分号的路径（CrossSiteGuard）。
   location ~* "^/api/(admin|e2e)([/;]|$)" { return 404; }
+  # 应用管理端点（健康详情、指标 /actuator/prometheus）只在后端容器里的 127.0.0.1:8081，这里再拦一道
   location /actuator { return 404; }
 
 
@@ -61,6 +62,7 @@ server {
   location @fx_rate_limited {
     include /etc/nginx/snippets/security.inc;
     add_header Retry-After 1 always;
+    add_header X-Request-Id $request_id always;
     default_type application/json;
     return 429 '{"code":"RATE_LIMITED","message":"too many requests","fields":[],"cooldownSeconds":1}';
   }
@@ -117,6 +119,7 @@ server {
   location @fx_rate_limited {
     include /etc/nginx/snippets/security.inc;
     add_header Retry-After 1 always;
+    add_header X-Request-Id $request_id always;
     default_type application/json;
     return 429 '{"code":"RATE_LIMITED","message":"too many requests","fields":[],"cooldownSeconds":1}';
   }

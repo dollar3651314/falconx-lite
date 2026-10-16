@@ -55,6 +55,10 @@ services:
       FX_PUSH_VAPID_PRIVATE_KEY: ${FX_PUSH_VAPID_PRIVATE_KEY:-}
       FX_PUSH_VAPID_SUBJECT: ${FX_PUSH_VAPID_SUBJECT:-}
       FX_RISK_ALERT_EMAILS: ${FX_RISK_ALERT_EMAILS:-}
+      # 监控告警收件人（v2 E8）：默认值写在这里，不写在代码里；.env 里填了就用 .env 的
+      FX_ALERT_EMAILS: ${FX_ALERT_EMAILS:-info@quickcome.online}
+      # 雪花 ID 节点号（单实例 1）
+      FX_ID_NODE: ${FX_ID_NODE:-1}
       # 区块链（D4 第二步才填，全部用测试网）；没配置的链不扫块
       FX_WALLET_ETH_XPUB: ${FX_WALLET_ETH_XPUB:-}
       FX_WALLET_TRON_XPUB: ${FX_WALLET_TRON_XPUB:-}

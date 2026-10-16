@@ -1,5 +1,7 @@
 package com.falconx.lite.wallet.deposit;
 
+import com.falconx.lite.common.health.AlertProperties;
+import com.falconx.lite.common.id.Snowflake;
 import com.falconx.lite.notification.api.NotifyApi;
 import com.falconx.lite.risk.api.RiskApi;
 import com.falconx.lite.trading.api.Bucket;
@@ -12,13 +14,16 @@ import com.falconx.lite.wallet.Chain;
 import com.falconx.lite.wallet.Confirmations;
 import com.falconx.lite.wallet.WalletProperties;
 import com.falconx.lite.wallet.address.AddressService;
+import com.falconx.lite.wallet.chain.NodeException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -52,9 +57,19 @@ public class DepositService {
   private final NotifyApi notify;
   private final Confirmations confirmations;
   private final UserEventsApi events;
+  private final ChainMonitor monitor;
+  private final Snowflake ids;
 
+  /** 测试用：不关心告警和对外编号的生成器时（用默认参数各建一个） */
   DepositService(DepositMapper mapper, ChainClients clients, AddressService addresses, LedgerApi ledger, WalletProperties props, TransactionTemplate tx,
       FundsApi funds, RiskApi risk, NotifyApi notify, Confirmations confirmations, UserEventsApi events) {
+    this(mapper, clients, addresses, ledger, props, tx, funds, risk, notify, confirmations, events,
+        new ChainMonitor(props, clients, AlertProperties.defaults(), Clock.systemUTC(), null), Snowflake.shared(1));
+  }
+
+  @Autowired
+  DepositService(DepositMapper mapper, ChainClients clients, AddressService addresses, LedgerApi ledger, WalletProperties props, TransactionTemplate tx,
+      FundsApi funds, RiskApi risk, NotifyApi notify, Confirmations confirmations, UserEventsApi events, ChainMonitor monitor, Snowflake ids) {
     this.mapper = mapper;
     this.clients = clients;
     this.addresses = addresses;
@@ -66,6 +81,8 @@ public class DepositService {
     this.notify = notify;
     this.confirmations = confirmations;
     this.events = events;
+    this.monitor = monitor;
+    this.ids = ids;
   }
 
   /** 每 15 秒：每条链先扫块再确认 */
@@ -80,15 +97,25 @@ public class DepositService {
     }
   }
 
-  /** 扫块 + 确认一次。没有客户端或没有配置 USDT 合约时什么也不做 */
+  /**
+   * 扫块 + 确认一次。没有客户端或没有配置 USDT 合约时什么也不做。
+   * 结果告诉 {@link ChainMonitor}（E8 告警）：访问节点出错（{@link NodeException}）算节点失败；扫完一轮记下扫到的区块。
+   */
   public void run(Chain chain) {
     WalletProperties.ChainConfig cfg = props.chain(chain);
     Optional<ChainClient> client = clients.get(chain);
     if (cfg == null || !cfg.scanReady() || client.isEmpty()) return;
-    long head = client.get().headBlock();
-    scan(chain, cfg, client.get(), head);
-    confirm(chain, cfg, client.get(), head);
-    recheck(chain, cfg, client.get(), head);
+    try {
+      long head = client.get().headBlock();
+      monitor.nodeOk(chain, head);
+      long cursor = scan(chain, cfg, client.get(), head);
+      confirm(chain, cfg, client.get(), head);
+      recheck(chain, cfg, client.get(), head);
+      monitor.scanned(chain, cursor, head);
+    } catch (NodeException e) {
+      monitor.nodeFailed(chain, e);
+      throw e;
+    }
   }
 
   /**
@@ -129,19 +156,20 @@ public class DepositService {
     }
   }
 
-  /** 客户看到的一条充值记录 */
-  public record DepositRecord(long id, Chain chain, String txHash, BigDecimal amount, String status, int confirmations, java.time.LocalDateTime createdAt) {}
+  /** 客户看到的一条充值记录；no 是对外编号（雪花 ID，旧数据等于内部 id） */
+  public record DepositRecord(long no, Chain chain, String txHash, BigDecimal amount, String status, int confirmations, java.time.LocalDateTime createdAt) {}
 
   /** 客户的充值记录（最近的在前） */
   public java.util.List<DepositRecord> history(long userId, int limit) {
     return mapper.byUser(userId, limit).stream()
-        .map(d -> new DepositRecord(d.id(), Chain.valueOf(d.chain()), d.txHash(), d.amount(), d.status(), d.confirmations(), d.createdAt())).toList();
+        .map(d -> new DepositRecord(d.publicNo(), Chain.valueOf(d.chain()), d.txHash(), d.amount(), d.status(), d.confirmations(), d.createdAt())).toList();
   }
 
-  private void scan(Chain chain, WalletProperties.ChainConfig cfg, ChainClient client, long head) {
+  /** 扫一批区块，返回扫到的区块号 */
+  private long scan(Chain chain, WalletProperties.ChainConfig cfg, ChainClient client, long head) {
     Long last = mapper.cursor(chain.name());
     if (last == null) last = (cfg.startBlock() != null ? cfg.startBlock() : head) - 1;
-    if (last >= head) return;
+    if (last >= head) return last;
     long from = last + 1;
     long to = Math.min(head, last + cfg.scanBatch());
     for (ChainClient.TokenTransfer t : client.transfers(from, to, cfg.usdtContract())) {
@@ -153,7 +181,8 @@ public class DepositService {
       if (user.isEmpty()) continue;
       BigDecimal amount = new BigDecimal(t.rawAmount()).movePointLeft(cfg.usdtDecimals()).setScale(8, RoundingMode.DOWN);
       String status = amount.compareTo(props.minDeposit()) < 0 ? "BELOW_MIN" : "PENDING";
-      if (mapper.insertIgnore(chain.name(), t.txHash(), t.logIndex(), t.blockNumber(), t.blockHash(), t.from(), t.to(), user.get(), amount, status) == 1) {
+      if (mapper.insertIgnore(ids.next(), chain.name(), t.txHash(), t.logIndex(), t.blockNumber(), t.blockHash(), t.from(), t.to(), user.get(), amount,
+          status) == 1) {
         log.info("发现充值 chain={} tx={} user={} amount={} status={}", chain, t.txHash(), user.get(), amount, status);
         // 低于最小充值金额的不会再变，这里就推；待确认的由同一次 run 里紧接着的 confirm 推（新记录的确认数是 0，一定会变），
         // 避免同一笔推两次。插入是自动提交的，客户端收到后重新拉取时记录已经能查到
@@ -161,6 +190,7 @@ public class DepositService {
       }
     }
     mapper.saveCursor(chain.name(), to);
+    return to;
   }
 
   private void confirm(Chain chain, WalletProperties.ChainConfig cfg, ChainClient client, long head) {

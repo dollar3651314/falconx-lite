@@ -1,5 +1,6 @@
 package com.falconx.lite.common.web;
 
+import com.falconx.lite.common.trace.TraceIdFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -61,6 +62,6 @@ public class CrossSiteGuard extends OncePerRequestFilter {
     res.setStatus(status);
     res.setContentType(MediaType.APPLICATION_JSON_VALUE);
     res.setCharacterEncoding(StandardCharsets.UTF_8.name());
-    res.getWriter().write("{\"code\":\"" + code + "\",\"message\":\"" + message + "\",\"fields\":[]}");
+    res.getWriter().write("{\"code\":\"" + code + "\",\"message\":\"" + message + "\",\"fields\":[]" + TraceIdFilter.jsonField() + "}");
   }
 }

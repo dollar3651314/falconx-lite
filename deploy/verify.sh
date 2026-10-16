@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # 从外部确认测试环境部署成功（S20，部署方案 v1.1 第 8 节）。在任何能上网的机器上运行，不需要登录服务器：
 #   bash deploy/verify.sh test-app.<域名> test-admin.<域名> [期望的提交号]
-# 检查：版本、HTTPS 和证书、跳转、不该开放的路径和端口、页面能打开、测试环境标识。
+# 检查：版本、HTTPS 和证书、跳转、不该开放的路径和端口、页面能打开、测试环境标识、追踪号（X-Request-Id）。
+# 业务告警（健康检查的 alerts：行情断流、扫块停滞、节点不通、邮件失败，v2 E8）只提示、不算部署失败。
 # 真实 IP（伪造 X-Forwarded-For 不起作用）、WebSocket、冒烟流程要在浏览器里手动确认，见部署方案第 8 节。
 set -uo pipefail
 app=${1:?用法：verify.sh <客户端域名> <后台域名> [提交号]}
@@ -16,6 +17,15 @@ echo "== 版本和健康检查"
 h=$(curl -sf --max-time 10 "https://$app/api/health" || true)
 case "$h" in *'"status":"UP"'*) ok "健康检查 UP" ;; *) bad "健康检查不是 UP：${h:-无法访问}" ;; esac
 case "$h" in *'"env":"test"'*) ok "测试环境标识 env=test" ;; *) bad "健康检查里没有 env=test" ;; esac
+# 业务告警：不影响部署是否成功（换版本解决不了），只提示去看告警邮件和日志
+case "$h" in
+  *'"alert":"ALERT"'*) echo "  ! 有业务告警（不算部署失败）：$(printf '%s' "$h" | sed -n 's/.*"alerts":{\([^}]*\)}.*/\1/p')" ;;
+  *'"alert":"OK"'*) ok "没有业务告警" ;;
+  *) bad "健康检查里没有 alert 字段（后端版本太旧？）" ;;
+esac
+# 追踪号：Nginx 生成，后端放进响应头
+rid=$(curl -s -o /dev/null -D - --max-time 10 "https://$app/api/health" | tr -d '\r' | sed -n 's/^[Xx]-[Rr]equest-[Ii]d: *//p')
+if printf '%s' "$rid" | grep -Eq '^[0-9a-f]{32}$'; then ok "响应头带追踪号 X-Request-Id"; else bad "响应头没有 X-Request-Id 或格式不对：${rid:-无}"; fi
 if [ -n "$want" ]; then
   case "$h" in *"\"version\":\"$want\""*) ok "版本是 $want" ;; *) bad "版本不是 $want" ;; esac
 fi
@@ -32,7 +42,7 @@ echo "== 页面"
 
 echo "== 不该对外的路径"
 # 带分号的写法（Spring 会忽略分号后面的内容）也要拦住（安全审查 SEC-02）
-for u in "https://$app/api/admin/me" "https://$app/api/admin;x/me" "https://$app/api/e2e/mail/code" "https://$app/actuator/health" "https://$admin/actuator/health" "https://$admin/api/trading/ledger"; do
+for u in "https://$app/api/admin/me" "https://$app/api/admin;x/me" "https://$app/api/e2e/mail/code" "https://$app/actuator/health" "https://$app/actuator/prometheus" "https://$admin/actuator/health" "https://$admin/actuator/prometheus" "https://$admin/api/trading/ledger"; do
   c=$(code "$u"); { [ "$c" = 404 ] || [ "$c" = 401 ]; } && ok "$c $u" || bad "$c $u（应为 404）"
 done
 
