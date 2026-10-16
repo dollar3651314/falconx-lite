@@ -45,10 +45,16 @@ class MatchingEngine {
 
   private static final Logger log = LoggerFactory.getLogger(MatchingEngine.class);
 
-  /** 每个品种的状态：最新报价、收到时间、是否已经排了检查 */
+  /**
+   * 收到的一个报价和收到它的时间（System.nanoTime）。两者放在同一个不可变对象里一起替换，
+   * 检查时拿到哪个报价，用的就是那个报价的收到时间（AC-13 计时口径）。
+   * 以前把收到时间单独存成一个字段，检查读完报价、还没读时间时又来了新价格，会读到新价格的时间，耗时被少算。
+   */
+  record Received(MarketQuote quote, long nanos) {}
+
+  /** 每个品种的状态：最新报价（连同收到时间）、是否已经排了检查 */
   private static final class SymbolState {
-    final AtomicReference<MarketQuote> latest = new AtomicReference<>();
-    volatile long receivedNanos;
+    final AtomicReference<Received> latest = new AtomicReference<>();
     final AtomicBoolean scheduled = new AtomicBoolean();
   }
 
@@ -95,22 +101,26 @@ class MatchingEngine {
   }
 
   void onQuote(MarketQuote q) {
+    onQuote(q, System.nanoTime());
+  }
+
+  /** 收到报价；receivedNanos 是收到它的时间（测试里可以指定） */
+  void onQuote(MarketQuote q, long receivedNanos) {
     if (!enabled.get() || !q.executable()) return;
     SymbolState st = states.computeIfAbsent(q.symbol(), k -> new SymbolState());
-    st.latest.set(q);
-    st.receivedNanos = System.nanoTime();
+    st.latest.set(new Received(q, receivedNanos));
     if (st.scheduled.compareAndSet(false, true)) pool.execute(() -> run(q.symbol(), st));
   }
 
   private void run(String symbol, SymbolState st) {
-    MarketQuote done = null;
+    Received done = null;
     try {
       // 检查期间来了新价格就再查一次；没有新价格就结束。先记下 done 再检查，检查出错也不会对同一个价格反复重试
       while (true) {
-        MarketQuote q = st.latest.get();
-        if (q == done) break;
-        done = q;
-        scan(q, st.receivedNanos);
+        Received r = st.latest.get();
+        if (r == done) break;
+        done = r;
+        scan(r.quote(), r.nanos());
       }
     } catch (RuntimeException e) {
       log.error("撮合检查失败 {}", symbol, e);
