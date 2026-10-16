@@ -665,8 +665,10 @@
     "codeFormat": "验证码是 6 位数字",
     "nameTooLong": "最多 50 个字",
     "nameChars": "只能包含文字、空格、点和连字符",
-    "dateFormat": "请按 YYYY-MM-DD 填写",
+    "dateIncomplete": "请把年、月、日填写完整",
+    "yearFormat": "年份需要 4 位数字，例如 1990",
     "dateInvalid": "日期不存在",
+    "dateTooEarly": "年份不能早于 1900 年",
     "ageUnder18": "需年满 18 周岁",
     "mustAgree": "请阅读并同意条款",
     "positiveNumber": "请输入大于 0 的数字",
@@ -728,5 +730,11 @@
     "CA": "加拿大",
     "BR": "巴西",
     "ZA": "南非"
+  },
+  "dateFields": {
+    "year": "年",
+    "month": "月",
+    "day": "日",
+    "birthHint": "例如 1990 年 3 月 27 日。也可以直接粘贴 1990-03-27"
   }
 }

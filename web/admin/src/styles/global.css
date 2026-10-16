@@ -306,6 +306,14 @@ body { overflow-x: hidden; }
 .profile-form .name-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 10px; }
 @media (max-width: 480px) { .profile-form .name-row { grid-template-columns: minmax(0, 1fr); } }
 
+/* "已知日期"三框输入（components/DateFields.tsx，技术方案/v2-日期输入.md）：颜色只用变量，深浅色都可用 */
+.date-fields { display: flex; gap: 8px; align-items: flex-end; flex-wrap: nowrap; }
+.date-fields .date-part { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.date-fields .date-part-label { font-size: 12px; color: var(--subtle); }
+.date-fields .date-part input { text-align: center; }
+.date-fields .date-part-y { width: 88px; }
+.date-fields .date-part-m, .date-fields .date-part-d { width: 60px; }
+
 /* ---------- v2 E3：新增品种 ---------- */
 .symbol-form .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
 @media (max-width: 480px) { .symbol-form .grid2 { grid-template-columns: minmax(0, 1fr); } }

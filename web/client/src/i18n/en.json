@@ -665,8 +665,10 @@
     "codeFormat": "The code is 6 digits",
     "nameTooLong": "Up to 50 characters",
     "nameChars": "Letters, spaces, dots and hyphens only",
-    "dateFormat": "Use YYYY-MM-DD",
+    "dateIncomplete": "Enter the day, month and year",
+    "yearFormat": "Year must be 4 digits, e.g. 1990",
     "dateInvalid": "Invalid date",
+    "dateTooEarly": "Year must be 1900 or later",
     "ageUnder18": "You must be at least 18",
     "mustAgree": "Please accept the terms",
     "positiveNumber": "Enter a number greater than 0",
@@ -728,5 +730,11 @@
     "CA": "Canada",
     "BR": "Brazil",
     "ZA": "South Africa"
+  },
+  "dateFields": {
+    "year": "Year",
+    "month": "Month",
+    "day": "Day",
+    "birthHint": "For example, 27 3 1990. You can also paste 1990-03-27"
   }
 }

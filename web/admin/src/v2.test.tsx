@@ -59,7 +59,8 @@ describe('E1 编辑客户资料：校验和客户端注册一致', () => {
 
   it('出生日期：格式、真实日期、1900 年以后、年满 18 周岁', () => {
     expect(birthDateProblems('', TODAY)).toEqual(['validation.required']);
-    expect(birthDateProblems('1990/01/02', TODAY)).toEqual(['validation.dateFormat']);
+    expect(birthDateProblems('1990-1-', TODAY)).toEqual(['validation.dateIncomplete']);
+    expect(birthDateProblems('199-01-02', TODAY)).toEqual(['validation.yearFormat']);
     expect(birthDateProblems('1990-02-30', TODAY)).toEqual(['validation.dateInvalid']);
     expect(birthDateProblems('1899-12-31', TODAY)).toEqual(['validation.dateInvalid']);
     expect(birthDateProblems('2027-01-01', TODAY)).toEqual(['validation.dateInvalid']);
@@ -121,7 +122,10 @@ describe('E1 编辑客户资料：校验和客户端注册一致', () => {
     expect(within(dialog).getByText(/该客户 KYC 已通过，修改姓名或出生日期会和证件不一致/)).toBeInTheDocument();
     expect(within(dialog).getByText('邮箱不能修改')).toBeInTheDocument();
     // 没填原因、名字不合法：一次显示
-    fireEvent.change(within(dialog).getByLabelText('出生日期'), { target: { value: '2015-01-01' } });
+    // 出生日期是三框组件：原值 1990-05-12 拆到三个框；整串写进年份框（自动填充、粘贴）也能拆开
+    const birth = within(dialog).getByRole('group', { name: '出生日期' });
+    expect(within(birth).getByLabelText('月')).toHaveValue('05');
+    fireEvent.change(within(birth).getByLabelText(/年/), { target: { value: '2015-01-01' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '确认修改' }));
     expect(await within(dialog).findByText('客户须年满 18 周岁', undefined, { timeout: 5000 })).toBeInTheDocument();
     expect(within(dialog).getByText('请填写操作原因')).toBeInTheDocument();
