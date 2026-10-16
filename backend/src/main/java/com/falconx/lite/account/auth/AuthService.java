@@ -22,15 +22,18 @@ class AuthService {
   private final EmailCodeService codes;
   private final SessionService sessions;
   private final LoginLimiter limiter;
+  private final SendCodeLimiter codeLimiter;
   private final LedgerApi ledger;
   private final WalletApi wallet;
   private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
 
-  AuthService(AuthMapper mapper, EmailCodeService codes, SessionService sessions, LoginLimiter limiter, LedgerApi ledger, WalletApi wallet) {
+  AuthService(AuthMapper mapper, EmailCodeService codes, SessionService sessions, LoginLimiter limiter, SendCodeLimiter codeLimiter, LedgerApi ledger,
+      WalletApi wallet) {
     this.mapper = mapper;
     this.codes = codes;
     this.sessions = sessions;
     this.limiter = limiter;
+    this.codeLimiter = codeLimiter;
     this.ledger = ledger;
     this.wallet = wallet;
   }
@@ -39,8 +42,12 @@ class AuthService {
     return email.trim().toLowerCase(Locale.ROOT);
   }
 
-  /** 发验证码。注册：邮箱已注册时直接提示；重置密码：邮箱不存在时假装已发送，不暴露哪些邮箱注册过。 */
-  void sendCode(String rawEmail, EmailCodeService.Purpose purpose) {
+  /**
+   * 发验证码。注册：邮箱已注册时直接提示；重置密码：邮箱不存在时假装已发送，不暴露哪些邮箱注册过。
+   * 先按 IP 限次（安全审查 SEC-03），邮箱存不存在都算一次。
+   */
+  void sendCode(String rawEmail, EmailCodeService.Purpose purpose, String ip) {
+    if (!codeLimiter.allow(ip)) throw new BizException("CODE_TOO_FREQUENT", "发送太频繁，请稍后再试");
     String email = normalizeEmail(rawEmail);
     boolean exists = mapper.findUserByEmail(email) != null;
     if (purpose == EmailCodeService.Purpose.REGISTER && exists) throw new BizException("EMAIL_TAKEN", "邮箱已注册");
