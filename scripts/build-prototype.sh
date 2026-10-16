@@ -3,6 +3,8 @@
 # Vercel 用它构建原型预览（vercel.json 的 buildCommand）；本地也可以直接运行。
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# 原型站点用浏览器内的模拟数据（客户端 src/api/mode.ts）；不设时客户端默认 real，会去调用不存在的 /api
+export VITE_API_MODE=mock
 for app in client admin; do
   echo "== 构建 web/$app"
   npm ci --prefix "web/$app" --no-audit --no-fund

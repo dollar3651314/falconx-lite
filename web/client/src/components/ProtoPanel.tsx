@@ -1,5 +1,5 @@
 /**
- * 原型专用面板（右下角）："原型场景"切换、模拟推送、模拟触发。正式开发时删除。
+ * 原型专用面板（右下角）："原型场景"切换、模拟推送、模拟触发。只在 mock 模式显示（VITE_API_MODE=mock）。
  */
 import { useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,7 @@ import {
   type PushKind,
   type Scenario,
 } from '../api/prototype';
+import { IS_MOCK } from '../api/mode';
 import type { KycStatus, OrderRejectReason } from '../api/types';
 import { useToast } from '../app/contexts';
 import { Icon } from './Icon';
@@ -24,6 +25,10 @@ const KYC: KycStatus[] = ['none', 'pending', 'approved', 'rejected'];
 const REJECTS: Array<OrderRejectReason | 'none'> = ['none', 'tradingClosed', 'symbolPaused', 'globalPaused', 'rateStale', 'leverageExceeded', 'positionLimit', 'insufficientBalance'];
 
 export function ProtoPanel() {
+  return IS_MOCK ? <ProtoPanelBody /> : null;
+}
+
+function ProtoPanelBody() {
   const { t } = useTranslation();
   const toast = useToast();
   const [open, setOpen] = useState(false);

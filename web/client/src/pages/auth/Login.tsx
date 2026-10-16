@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { login } from '../../api/auth';
 import { errorKey } from '../../api/errors';
+import { IS_MOCK } from '../../api/mode';
 import { useAuth } from '../../app/contexts';
 import { PasswordField, TextField } from '../../components/Form';
 import { hasErrors, validateLogin } from '../../lib/validators';
@@ -49,7 +50,7 @@ export default function Login() {
       }
     >
       <form onSubmit={onSubmit} noValidate>
-        <div className="proto-hint">{t('auth.loginProtoHint')}</div>
+        {IS_MOCK && <div className="proto-hint">{t('auth.loginProtoHint')}</div>}
         <TextField label={t('auth.email')} type="email" autoComplete="email" value={email} onChange={setEmail} errors={shown.email} />
         <PasswordField label={t('auth.password')} autoComplete="current-password" value={password} onChange={setPassword} errors={shown.password} labelExtra={<Link to="/forgot-password" className="small">{t('auth.forgot')}</Link>} />
         {error && (

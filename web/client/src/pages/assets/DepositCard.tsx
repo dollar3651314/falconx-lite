@@ -1,16 +1,18 @@
 /**
- * 充值（效果图 M3）：先选网络，再显示地址、二维码、复制按钮和警示。ERC20 与 BSC 是同一个地址。
+ * 充值（效果图 M3）：先选网络，再显示地址、二维码、复制按钮和警示（含最小充值金额，AC-41）。ERC20 与 BSC 是同一个地址。
+ * 下方是最近的充值记录（待确认显示确认进度；低于最小充值金额的不入账，AC-41）。
  */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getDepositAddresses } from '../../api/wallet';
-import type { Network } from '../../api/types';
+import { getDepositAddresses, listDeposits } from '../../api/wallet';
+import type { DepositRecord, Network } from '../../api/types';
 import { useToast } from '../../app/contexts';
-import { AsyncView } from '../../components/AsyncView';
+import { AsyncView, EmptyState } from '../../components/AsyncView';
 import { Icon } from '../../components/Icon';
 import { QrCode } from '../../components/QrCode';
 import { useAsync } from '../../hooks/useAsync';
-import { groupAddress } from '../../lib/format';
+import { useServerEvent } from '../../hooks/useServerEvent';
+import { formatAmount, formatDateTime, groupAddress } from '../../lib/format';
 
 const NETS: Network[] = ['ERC20', 'TRC20', 'BSC'];
 
@@ -87,6 +89,7 @@ export function DepositCard() {
                     <li>{t('deposit.warnOnly', { network: net })}</li>
                     <li>{t('deposit.warnWrong')}</li>
                     <li>{t('deposit.warnConfirm', { n: a.confirmations, m: a.etaMinutes })}</li>
+                    {a.minDeposit && <li>{t('deposit.warnMin', { min: a.minDeposit })}</li>}
                   </ul>
                 </div>
               </>
@@ -94,6 +97,47 @@ export function DepositCard() {
           }}
         </AsyncView>
       )}
+      <DepositRecords />
     </section>
+  );
+}
+
+/** 只显示最近几条，完整的到账记录在资金流水里 */
+const RECENT = 5;
+
+function DepositRecords() {
+  const { t } = useTranslation();
+  const s = useAsync(listDeposits, 'deposits');
+  useServerEvent((e) => {
+    if (e.type === 'account' || (e.type === 'notification' && e.item.kind === 'deposit')) s.reload();
+  });
+  const label = (d: DepositRecord) => (d.status === 'pending' ? t('deposit.status.pending', { n: d.confirmations, m: d.requiredConfirmations }) : t(`deposit.status.${d.status}`));
+  return (
+    <>
+      <div className="card-head dep-records">
+        <h2>{t('deposit.records')}</h2>
+      </div>
+      <AsyncView state={s} rows={2} isEmpty={(d) => d.length === 0} empty={<EmptyState compact title={t('deposit.recordsEmpty')} />}>
+        {(list) => (
+          <ul className="ledger">
+            {list.slice(0, RECENT).map((d) => (
+              <li key={d.id}>
+                <span className={`lg-ic ${d.status === 'credited' ? 'in' : 'fee'}`} aria-hidden="true">
+                  {t('ledger.icon.deposit')}
+                </span>
+                <div className="lg-t">
+                  <b>
+                    {label(d)}
+                    <span className="num"> · {d.network}</span>
+                  </b>
+                  <small className="num">{formatDateTime(d.time)}</small>
+                </div>
+                <div className={`lg-amt num${d.status === 'credited' ? ' up' : ' muted'}`}>{formatAmount(d.amount)}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </AsyncView>
+    </>
   );
 }

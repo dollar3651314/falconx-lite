@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { errorKey } from '../../api/errors';
 import { getNotifyPrefs, updateNotifyPrefs } from '../../api/user';
 import type { NotifyPrefs as Prefs } from '../../api/types';
+import { syncPushSubscription } from '../../api/webPush';
 import { useToast } from '../../app/contexts';
 import { AsyncView } from '../../components/AsyncView';
 import { Switch } from '../../components/Form';
@@ -22,6 +23,7 @@ export default function NotifyPrefs() {
     try {
       const np = await updateNotifyPrefs({ ...p, [k]: v });
       s.setData(() => np);
+      if (k === 'push') void syncPushSubscription(np.push);
       toast.show({ tone: 'success', title: t('prefs.saved') });
     } catch (e) {
       toast.show({ tone: 'error', title: t(errorKey(e)) });
@@ -47,7 +49,11 @@ export default function NotifyPrefs() {
                 {t('prefs.browserPerm')}: <b>{t(`prefs.perm.${perm}`)}</b>
               </span>
               {perm !== 'granted' && perm !== 'unsupported' && (
-                <button type="button" className="btn btn-outline btn-sm" onClick={async () => setPerm(await requestNotificationPermission())}>
+                <button type="button" className="btn btn-outline btn-sm" onClick={async () => {
+                    const r = await requestNotificationPermission();
+                    setPerm(r);
+                    if (r === 'granted') void syncPushSubscription(p.push);
+                  }}>
                   {t('install.allow')}
                 </button>
               )}

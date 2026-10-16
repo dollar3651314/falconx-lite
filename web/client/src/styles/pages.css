@@ -124,6 +124,8 @@
 .warn-box h3 { display: flex; align-items: center; gap: 6px; font-size: 13.5px; margin-bottom: 4px; }
 .warn-box li { font-size: 12.5px; padding-left: 12px; position: relative; margin-top: 3px; }
 .warn-box li::before { content: '·'; position: absolute; left: 2px; font-weight: 800; }
+/* 充值卡片下方的充值记录（S17） */
+.dep-records { margin-top: 16px; }
 .ledger li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--hair); }
 .ledger li:last-child { border-bottom: 0; }
 .lg-ic { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; flex: none; }

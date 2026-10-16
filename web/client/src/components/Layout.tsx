@@ -1,10 +1,11 @@
 /**
- * 登录后的整体布局：顶部原型横幅；手机为底部 5 个导航（行情 / 交易 / 持仓 / 资产 / 我的，U4），
+ * 登录后的整体布局：顶部原型横幅（只在 mock 模式）；手机为底部 5 个导航（行情 / 交易 / 持仓 / 资产 / 我的，U4），
  * 桌面（≥1024）为顶部导航（持仓在交易页里，不单列）。
  */
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { IS_MOCK } from '../api/mode';
 import { useAccount } from '../app/contexts';
 import { useUnread } from '../hooks/useUnread';
 import { formatAmount, formatPercent } from '../lib/format';
@@ -21,8 +22,10 @@ const NAV: Array<{ to: string; key: string; icon: IconName; desktop: boolean }> 
   { to: '/me', key: 'nav.me', icon: 'me', desktop: true },
 ];
 
+/** 原型横幅：只在 mock 模式显示 */
 export function ProtoBanner() {
   const { t } = useTranslation();
+  if (!IS_MOCK) return null;
   return (
     <div className="proto-banner" role="note">
       <Icon name="flask" size={12} strokeWidth={2.2} />

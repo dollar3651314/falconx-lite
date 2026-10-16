@@ -4,9 +4,9 @@
  */
 import { ApiError } from '../api/errors';
 import type { Account, HistoryItem, HistoryKind, Page, PendingOrder, PlaceOrderRequest, PlaceOrderResult, Position, Quote, Side } from '../api/types';
-import { add, cmp, dec, mul, neg, sub, sum, toFixed, ZERO, type Dec } from '../lib/decimal';
+import { add, cmp, dec, mul, neg, sub, toFixed, ZERO, type Dec } from '../lib/decimal';
 import { formatAmount, formatLots, formatPrice } from '../lib/format';
-import { closePrice, estimateOrder, execPrice, liquidationAfterAddMargin, notionalUsd, pnlAt, positionPnl } from '../lib/trading';
+import { availableFunds, closePrice, estimateOrder, execPrice, liquidationAfterAddMargin, notionalUsd, pnlAt, positionPnl } from '../lib/trading';
 import { emit } from './bus';
 import { db } from './db';
 import { mutate, respond } from './delay';
@@ -43,20 +43,14 @@ export function listHistory(page: number, pageSize: number): Promise<Page<Histor
 }
 
 // ---------- 资金计算 ----------
-function equityAndUsed(): { equity: Dec; used: Dec } {
-  let pnl = ZERO;
-  for (const p of db.positions) {
+/** 可用 = 余额 − 挂单冻结 − 已用保证金 + 浮动亏损（浮动盈利不计入，和后端同一口径，DF-02） */
+export function availableNow(): Dec {
+  const positions = db.positions.map((p) => {
     const info = symbolInfo(p.symbol);
     const q = quote(p.symbol);
-    if (info && q) pnl = add(pnl, positionPnl(p, info, q));
-  }
-  return { equity: add(dec(db.account.balance), pnl), used: sum(db.positions.map((p) => dec(p.margin))) };
-}
-
-/** 可用 = 净值 − 已用保证金 − 挂单冻结 */
-export function availableNow(): Dec {
-  const { equity, used } = equityAndUsed();
-  return sub(sub(equity, used), dec(db.account.orderFrozen));
+    return { margin: dec(p.margin), pnl: info && q ? positionPnl(p, info, q) : ZERO };
+  });
+  return availableFunds(dec(db.account.balance), dec(db.account.orderFrozen), positions);
 }
 
 function totalNotionalUsd(): Dec {

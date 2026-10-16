@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { changePassword } from '../../api/auth';
 import { errorKey, isApiError } from '../../api/errors';
+import { IS_MOCK } from '../../api/mode';
 import { useToast } from '../../app/contexts';
 import { PasswordField } from '../../components/Form';
 import { PageHeader } from '../../components/Layout';
@@ -44,7 +45,7 @@ export default function ChangePassword() {
     <div className="page page-narrow">
       <PageHeader title={t('me.changePassword')} back="/me" />
       <section className="card">
-        <div className="proto-hint">{t('password.protoHint')}</div>
+        {IS_MOCK && <div className="proto-hint">{t('password.protoHint')}</div>}
         <PasswordField label={t('password.current')} autoComplete="current-password" value={f.current} onChange={(v) => set('current', v)} errors={shown('current')} />
         <PasswordField label={t('auth.newPassword')} autoComplete="new-password" value={f.password} onChange={(v) => set('password', v)} errors={shown('password')} hint={t('auth.passwordRule')} />
         <PasswordField label={t('auth.confirmPassword')} autoComplete="new-password" value={f.confirm} onChange={(v) => set('confirm', v)} errors={shown('confirm')} />

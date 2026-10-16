@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PROTOTYPE_EMAIL_CODE, sendEmailCode } from '../../api/auth';
 import { errorKey } from '../../api/errors';
+import { IS_MOCK } from '../../api/mode';
 import type { EmailCodePurpose } from '../../api/types';
 import { TextField } from '../../components/Form';
 import { useCountdown } from '../../hooks/useCountdown';
@@ -69,7 +70,15 @@ export function EmailCodeFields(props: {
         onChange={(v) => props.onCode(v.replace(/\D/g, ''))}
         errors={props.codeErrors}
         mono
-        hint={sent ? <span className="proto-inline">{t('auth.codeSent', { email: props.email, code: PROTOTYPE_EMAIL_CODE })}</span> : <span className="proto-inline">{t('auth.codeProtoHint', { code: PROTOTYPE_EMAIL_CODE })}</span>}
+        hint={
+          !IS_MOCK ? (
+            sent ? t('auth.codeSentReal', { email: props.email }) : undefined
+          ) : sent ? (
+            <span className="proto-inline">{t('auth.codeSent', { email: props.email, code: PROTOTYPE_EMAIL_CODE })}</span>
+          ) : (
+            <span className="proto-inline">{t('auth.codeProtoHint', { code: PROTOTYPE_EMAIL_CODE })}</span>
+          )
+        }
       />
     </>
   );
