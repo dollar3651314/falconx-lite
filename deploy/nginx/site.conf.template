@@ -46,16 +46,21 @@ server {
     proxy_read_timeout 120s;
   }
 
-  # 带文件名哈希的静态资源长期缓存；页面、Service Worker、manifest 每次都检查更新
-  location /assets/ {
+  # 带文件名哈希的静态资源（构建目录 assets/）长期缓存，找不到就是 404（不能拿页面冒充脚本）。
+  # 注意：客户端的资产页路由也叫 /assets、/assets/ledger、/assets/withdraw、/assets/whitelist，和构建目录同名，
+  # 所以只把"assets/ 下带扩展名的文件"当静态资源，其余（页面路由）回到 index.html。
+  # （部署形态端到端测试发现：原来按 /assets/ 前缀匹配，刷新或直接打开资产页得到 403、资金流水等页面 404）
+  location ~ ^/assets/[^/]+\.[A-Za-z0-9]+$ {
     expires 30d;
+    try_files $uri =404;
   }
   location ~ ^/(index\.html|sw\.js|push-sw\.js|registerSW\.js|manifest\.webmanifest)$ {
     expires -1;
   }
+  # 页面路由：有这个文件就返回文件，否则回到 index.html（不按目录查找，/assets 目录不会被当成页面）
   location / {
     expires -1;
-    try_files $uri $uri/ /index.html;
+    try_files $uri /index.html;
   }
 }
 

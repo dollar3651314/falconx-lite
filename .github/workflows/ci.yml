@@ -6,6 +6,8 @@
 # v0.4（S19）：端到端测试（Playwright），后端以 e2e profile 启动，外部服务全部用替身。
 # v0.5（S20）：推送到 staging 且前面的检查全部通过后，构建镜像推到 GitHub 私有镜像仓库；测试服务器每分钟自己来拉（部署方案 v1.1 D1）。
 #   写在本文件里而不是单独的 workflow_run 文件：workflow_run、schedule 只认默认分支（main）上的文件，staging 上不会触发。
+# v0.6：部署形态的端到端测试 e2e-deployed（同一个主流程，经过测试环境用的两个镜像、Nginx（HTTPS、两个域名）和 docker-compose.yml）；
+#   推镜像前必须通过。
 name: ci
 on:
   pull_request:
@@ -176,10 +178,46 @@ jobs:
       - name: 停止后端
         if: always()
         run: kill "$(cat e2e/logs/backend.pid)" 2> /dev/null || true
+  # 部署形态的端到端测试（测试报告/v1-端到端测试方案.md 第 9 节）：构建 jar、两个前端、两个镜像（deploy/*.Dockerfile），
+  # 用 deploy/kit/docker-compose.yml + e2e/compose.deployed.yml 起 Nginx、后端（profile e2e）、MySQL、Redis，浏览器经 HTTPS 和两个假域名跑主流程，
+  # 另外检查 Nginx 路由、Service Worker、登录 Cookie 的 Secure、测试环境标识条。密码由脚本随机生成，用完删除。
+  e2e-deployed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/client/package-lock.json
+            web/admin/package-lock.json
+            e2e/package-lock.json
+      - name: 安装 Playwright 和 Chromium
+        working-directory: e2e
+        run: npm ci --no-audit --no-fund && npx playwright install --with-deps chromium
+      - name: 部署形态端到端测试（构建镜像 → compose 启动 → Playwright → 收尾）
+        run: bash e2e/run-deployed.sh
+      - name: 上传失败记录（trace、截图、录像、各容器日志）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-deployed-failure
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            e2e/logs/deployed/
+          retention-days: 14
   publish-staging:
     # 只在合并到 staging（push）并且上面的检查全部通过时运行；PR 上不运行
     if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
-    needs: [checks, web, backend, e2e]
+    needs: [checks, web, backend, e2e, e2e-deployed]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

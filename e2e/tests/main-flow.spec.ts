@@ -4,10 +4,13 @@
  * → 再开一单手动平仓 → 资金流水 → 加白名单 → 提现；超管在电脑上：首次登录改密码 → 审核 KYC → 出金审核 → 查看客户；
  * 广播成功、链上确认后客户看到提现已完成。
  * 每轮用新邮箱、新证件号，不依赖上一轮的数据。外部依赖（邮件、链、LP 行情、提现广播）由后端 e2e profile 的替身代替。
+ * 两种形态共用（tests/targets.ts）：默认经 server.mjs；部署形态经 Nginx 镜像（HTTPS、两个域名），另外检查登录 Cookie 带 Secure、
+ * 两个前端顶部有"测试环境"标识条。
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, request as apiRequest, test, type BrowserContext, type Page } from '@playwright/test';
 import { adminLogin, cjk, setConfig } from './admin';
-import { CLIENT_PASSWORD, e2e, expectNoHorizontalScroll, PNG_1PX, Recorder, step, SYMBOL, uniqueId } from './support';
+import { CLIENT_PASSWORD, e2e, expectNoHorizontalScroll, PNG_1PX, Recorder, step, SYMBOL, trackSocketOpen, uniqueId, waitSocketOpen } from './support';
+import { ADMIN_URL, CLIENT_URL, DEPLOYED, EXPECT_ENV_BANNER, STUB_URL } from './targets';
 
 const DEPOSIT = '1000';
 const WITHDRAW = '100';
@@ -27,11 +30,30 @@ async function marketBuy(page: Page, lots: string): Promise<void> {
   await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 
-test('客户主流程（手机 390px）和后台审核', async ({ browser, request }) => {
+/** 部署形态：登录 Cookie 必须是 HttpOnly + Secure（测试环境 FX_COOKIE_SECURE=true，经 HTTPS 才能保存） */
+async function expectSecureCookie(ctx: BrowserContext, name: string): Promise<void> {
+  if (!DEPLOYED) return;
+  const c = (await ctx.cookies()).find((x) => x.name === name);
+  expect(c, `登录后应有 Cookie ${name}`).toBeTruthy();
+  expect(c?.secure, `${name} 带 Secure`).toBe(true);
+  expect(c?.httpOnly, `${name} 带 HttpOnly`).toBe(true);
+}
+
+/** 后端设了 FX_ENV_LABEL 时，页面顶部显示"测试环境"标识条 */
+async function expectEnvBanner(page: Page): Promise<void> {
+  if (!EXPECT_ENV_BANNER) return;
+  await expect(page.getByTestId('env-banner')).toBeVisible();
+  await expect(page.getByTestId('env-banner')).toContainText('测试环境');
+}
+
+test('客户主流程（手机 390px）和后台审核', async ({ browser }) => {
   const id = uniqueId();
   const email = `e2e-${id}@example.com`;
-  const client = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'zh-CN', serviceWorkers: 'block' });
-  const admin = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'zh-CN', serviceWorkers: 'block' });
+  const client = await browser.newContext({ baseURL: CLIENT_URL, ignoreHTTPSErrors: DEPLOYED, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'zh-CN', serviceWorkers: 'block' });
+  const admin = await browser.newContext({ baseURL: ADMIN_URL, ignoreHTTPSErrors: DEPLOYED, viewport: { width: 1440, height: 900 }, locale: 'zh-CN', serviceWorkers: 'block' });
+  // 替身接口：测试代码直接访问（部署形态是后端 127.0.0.1:8080，Nginx 不转发 /api/e2e/）
+  const request = await apiRequest.newContext({ baseURL: STUB_URL });
+  await trackSocketOpen(client);
   const page = await client.newPage();
   const adminPage = await admin.newPage();
   const rec = new Recorder(page);
@@ -42,6 +64,8 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser, reque
     await step('后台：超管登录（首次登录先改密码）', async () => {
       const first = await adminLogin(adminPage);
       test.info().annotations.push({ type: '超管', description: first ? '首次登录，已改密码' : '已改过密码，直接登录' });
+      await expectSecureCookie(admin, 'fx_admin_session');
+      await expectEnvBanner(adminPage);
       // 测试不等 2 小时冷静期和 24 小时白名单生效：超管在系统配置里改成 0（规则本身由后端测试覆盖，AC-17、AC-18）
       await setConfig(adminPage, 'withdraw.coolingHours', '0');
       await setConfig(adminPage, 'whitelist.effectiveHours', '0');
@@ -78,6 +102,8 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser, reque
       await page.getByLabel('密码', { exact: true }).fill(CLIENT_PASSWORD);
       await page.getByRole('button', { name: '登录', exact: true }).click();
       await expect(page).toHaveURL(/\/markets$/);
+      await expectSecureCookie(client, 'fx_session');
+      await expectEnvBanner(page);
       await expectNoHorizontalScroll(page, '行情页');
     });
 
@@ -105,6 +131,8 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser, reque
       // 发现待确认的充值时后端不推送事件，充值记录要刷新页面才出现（已记入测试报告的"发现的问题"）
       await page.reload();
       await expect(page.getByText(/待确认 \d+\/19/)).toBeVisible();
+      // 先等交易推送连上再出块：连上之前入账的话页面收不到推送（问题 D-2，经过 Nginx 和 TLS 时更容易碰上）
+      await waitSocketOpen(page, '/api/ws/trading');
       await e2e.mine(request, 'TRC20', 25);
       await expect(page.getByText('已到账 · TRC20')).toBeVisible();
       // 站内信推送的提示（AC-07 客户收到通知）
@@ -273,5 +301,6 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser, reque
   } finally {
     await client.close();
     await admin.close();
+    await request.dispose();
   }
 });
