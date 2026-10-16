@@ -258,13 +258,15 @@ class AdminOpsTest extends AdminTestSupport {
     } finally {
       jdbc.update("UPDATE notify_template SET title_zh = ? WHERE code = 'DEPOSIT_CREDITED'", original);
     }
-    long uid = customer(unique("Grace"), "0");
+    String grace = unique("Grace");
+    long uid = customer(grace, "0");
     assertThat(call(post("/api/admin/notify/send"), a.cookie(), "{\"customerId\":" + uid + ",\"channels\":[\"inbox\"],\"title\":\"t\",\"body\":\"b\"}")
         .getContentAsString()).contains("\"field\":\"reason\"");
     MockHttpServletResponse sent = call(post("/api/admin/notify/send"), a.cookie(),
         "{\"customerId\":" + uid + ",\"channels\":[\"inbox\",\"email\"],\"title\":\"维护通知\",\"body\":\"今晚维护\",\"reason\":\"系统维护\"}");
     assertThat(sent.getStatus()).as(sent.getContentAsString()).isEqualTo(200);
-    JsonNode recs = body(call(get("/api/admin/notify/records?keyword=" + uid), a.cookie(), null));
+    // 按唯一的客户名搜：搜数字（客户号）时，邮箱里含这串数字的其他客户也会匹配到（共用测试库时偶尔失败）
+    JsonNode recs = body(call(get("/api/admin/notify/records?keyword=" + grace), a.cookie(), null));
     assertThat(recs.get("total").asLong()).isEqualTo(2);
     assertThat(recs.get("items").get(0).get("source").asString()).isEqualTo("manual");
     assertThat(recs.get("items").get(0).get("operator").asString()).isEqualTo(a.username());
