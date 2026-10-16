@@ -129,7 +129,17 @@ class AuthFlowTest {
         "{\"email\":\"bad\",\"code\":\"12\",\"password\":\"short\",\"firstName\":\"\",\"lastName\":\"\",\"birthDate\":\"2999-01-01\",\"nationality\":\"china\"}");
     assertThat(r.getStatus()).isEqualTo(400);
     assertThat(r.getContentAsString()).contains("VALIDATION_FAILED").contains("EMAIL_INVALID").contains("CODE_FORMAT").contains("PASSWORD_LENGTH")
-        .contains("firstName").contains("lastName").contains("BIRTH_DATE_INVALID").contains("NATIONALITY_INVALID");
+        .contains("PASSWORD_MIX").contains("firstName").contains("lastName").contains("BIRTH_DATE_INVALID").contains("NATIONALITY_INVALID");
+  }
+
+  @Test
+  void 密码必须同时包含字母和数字() throws Exception {
+    for (String pw : new String[] {"onlyletters", "1234567890"}) {
+      MockHttpServletResponse r = call(post("/api/auth/register"), ip(), null, "{\"email\":\"" + email() + "\",\"code\":\"123456\",\"password\":\"" + pw
+          + "\",\"firstName\":\"A\",\"lastName\":\"B\",\"birthDate\":\"1990-01-01\",\"nationality\":\"CN\"}");
+      assertThat(r.getStatus()).isEqualTo(400);
+      assertThat(r.getContentAsString()).contains("PASSWORD_MIX").doesNotContain("PASSWORD_LENGTH");
+    }
   }
 
   @Test

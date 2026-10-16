@@ -1,5 +1,5 @@
 import type { SymbolInfo, WhitelistAddress, WithdrawInfo } from '../api/types';
-import { validateKyc, validateOrder, validateRegister, validateWhitelist, validateWithdraw, type OrderForm } from './validators';
+import { validateKyc, validateOrder, validatePassword, validateRegister, validateWhitelist, validateWithdraw, type OrderForm } from './validators';
 
 const today = new Date('2026-10-14T00:00:00Z');
 
@@ -23,6 +23,15 @@ describe('注册校验（一次显示全部错误）', () => {
 
 const XAU = { code: 'XAUUSD', digits: 2, minLots: '0.01', maxLots: '20', maxLeverage: 200 } as SymbolInfo;
 const form = (p: Partial<OrderForm>): OrderForm => ({ type: 'market', side: 'buy', lots: '0.10', leverage: '50', limitPrice: '', tpOn: false, takeProfit: '', slOn: false, stopLoss: '', ...p });
+
+describe('密码规则（8–64 位，字母和数字，和后端一致）', () => {
+  it('64 位可以，65 位超长；只有字母或只有数字不行', () => {
+    expect(validatePassword('Abcdefg1'.repeat(8))).toEqual([]);
+    expect(validatePassword('Abcdefg1'.repeat(8) + 'x')).toEqual(['validation.passwordLength']);
+    expect(validatePassword('onlyletters')).toEqual(['validation.passwordMix']);
+    expect(validatePassword('1234567890')).toEqual(['validation.passwordMix']);
+  });
+});
 
 describe('下单校验', () => {
   it('合法市价单', () => {
