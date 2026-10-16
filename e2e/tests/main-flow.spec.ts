@@ -130,6 +130,27 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await expect(ticker, '回到手机宽度不显示').toHaveCount(0);
     });
 
+    await step('客户：电脑最窄宽度 1024 各页面没有横向滚动（AC-31）', async () => {
+      // 以前行情页的宽表格在 1024 宽时右边到 1030px（长品种名不换行），这里把电脑版几个主要页面都走一遍
+      await page.setViewportSize({ width: 1024, height: 800 });
+      await page.goto('/markets');
+      await expect(page.locator('.mt-table tbody tr').first()).toBeVisible();
+      await expect(page.locator('.mt-table tbody tr').first()).not.toContainText('—', { timeout: 15_000 });
+      await expectNoHorizontalScroll(page, '1024 宽行情页');
+      for (const [path, where] of [
+        [`/trade/${SYMBOL}`, '1024 宽交易页'],
+        ['/positions', '1024 宽持仓页'],
+        ['/assets', '1024 宽资产页'],
+        ['/assets/ledger', '1024 宽资金流水'],
+      ] as const) {
+        await page.goto(path);
+        await expect(page.locator('.main')).toBeVisible();
+        await page.waitForLoadState('networkidle');
+        await expectNoHorizontalScroll(page, where);
+      }
+      await page.setViewportSize({ width: 390, height: 844 });
+    });
+
     let address = '';
     await step('客户：三条链的充值地址（ERC20 和 BSC 相同）', async () => {
       await page.goto('/assets');
