@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quick Come 官网 · 方向 C · 电脑版</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans CJK SC','Hiragino Sans GB','WenQuanYi Zen Hei',sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;line-height:1.5}
+.num{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono','DejaVu Sans Mono',monospace;letter-spacing:-0.01em}
+a{color:inherit;text-decoration:none}
+.tag-sample{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px dashed currentColor;opacity:.9}
+.tbd{border:1px dashed currentColor;border-radius:8px;padding:10px 14px;opacity:.85}
+.risk-bar{font-size:12px;padding:6px 16px;text-align:center}
+[data-sym]{transition:background-color .6s}
+:root{--bg:#ffffff;--s1:#ffffff;--s2:#f5f7fb;--border:#e3e8ef;--text:#0b1b33;--muted:#4b5b72;--subtle:#6b7a90;--blue:#1652f0;--blue-soft:#eaf0ff;--up:#0f9d58;--down:#d93025;--up-soft:rgba(15,157,88,.12);--down-soft:rgba(217,48,37,.10)}
+body{background:var(--bg);color:var(--text)}
+.risk-bar{background:#0b1b33;color:#c9d3e1}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:19px}
+.mark{width:30px;height:30px;border-radius:9px;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:900}
+.up{color:var(--up)}.down{color:var(--down)}
+.flash-up{background:var(--up-soft)!important}.flash-down{background:var(--down-soft)!important}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 24px;border-radius:8px;font-weight:700;font-size:15px}
+.btn.pri{background:var(--blue);color:#fff}.btn.sec{border:1px solid var(--blue);color:var(--blue)}
+.btn-mini{display:inline-block;padding:5px 14px;border-radius:6px;background:var(--blue-soft);color:var(--blue);font-size:13px;font-weight:600}
+.card{background:var(--s1);border:1px solid var(--border);border-radius:14px;box-shadow:0 6px 24px rgba(11,27,51,.06)}
+.tag-sample{color:#b45309}
+.tbd{color:#b45309}
+
+.wrap{width:1200px;margin:0 auto}
+header{height:70px;border-bottom:1px solid var(--border)}header .wrap{display:flex;align-items:center;height:100%;gap:36px}
+header nav{display:flex;gap:28px;color:var(--muted);font-size:15px;flex:1}
+header .right{display:flex;gap:12px;align-items:center}
+.hero{background:linear-gradient(180deg,#f2f6ff,#fff);padding:64px 0 40px}
+.hero .wrap{display:grid;grid-template-columns:1fr 420px;gap:40px;align-items:center}
+h1{font-size:54px;line-height:1.15;font-weight:800;letter-spacing:-.02em}h1 em{font-style:normal;color:var(--blue)}
+.hero p{font-size:18px;color:var(--muted);margin:18px 0 30px;max-width:560px}
+.cta{display:flex;gap:12px}
+.trust{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.trust div{padding:20px 0;text-align:center;color:var(--muted);font-size:15px}.trust b{color:var(--text)}
+section{padding:72px 0}
+.sec-title{font-size:34px;font-weight:800;text-align:center}.sec-sub{text-align:center;color:var(--muted);margin-top:8px}
+.qcard{margin-top:32px;padding:10px 24px 18px}
+.qtop{display:flex;justify-content:space-between;align-items:center;padding:12px 0}
+.tabs{display:flex;gap:8px}.tabs span{padding:7px 16px;border-radius:999px;background:var(--s2);color:var(--muted);font-size:14px}.tabs span.on{background:var(--blue);color:#fff}
+.q-head,.q-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 140px 120px;align-items:center;gap:12px;padding:0 10px}
+.q-head{height:40px;color:var(--subtle);font-size:13px;border-bottom:1px solid var(--border)}
+.q-row{height:56px;border-bottom:1px solid var(--border);border-radius:6px}
+.q-name b{font-size:15px}.q-name span{color:var(--subtle);margin-left:8px;font-size:13px}
+.q-px{text-align:right;font-weight:700;font-size:15px}.q-chg{text-align:right;font-weight:600}.q-act{text-align:right}
+.note{font-size:12px;color:var(--subtle);margin-top:12px}
+.bg2{background:var(--s2)}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:36px}.grid4 .card{padding:26px}
+.ico{width:44px;height:44px;border-radius:12px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-weight:800;font-size:18px;margin-bottom:16px}
+.card h4{font-size:17px;margin-bottom:8px}.card p{color:var(--muted);font-size:14px}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:36px}.grid5 .card{padding:22px;text-align:center}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:36px}.steps .card{padding:28px;text-align:center}
+.steps .n{width:48px;height:48px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;margin:0 auto 14px;font-weight:800;font-size:20px}
+.safe{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:36px}.safe .card{padding:26px}
+.lic{margin:22px auto 0;width:fit-content;border:1px dashed #d97706;border-radius:8px;padding:10px 16px}
+.faq{width:860px;margin:30px auto 0}.faq .card{padding:18px 22px;margin-bottom:10px;display:flex;justify-content:space-between;font-weight:600;box-shadow:none}
+.faq .card.open{display:block}.faq .card.open p{font-weight:400;color:var(--muted);margin-top:8px}
+.final{background:var(--blue);color:#fff;text-align:center;padding:64px 0}.final .btn{background:#fff;color:var(--blue)}
+footer{background:#0b1b33;color:#9fb0c7;padding:44px 0;font-size:13px}
+footer .logo{color:#fff}footer .links{display:flex;gap:24px;margin:16px 0;color:#c9d3e1}
+footer .tbd{color:#fbbf24;margin-top:10px}
+</style></head>
+<body>
+<div class="risk-bar">风险提示：差价合约是复杂的金融产品，因杠杆作用，亏损可能迅速扩大，你可能损失全部保证金。请确认你了解其运作方式，并能承受… <a style="text-decoration:underline">风险披露</a></div>
+<header><div class="wrap"><a class="logo"><span class="mark">Q</span><span class="word">Quick Come</span></a><nav><a>行情</a><a>交易品种</a><a>平台</a><a>资金安全</a><a>帮助中心</a></nav><div class="right"><span style="color:var(--muted)">中 / EN</span><a class="btn sec" style="height:38px">登录</a><a class="btn pri" style="height:38px">免费注册</a></div></div></header>
+<div class="hero"><div class="wrap"><div><h1>快人一步，<br><em>交易全球行情</em></h1><p>用 USDT 交易黄金、外汇、指数、原油和加密货币差价合约。手机打开就能交易，不用下载。</p><div class="cta"><a class="btn pri" style="height:52px;padding:0 34px">免费注册</a><a class="btn sec" style="height:52px;padding:0 34px">登录</a></div></div>
+<div style="display:flex;justify-content:center"><div style="width:300px;height:560px;border-radius:36px;background:#0d1117;border:8px solid #1f2a3a;box-shadow:0 30px 60px rgba(11,27,51,.25);padding:18px 12px;color:#e6edf3;font-size:11px;overflow:hidden">
+  <div style="display:flex;justify-content:space-between;font-weight:700;margin-bottom:10px"><span>行情</span><span style="color:#22d3ee">Quick Come</span></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-top:1px solid #1a2230"><span><b>XAUUSD</b><br><span style="color:#8b98a9">黄金</span></span><span class="num" style="background:#16a34a;padding:3px 6px;border-radius:5px;font-weight:700">4,126.35</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-top:1px solid #1a2230"><span><b>XAGUSD</b><br><span style="color:#8b98a9">白银</span></span><span class="num" style="background:#16a34a;padding:3px 6px;border-radius:5px;font-weight:700">48.625</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-top:1px solid #1a2230"><span><b>EURUSD</b><br><span style="color:#8b98a9">欧元/美元</span></span><span class="num" style="background:#16a34a;padding:3px 6px;border-radius:5px;font-weight:700">1.16420</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-top:1px solid #1a2230"><span><b>GBPUSD</b><br><span style="color:#8b98a9">英镑/美元</span></span><span class="num" style="background:#e11d48;padding:3px 6px;border-radius:5px;font-weight:700">1.33185</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-top:1px solid #1a2230"><span><b>USDJPY</b><br><span style="color:#8b98a9">美元/日元</span></span><span class="num" style="background:#16a34a;padding:3px 6px;border-radius:5px;font-weight:700">151.842</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-top:1px solid #1a2230"><span><b>USDCNH</b><br><span style="color:#8b98a9">美元/离岸人民币</span></span><span class="num" style="background:#e11d48;padding:3px 6px;border-radius:5px;font-weight:700">7.13250</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-top:1px solid #1a2230"><span><b>NAS100</b><br><span style="color:#8b98a9">纳指 100</span></span><span class="num" style="background:#16a34a;padding:3px 6px;border-radius:5px;font-weight:700">24,812.6</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-top:1px solid #1a2230"><span><b>XTIUSD</b><br><span style="color:#8b98a9">美国原油</span></span><span class="num" style="background:#e11d48;padding:3px 6px;border-radius:5px;font-weight:700">61.82</span></div>
+  </div></div></div></div>
+<div class="wrap trust"><div><b>USDT</b> 充值和提现</div><div><b>约 50 个</b> 热门品种</div><div><b>3 条链</b> 充值网络</div><div><b>中 / EN</b> 双语界面</div></div>
+<section><div class="wrap"><div class="sec-title">实时行情</div><div class="sec-sub">热门品种的卖价和今日涨跌，每秒更新</div>
+<div class="card qcard"><div class="qtop"><div class="tabs"><span class="on">热门</span><span class="">贵金属</span><span class="">外汇</span><span class="">指数</span><span class="">加密货币</span></div><span class="tag-sample">示例行情</span></div>
+<div class="q-head"><span>品种</span><span>今日走势</span><span style="text-align:right">卖价</span><span style="text-align:right">今日涨跌</span><span></span></div>
+<div class="q-row flash-up" data-sym="XAUUSD" data-v="4126.35" data-d="2">
+  <div class="q-name"><b>XAUUSD</b><span>黄金</span></div>
+  <div class="q-spark"><svg class="spark" width="120" height="26" viewBox="0 0 120 26"><path d="M0.0,20.3 L5.2,14.1 L10.4,16.0 L15.7,20.6 L20.9,23.4 L26.1,19.2 L31.3,22.5 L36.5,24.0 L41.7,19.2 L47.0,20.5 L52.2,18.2 L57.4,12.8 L62.6,5.9 L67.8,4.9 L73.0,6.8 L78.3,6.6 L83.5,6.6 L88.7,4.7 L93.9,7.2 L99.1,2.2 L104.3,6.5 L109.6,2.0 L114.8,7.4 L120.0,9.1" fill="none" stroke="#0f9d58" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>4,126.35</div>
+  <div class="q-chg num up">+0.62%</div>
+  <div class="q-act"><a class="btn-mini">交易</a></div>
+</div><div class="q-row" data-sym="XAGUSD" data-v="48.625" data-d="3">
+  <div class="q-name"><b>XAGUSD</b><span>白银</span></div>
+  <div class="q-spark"><svg class="spark" width="120" height="26" viewBox="0 0 120 26"><path d="M0.0,24.0 L5.2,21.7 L10.4,18.7 L15.7,17.5 L20.9,14.5 L26.1,16.2 L31.3,12.9 L36.5,13.5 L41.7,13.6 L47.0,15.3 L52.2,13.4 L57.4,9.7 L62.6,5.9 L67.8,7.0 L73.0,8.7 L78.3,7.7 L83.5,6.9 L88.7,5.9 L93.9,5.7 L99.1,2.5 L104.3,2.0 L109.6,4.8 L114.8,2.8 L120.0,3.0" fill="none" stroke="#0f9d58" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>48.625</div>
+  <div class="q-chg num up">+1.12%</div>
+  <div class="q-act"><a class="btn-mini">交易</a></div>
+</div><div class="q-row" data-sym="EURUSD" data-v="1.1642" data-d="5">
+  <div class="q-name"><b>EURUSD</b><span>欧元/美元</span></div>
+  <div class="q-spark"><svg class="spark" width="120" height="26" viewBox="0 0 120 26"><path d="M0.0,14.8 L5.2,12.8 L10.4,12.9 L15.7,16.8 L20.9,16.4 L26.1,14.0 L31.3,12.1 L36.5,12.6 L41.7,17.3 L47.0,21.5 L52.2,17.4 L57.4,21.9 L62.6,15.4 L67.8,19.9 L73.0,24.0 L78.3,20.7 L83.5,18.3 L88.7,16.7 L93.9,13.7 L99.1,7.6 L104.3,2.0 L109.6,3.2 L114.8,3.9 L120.0,2.9" fill="none" stroke="#0f9d58" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>1.16420</div>
+  <div class="q-chg num up">+0.18%</div>
+  <div class="q-act"><a class="btn-mini">交易</a></div>
+</div><div class="q-row flash-down" data-sym="GBPUSD" data-v="1.33185" data-d="5">
+  <div class="q-name"><b>GBPUSD</b><span>英镑/美元</span></div>
+  <div class="q-spark"><svg class="spark" width="120" height="26" viewBox="0 0 120 26"><path d="M0.0,2.0 L5.2,3.1 L10.4,9.1 L15.7,8.5 L20.9,13.5 L26.1,18.6 L31.3,21.4 L36.5,22.7 L41.7,21.5 L47.0,17.1 L52.2,13.7 L57.4,17.9 L62.6,24.0 L67.8,20.9 L73.0,16.1 L78.3,13.0 L83.5,10.9 L88.7,10.8 L93.9,6.9 L99.1,12.8 L104.3,15.5 L109.6,14.8 L114.8,20.3 L120.0,19.5" fill="none" stroke="#d93025" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>1.33185</div>
+  <div class="q-chg num down">-0.21%</div>
+  <div class="q-act"><a class="btn-mini">交易</a></div>
+</div><div class="q-row" data-sym="USDJPY" data-v="151.842" data-d="3">
+  <div class="q-name"><b>USDJPY</b><span>美元/日元</span></div>
+  <div class="q-spark"><svg class="spark" width="120" height="26" viewBox="0 0 120 26"><path d="M0.0,19.9 L5.2,20.9 L10.4,19.9 L15.7,22.5 L20.9,20.2 L26.1,19.4 L31.3,23.0 L36.5,22.8 L41.7,24.0 L47.0,20.8 L52.2,16.5 L57.4,17.9 L62.6,21.3 L67.8,19.9 L73.0,16.2 L78.3,11.7 L83.5,8.3 L88.7,7.3 L93.9,9.9 L99.1,12.8 L104.3,10.6 L109.6,6.9 L114.8,4.4 L120.0,2.0" fill="none" stroke="#0f9d58" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>151.842</div>
+  <div class="q-chg num up">+0.35%</div>
+  <div class="q-act"><a class="btn-mini">交易</a></div>
+</div><div class="q-row" data-sym="USDCNH" data-v="7.1325" data-d="5">
+  <div class="q-name"><b>USDCNH</b><span>美元/离岸人民币</span></div>
+  <div class="q-spark"><svg class="spark" width="120" height="26" viewBox="0 0 120 26"><path d="M0.0,2.5 L5.2,5.7 L10.4,9.0 L15.7,8.4 L20.9,10.1 L26.1,6.8 L31.3,5.6 L36.5,6.0 L41.7,3.2 L47.0,2.0 L52.2,6.1 L57.4,7.4 L62.6,11.6 L67.8,12.9 L73.0,11.0 L78.3,14.6 L83.5,11.4 L88.7,11.4 L93.9,13.0 L99.1,16.2 L104.3,19.8 L109.6,22.8 L114.8,24.0 L120.0,21.8" fill="none" stroke="#d93025" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>7.13250</div>
+  <div class="q-chg num down">-0.06%</div>
+  <div class="q-act"><a class="btn-mini">交易</a></div>
+</div><div class="q-row" data-sym="NAS100" data-v="24812.6" data-d="1">
+  <div class="q-name"><b>NAS100</b><span>纳指 100</span></div>
+  <div class="q-spark"><svg class="spark" width="120" height="26" viewBox="0 0 120 26"><path d="M0.0,7.0 L5.2,13.2 L10.4,9.3 L15.7,13.8 L20.9,6.1 L26.1,6.5 L31.3,6.8 L36.5,5.5 L41.7,4.0 L47.0,2.0 L52.2,6.5 L57.4,5.8 L62.6,11.4 L67.8,15.4 L73.0,11.8 L78.3,14.7 L83.5,20.3 L88.7,18.6 L93.9,16.7 L99.1,19.9 L104.3,19.0 L109.6,18.9 L114.8,24.0 L120.0,16.7" fill="none" stroke="#0f9d58" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>24,812.6</div>
+  <div class="q-chg num up">+0.84%</div>
+  <div class="q-act"><a class="btn-mini">交易</a></div>
+</div><div class="q-row" data-sym="XTIUSD" data-v="61.82" data-d="2">
+  <div class="q-name"><b>XTIUSD</b><span>美国原油</span></div>
+  <div class="q-spark"><svg class="spark" width="120" height="26" viewBox="0 0 120 26"><path d="M0.0,7.1 L5.2,3.6 L10.4,6.8 L15.7,5.9 L20.9,5.5 L26.1,2.0 L31.3,7.0 L36.5,6.9 L41.7,11.4 L47.0,12.6 L52.2,16.5 L57.4,16.0 L62.6,21.6 L67.8,17.3 L73.0,16.9 L78.3,19.0 L83.5,23.6 L88.7,23.6 L93.9,21.0 L99.1,24.0 L104.3,20.1 L109.6,18.1 L114.8,15.8 L120.0,21.6" fill="none" stroke="#d93025" stroke-width="1.5"/></svg></div>
+  <div class="q-px num" data-px>61.82</div>
+  <div class="q-chg num down">-1.35%</div>
+  <div class="q-act"><a class="btn-mini">交易</a></div>
+</div>
+<div class="note">测试环境为模拟行情，仅供演示；正式环境的行情可能有延迟，以交易页面报价为准。</div></div></div></section>
+<section class="bg2"><div class="wrap"><div class="sec-title">为什么选择 Quick Come</div><div class="grid4"><div class="card"><div class="ico">¥</div><h4>一个 USDT 账户</h4><p>充值 USDT 就能交易全部品种，盈亏、手续费都按 USDT 结算，不用换汇。</p></div><div class="card"><div class="ico">%</div><h4>报价透明</h4><p>买价、卖价、点差一目了然；下单前显示保证金、手续费和预估强平价。</p></div><div class="card"><div class="ico">▣</div><h4>手机优先</h4><p>为手机重新设计的下单流程，三次点击完成下单；可添加到主屏幕，像 App 一样打开。</p></div><div class="card"><div class="ico">⛨</div><h4>风险可控</h4><p>逐仓保证金、止盈止损、追保提醒，单笔亏损不会影响其他持仓。</p></div></div></div></section>
+<section><div class="wrap"><div class="sec-title">热门品种</div><div class="grid5"><div class="card"><div class="ico" style="margin:0 auto 12px">◆</div><h4>贵金属</h4><p>XAUUSD 黄金 · XAGUSD 白银</p></div><div class="card"><div class="ico" style="margin:0 auto 12px">$</div><h4>外汇</h4><p>EURUSD · GBPUSD · USDJPY · USDCNH</p></div><div class="card"><div class="ico" style="margin:0 auto 12px">▲</div><h4>指数</h4><p>NAS100 纳指 · US30 道指 · GER40 德指</p></div><div class="card"><div class="ico" style="margin:0 auto 12px">●</div><h4>能源</h4><p>XTIUSD 美国原油</p></div><div class="card"><div class="ico" style="margin:0 auto 12px">₿</div><h4>加密货币</h4><p>BTCUSD 比特币 · ETHUSD 以太坊</p></div></div></div></section>
+<section class="bg2"><div class="wrap"><div class="sec-title">三步开始交易</div><div class="steps"><div class="card"><div class="n">1</div><h4>注册</h4><p>用邮箱注册，1 分钟完成</p></div><div class="card"><div class="n">2</div><h4>充值</h4><p>向你的专属地址转入 USDT，支持 ERC20 / TRC20 / BSC，最小 1 USDT</p></div><div class="card"><div class="n">3</div><h4>交易</h4><p>选品种、选手数，一键买入或卖出</p></div></div></div></section>
+<section><div class="wrap"><div class="sec-title">资金和安全</div><div class="safe"><div class="card"><div class="ico">⇣</div><h4>专属充值地址</h4><p>每个账户独立的 USDT 充值地址，到账自动入账。</p></div><div class="card"><div class="ico">✓</div><h4>提现多重确认</h4><p>只能提到白名单地址；新地址有冷静期；每笔提现人工审核。</p></div><div class="card"><div class="ico">⚑</div><h4>身份认证</h4><p>完成身份认证（KYC）后才能提现，保护账户安全。</p></div></div><div class="lic tbd">监管与牌照信息：待提供</div></div></section>
+<section class="bg2"><div class="wrap"><div class="sec-title">常见问题</div><div class="faq"><div class="card open">什么是差价合约（CFD）？<p>差价合约是一种按价格涨跌结算盈亏的合约，你不持有实物资产，可以买涨也可以卖跌。杠杆会同时放大盈利和亏损。</p></div><div class="card">支持哪些充值网络？最少充多少？<span>＋</span></div><div class="card">提现需要多久？<span>＋</span></div><div class="card">交易时间是什么时候？<span>＋</span></div><div class="card">手机上怎么使用？<span>＋</span></div></div></div></section>
+<div class="final"><div class="sec-title" style="color:#fff">现在注册，开始交易</div><div style="margin-top:22px"><a class="btn" style="height:52px;padding:0 40px">免费注册</a></div></div>
+<footer><div class="wrap"><a class="logo"><span class="mark">Q</span><span class="word">Quick Come</span></a><div class="links"><a>服务条款</a><a>隐私政策</a><a>风险披露</a></div><p>风险提示：差价合约是复杂的金融产品，因杠杆作用，亏损可能迅速扩大，你可能损失全部保证金。请确认你了解其运作方式，并能承受相应风险。本网站信息不构成投资建议。</p><p class="tbd">公司信息：待提供 · 监管与牌照信息：待提供</p><p style="margin-top:12px">© 2026 Quick Come</p></div></footer><script>
+(function(){
+  if (location.search.indexOf('static') >= 0) return;
+  document.documentElement.classList.add('anim');
+  document.querySelectorAll('.flash-up,.flash-down').forEach(function(e){e.classList.remove('flash-up','flash-down');});
+  var rows = Array.prototype.slice.call(document.querySelectorAll('[data-sym]'));
+  setInterval(function(){
+    for (var k = 0; k < 3; k++) {
+      var r = rows[Math.floor(Math.random() * rows.length)]; if (!r) return;
+      var px = r.querySelector('[data-px]'), d = +r.getAttribute('data-d'), v = +r.getAttribute('data-v');
+      var up = Math.random() > 0.5, nv = v * (1 + (up ? 1 : -1) * Math.random() * 0.0004);
+      r.setAttribute('data-v', nv);
+      px.textContent = nv.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
+      r.classList.remove('flash-up','flash-down'); void r.offsetWidth; r.classList.add(up ? 'flash-up' : 'flash-down');
+      (function(el){ setTimeout(function(){ el.classList.remove('flash-up','flash-down'); }, 600); })(r);
+    }
+  }, 1000);
+})();
+</script></body></html>

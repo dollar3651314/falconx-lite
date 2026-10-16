@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quick Come 官网 · 方向 A · 手机版</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans CJK SC','Hiragino Sans GB','WenQuanYi Zen Hei',sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;line-height:1.5}
+.num{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono','DejaVu Sans Mono',monospace;letter-spacing:-0.01em}
+a{color:inherit;text-decoration:none}
+.tag-sample{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px dashed currentColor;opacity:.9}
+.tbd{border:1px dashed currentColor;border-radius:8px;padding:10px 14px;opacity:.85}
+.risk-bar{font-size:12px;padding:6px 16px;text-align:center}
+[data-sym]{transition:background-color .6s}
+:root{--bg:#0d1117;--s1:#131a24;--s2:#0f151e;--s3:#1b2533;--border:#222c3a;--hair:#1a2230;--text:#e6edf3;--muted:#a3b0c2;--subtle:#8b98a9;--cyan:#22d3ee;--primary:#0891b2;--up:#22c55e;--down:#f43f5e;--up-soft:rgba(34,197,94,.16);--down-soft:rgba(244,63,94,.16)}
+body{background:var(--bg);color:var(--text)}
+.risk-bar{background:var(--s2);color:var(--subtle);border-bottom:1px solid var(--hair)}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:18px;letter-spacing:-.01em}
+.mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#22d3ee,#0891b2);color:#04121a;display:grid;place-items:center;font-weight:900;font-size:15px}
+.up{color:var(--up)}.down{color:var(--down)}
+.chip{display:inline-block;min-width:76px;text-align:center;padding:4px 8px;border-radius:6px;font-weight:700;color:#fff}
+.chip.up{background:#16a34a}.chip.down{background:#e11d48}
+.flash-up{background:var(--up-soft)!important}.flash-down{background:var(--down-soft)!important}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;border-radius:8px;font-weight:700;font-size:15px}
+.btn.pri{background:var(--primary);color:#fff}.btn.sec{border:1px solid var(--border);color:var(--text);background:var(--s1)}
+.btn-mini{display:inline-block;padding:4px 12px;border-radius:6px;border:1px solid var(--border);font-size:12px;color:var(--cyan)}
+.card{background:var(--s1);border:1px solid var(--border);border-radius:12px}
+.sec-title{font-size:26px;font-weight:800;letter-spacing:-.01em}
+.sec-sub{color:var(--muted);margin-top:6px}
+.tag-sample{color:#fbbf24}
+
+body{font-size:14px}
+.risk-bar{font-size:11px;padding:6px 16px;text-align:left}
+header{height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--hair);position:sticky;top:0;background:rgba(13,17,23,.95);z-index:5}
+header .right{display:flex;align-items:center;gap:10px;font-size:13px}
+.lang{color:var(--muted)}.lang b{color:var(--text)}
+.menu{font-size:20px;color:var(--muted)}
+.hero{padding:28px 16px 20px}
+h1{font-size:30px;line-height:1.2;font-weight:800}
+h1 em{font-style:normal;color:var(--cyan)}
+.hero p{color:var(--muted);margin:12px 0 20px;font-size:15px}
+.cta{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cta .btn{height:48px}
+.board{margin:0 16px}
+.board-head{display:flex;justify-content:space-between;align-items:center;padding:14px 14px 8px}
+.board-head h3{font-size:15px;display:flex;align-items:center;gap:8px}
+.live{width:8px;height:8px;border-radius:50%;background:var(--up);box-shadow:0 0 0 4px rgba(34,197,94,.18)}
+.tabs{display:flex;gap:4px;padding:0 14px 8px;font-size:13px;overflow:hidden;white-space:nowrap}
+.tabs span{padding:4px 9px;border-radius:6px;color:var(--muted)}.tabs span.on{background:var(--s3);color:var(--text)}
+.q-row{display:grid;grid-template-columns:1fr auto 84px;gap:10px;align-items:center;height:54px;padding:0 14px;border-top:1px solid var(--hair)}
+.q-name b{display:block;font-size:14px}.q-name span{color:var(--subtle);font-size:12px}
+.q-px{font-size:15px;font-weight:600;text-align:right}.q-chg{text-align:right}
+.chip{min-width:78px}
+.board-foot{padding:12px 14px;text-align:center;color:var(--cyan);font-size:13px;border-top:1px solid var(--hair)}
+section{padding:36px 16px 8px}
+.sec-title{font-size:21px}
+.list{display:grid;gap:10px;margin-top:16px}
+.list .card{padding:16px;display:grid;grid-template-columns:36px 1fr;gap:12px}
+.ico{width:36px;height:36px;border-radius:8px;background:rgba(34,211,238,.12);color:var(--cyan);display:grid;place-items:center;font-weight:800}
+.card h4{font-size:15px}.card p{color:var(--muted);font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chips span{padding:8px 14px;border-radius:999px;background:var(--s1);border:1px solid var(--border);font-size:13px}
+.steps{margin-top:16px;border-left:2px solid var(--border);margin-left:14px;padding-left:20px;display:grid;gap:18px}
+.step{position:relative}.step b{position:absolute;left:-36px;top:0;width:28px;height:28px;border-radius:50%;background:var(--bg);border:1px solid var(--cyan);color:var(--cyan);display:grid;place-items:center;font-size:13px}
+.license{margin-top:12px;color:#fbbf24;font-size:13px}
+.faq{margin-top:14px}.faq div{padding:14px 0;border-bottom:1px solid var(--hair);display:flex;justify-content:space-between;font-weight:600}
+.faq div span{color:var(--subtle)}
+footer{margin-top:32px;background:var(--s2);border-top:1px solid var(--border);padding:24px 16px 96px;color:var(--subtle);font-size:12px}
+footer .links{display:flex;gap:18px;margin:12px 0;color:var(--muted);font-size:13px}
+footer .tbd{color:#fbbf24;margin-top:10px}
+.sticky{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(13,17,23,.96);border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 2fr;gap:10px}
+.sticky .btn{height:46px}
+</style></head>
+<body>
+<div class="risk-bar">差价合约风险较高，可能损失全部保证金。<a style="text-decoration:underline">风险披露</a></div>
+<header><a class="logo"><span class="mark">Q</span><span class="word">Quick Come</span></a><div class="right"><span class="lang"><b>中</b>/EN</span><span class="menu">☰</span></div></header>
+<div class="hero"><h1>快人一步，<br><em>交易全球行情</em></h1><p>用 USDT 交易黄金、外汇、指数和加密货币差价合约，手机打开就能交易。</p>
+<div class="cta"><a class="btn pri">免费注册</a><a class="btn sec">登录</a></div></div>
+<div class="card board"><div class="board-head"><h3><i class="live"></i>实时行情</h3><span class="tag-sample">示例行情</span></div>
+<div class="tabs"><span class="on">热门</span><span class="">贵金属</span><span class="">外汇</span><span class="">指数</span><span class="">加密货币</span></div>
+<div class="q-row flash-up" data-sym="XAUUSD" data-v="4126.35" data-d="2">
+  <div class="q-name"><b>XAUUSD</b><span>黄金</span></div>
+  
+  <div class="q-px num" data-px>4,126.35</div>
+  <div class="q-chg num up"><span class="chip up">+0.62%</span></div>
+  
+</div><div class="q-row" data-sym="XAGUSD" data-v="48.625" data-d="3">
+  <div class="q-name"><b>XAGUSD</b><span>白银</span></div>
+  
+  <div class="q-px num" data-px>48.625</div>
+  <div class="q-chg num up"><span class="chip up">+1.12%</span></div>
+  
+</div><div class="q-row" data-sym="EURUSD" data-v="1.1642" data-d="5">
+  <div class="q-name"><b>EURUSD</b><span>欧元/美元</span></div>
+  
+  <div class="q-px num" data-px>1.16420</div>
+  <div class="q-chg num up"><span class="chip up">+0.18%</span></div>
+  
+</div><div class="q-row flash-down" data-sym="GBPUSD" data-v="1.33185" data-d="5">
+  <div class="q-name"><b>GBPUSD</b><span>英镑/美元</span></div>
+  
+  <div class="q-px num" data-px>1.33185</div>
+  <div class="q-chg num down"><span class="chip down">-0.21%</span></div>
+  
+</div><div class="q-row" data-sym="USDJPY" data-v="151.842" data-d="3">
+  <div class="q-name"><b>USDJPY</b><span>美元/日元</span></div>
+  
+  <div class="q-px num" data-px>151.842</div>
+  <div class="q-chg num up"><span class="chip up">+0.35%</span></div>
+  
+</div><div class="q-row" data-sym="USDCNH" data-v="7.1325" data-d="5">
+  <div class="q-name"><b>USDCNH</b><span>美元/离岸人民币</span></div>
+  
+  <div class="q-px num" data-px>7.13250</div>
+  <div class="q-chg num down"><span class="chip down">-0.06%</span></div>
+  
+</div><div class="q-row" data-sym="NAS100" data-v="24812.6" data-d="1">
+  <div class="q-name"><b>NAS100</b><span>纳指 100</span></div>
+  
+  <div class="q-px num" data-px>24,812.6</div>
+  <div class="q-chg num up"><span class="chip up">+0.84%</span></div>
+  
+</div><div class="q-row" data-sym="XTIUSD" data-v="61.82" data-d="2">
+  <div class="q-name"><b>XTIUSD</b><span>美国原油</span></div>
+  
+  <div class="q-px num" data-px>61.82</div>
+  <div class="q-chg num down"><span class="chip down">-1.35%</span></div>
+  
+</div>
+<div class="board-foot">查看全部品种 →</div></div>
+<section><div class="sec-title">为什么选择 Quick Come</div><div class="list"><div class="card"><div class="ico">¥</div><div><h4>一个 USDT 账户</h4><p>充值 USDT 就能交易全部品种，盈亏、手续费都按 USDT 结算，不用换汇。</p></div></div><div class="card"><div class="ico">%</div><div><h4>报价透明</h4><p>买价、卖价、点差一目了然；下单前显示保证金、手续费和预估强平价。</p></div></div><div class="card"><div class="ico">▣</div><div><h4>手机优先</h4><p>为手机重新设计的下单流程，三次点击完成下单；可添加到主屏幕，像 App 一样打开。</p></div></div><div class="card"><div class="ico">⛨</div><div><h4>风险可控</h4><p>逐仓保证金、止盈止损、追保提醒，单笔亏损不会影响其他持仓。</p></div></div></div></section>
+<section><div class="sec-title">热门品种</div><div class="chips"><span>贵金属</span><span>外汇</span><span>指数</span><span>能源</span><span>加密货币</span></div></section>
+<section><div class="sec-title">三步开始交易</div><div class="steps"><div class="step"><b>1</b><h4>注册</h4><p style="color:var(--muted);font-size:13px">用邮箱注册，1 分钟完成</p></div><div class="step"><b>2</b><h4>充值</h4><p style="color:var(--muted);font-size:13px">向你的专属地址转入 USDT，支持 ERC20 / TRC20 / BSC，最小 1 USDT</p></div><div class="step"><b>3</b><h4>交易</h4><p style="color:var(--muted);font-size:13px">选品种、选手数，一键买入或卖出</p></div></div></section>
+<section><div class="sec-title">资金和安全</div><div class="list"><div class="card"><div class="ico">⇣</div><div><h4>专属充值地址</h4><p>每个账户独立的 USDT 充值地址，到账自动入账。</p></div></div><div class="card"><div class="ico">✓</div><div><h4>提现多重确认</h4><p>只能提到白名单地址；新地址有冷静期；每笔提现人工审核。</p></div></div><div class="card"><div class="ico">⚑</div><div><h4>身份认证</h4><p>完成身份认证（KYC）后才能提现，保护账户安全。</p></div></div></div><div class="tbd license">监管与牌照信息：待提供</div></section>
+<section><div class="sec-title">常见问题</div><div class="faq"><div>什么是差价合约（CFD）？<span>＋</span></div><div>支持哪些充值网络？最少充多少？<span>＋</span></div><div>提现需要多久？<span>＋</span></div><div>交易时间是什么时候？<span>＋</span></div><div>手机上怎么使用？<span>＋</span></div></div></section>
+<footer><a class="logo"><span class="mark">Q</span><span class="word">Quick Come</span></a><div class="links"><a>服务条款</a><a>隐私政策</a><a>风险披露</a></div><p>风险提示：差价合约是复杂的金融产品，因杠杆作用，亏损可能迅速扩大，你可能损失全部保证金。请确认你了解其运作方式，并能承受相应风险。本网站信息不构成投资建议。</p><div class="tbd">公司信息：待提供 · 监管与牌照信息：待提供</div><p style="margin-top:10px">© 2026 Quick Come</p></footer>
+<div class="sticky"><a class="btn sec">登录</a><a class="btn pri">免费注册</a></div><script>
+(function(){
+  if (location.search.indexOf('static') >= 0) return;
+  document.documentElement.classList.add('anim');
+  document.querySelectorAll('.flash-up,.flash-down').forEach(function(e){e.classList.remove('flash-up','flash-down');});
+  var rows = Array.prototype.slice.call(document.querySelectorAll('[data-sym]'));
+  setInterval(function(){
+    for (var k = 0; k < 3; k++) {
+      var r = rows[Math.floor(Math.random() * rows.length)]; if (!r) return;
+      var px = r.querySelector('[data-px]'), d = +r.getAttribute('data-d'), v = +r.getAttribute('data-v');
+      var up = Math.random() > 0.5, nv = v * (1 + (up ? 1 : -1) * Math.random() * 0.0004);
+      r.setAttribute('data-v', nv);
+      px.textContent = nv.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
+      r.classList.remove('flash-up','flash-down'); void r.offsetWidth; r.classList.add(up ? 'flash-up' : 'flash-down');
+      (function(el){ setTimeout(function(){ el.classList.remove('flash-up','flash-down'); }, 600); })(r);
+    }
+  }, 1000);
+})();
+</script></body></html>

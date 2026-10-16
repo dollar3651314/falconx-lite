@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quick Come 官网 · 方向 B · 电脑版</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans CJK SC','Hiragino Sans GB','WenQuanYi Zen Hei',sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;line-height:1.5}
+.num{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono','DejaVu Sans Mono',monospace;letter-spacing:-0.01em}
+a{color:inherit;text-decoration:none}
+.tag-sample{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px dashed currentColor;opacity:.9}
+.tbd{border:1px dashed currentColor;border-radius:8px;padding:10px 14px;opacity:.85}
+.risk-bar{font-size:12px;padding:6px 16px;text-align:center}
+[data-sym]{transition:background-color .6s}
+:root{--bg:#050505;--s1:#111113;--s2:#18181b;--border:#26262b;--text:#fafafa;--muted:#a1a1aa;--accent:#c6f135;--up:#2ee67a;--down:#ff4d6a;--up-soft:rgba(46,230,122,.18);--down-soft:rgba(255,77,106,.18)}
+body{background:var(--bg);color:var(--text)}
+.risk-bar{background:#000;color:#71717a;border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:8px;font-weight:900;font-size:19px;letter-spacing:-.02em}
+.mark{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#000;display:grid;place-items:center;font-weight:900;font-size:15px}
+.up{color:var(--up)}.down{color:var(--down)}
+.flash-up{background:var(--up-soft)!important}.flash-down{background:var(--down-soft)!important}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:46px;padding:0 26px;border-radius:999px;font-weight:800;font-size:15px}
+.btn.pri{background:var(--accent);color:#000}.btn.sec{border:1px solid #3f3f46;color:var(--text)}
+.tag-sample{color:var(--accent)}
+.band{border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:#0b0b0c;overflow:hidden;white-space:nowrap}
+.band .track{display:inline-flex}
+html.anim .band .track{animation:marquee 40s linear infinite}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.band .q-row{display:inline-flex;align-items:baseline;gap:10px;padding:14px 26px;border-right:1px solid var(--border)}
+.band .q-name b{font-size:14px}.band .q-name span{display:none}
+.band .q-px{font-weight:700}
+.card{background:var(--s1);border:1px solid var(--border);border-radius:20px}
+
+.wrap{width:1200px;margin:0 auto}
+header{height:68px}header .wrap{display:flex;align-items:center;height:100%;gap:36px}
+header nav{display:flex;gap:28px;color:var(--muted);font-size:14px;flex:1}
+header .right{display:flex;gap:14px;align-items:center;font-size:14px}
+.hero{text-align:center;padding:84px 0 70px;background:radial-gradient(700px 380px at 50% 0%,rgba(198,241,53,.16),transparent 70%)}
+h1{font-size:76px;line-height:1.08;font-weight:900;letter-spacing:-.03em}
+h1 em{font-style:normal;color:var(--accent)}
+.hero p{color:var(--muted);font-size:19px;margin:22px auto 34px;max-width:640px}
+.cta{display:flex;gap:14px;justify-content:center}
+.band-wrap{position:relative}.band-wrap .tag-sample{position:absolute;right:16px;top:-30px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);margin-top:0}
+.stats div{padding:46px 0;text-align:center;border-right:1px solid var(--border)}
+.stats b{display:block;font-size:44px;font-weight:900;letter-spacing:-.02em}.stats span{color:var(--muted)}
+section{padding:90px 0}
+.sec-title{font-size:44px;font-weight:900;letter-spacing:-.02em;text-align:center}
+.sec-sub{text-align:center;color:var(--muted);margin-top:10px;font-size:17px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:44px}
+.grid4 .card{padding:30px;min-height:230px}.card h4{font-size:20px;margin:18px 0 10px}.card p{color:var(--muted)}
+.big{font-size:40px;font-weight:900;color:var(--accent)}
+.hot{display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-top:44px}
+.hot .card{padding:28px}
+.q-tab .q-row{display:grid;grid-template-columns:1.6fr 1fr 110px;padding:14px 4px;border-top:1px solid var(--border)}
+.q-tab .q-name span{color:var(--muted);margin-left:8px;font-size:13px}.q-tab .q-px,.q-tab .q-chg{text-align:right;font-weight:700}
+.cats{display:grid;gap:12px}.cats div{padding:18px 22px;border-radius:14px;background:var(--s2);display:flex;justify-content:space-between}
+.cats i{font-style:normal;color:var(--muted);font-size:13px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:44px}
+.steps .card{padding:30px}.steps .n{font-size:64px;font-weight:900;color:var(--accent);line-height:1}
+.safe{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:44px}.safe .card{padding:30px}
+.tbd{color:var(--accent);margin:22px auto 0;width:fit-content}
+.faq{width:820px;margin:40px auto 0}.faq div{padding:22px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;font-size:18px;font-weight:700}
+.final{text-align:center;padding:100px 0;background:radial-gradient(600px 300px at 50% 100%,rgba(198,241,53,.14),transparent 70%)}
+footer{border-top:1px solid var(--border);padding:44px 0;color:#71717a;font-size:13px}
+footer .links{display:flex;gap:26px;margin:18px 0;color:var(--muted)}
+</style></head>
+<body>
+<div class="risk-bar">风险提示：差价合约是复杂的金融产品，因杠杆作用，亏损可能迅速扩大，你可能损失全部保证金。请确认你了解其运作方式，并能承受… <a style="text-decoration:underline">风险披露</a></div>
+<header><div class="wrap"><a class="logo"><span class="mark">Q</span><span class="word">Quick Come</span></a><nav><a>行情</a><a>交易品种</a><a>平台</a><a>资金安全</a><a>帮助中心</a></nav><div class="right"><span>中 / EN</span><a>登录</a><a class="btn pri" style="height:38px;padding:0 20px">免费注册</a></div></div></header>
+<div class="hero"><h1>快人一步<br>交易<em>全球行情</em></h1><p>用 USDT 交易黄金、外汇、指数、原油和加密货币差价合约。手机打开就能交易，不用下载。</p><div class="cta"><a class="btn pri" style="height:54px;padding:0 40px">免费注册</a><a class="btn sec" style="height:54px;padding:0 40px">登录</a></div></div>
+<div class="band-wrap"><span class="tag-sample">示例行情</span><div class="band"><div class="track"><div class="q-row flash-up" data-sym="XAUUSD" data-v="4126.35" data-d="2">
+  <div class="q-name"><b>XAUUSD</b><span>黄金</span></div>
+  
+  <div class="q-px num" data-px>4,126.35</div>
+  <div class="q-chg num up">+0.62%</div>
+  
+</div><div class="q-row" data-sym="XAGUSD" data-v="48.625" data-d="3">
+  <div class="q-name"><b>XAGUSD</b><span>白银</span></div>
+  
+  <div class="q-px num" data-px>48.625</div>
+  <div class="q-chg num up">+1.12%</div>
+  
+</div><div class="q-row" data-sym="EURUSD" data-v="1.1642" data-d="5">
+  <div class="q-name"><b>EURUSD</b><span>欧元/美元</span></div>
+  
+  <div class="q-px num" data-px>1.16420</div>
+  <div class="q-chg num up">+0.18%</div>
+  
+</div><div class="q-row flash-down" data-sym="GBPUSD" data-v="1.33185" data-d="5">
+  <div class="q-name"><b>GBPUSD</b><span>英镑/美元</span></div>
+  
+  <div class="q-px num" data-px>1.33185</div>
+  <div class="q-chg num down">-0.21%</div>
+  
+</div><div class="q-row" data-sym="USDJPY" data-v="151.842" data-d="3">
+  <div class="q-name"><b>USDJPY</b><span>美元/日元</span></div>
+  
+  <div class="q-px num" data-px>151.842</div>
+  <div class="q-chg num up">+0.35%</div>
+  
+</div><div class="q-row" data-sym="USDCNH" data-v="7.1325" data-d="5">
+  <div class="q-name"><b>USDCNH</b><span>美元/离岸人民币</span></div>
+  
+  <div class="q-px num" data-px>7.13250</div>
+  <div class="q-chg num down">-0.06%</div>
+  
+</div><div class="q-row" data-sym="NAS100" data-v="24812.6" data-d="1">
+  <div class="q-name"><b>NAS100</b><span>纳指 100</span></div>
+  
+  <div class="q-px num" data-px>24,812.6</div>
+  <div class="q-chg num up">+0.84%</div>
+  
+</div><div class="q-row" data-sym="XTIUSD" data-v="61.82" data-d="2">
+  <div class="q-name"><b>XTIUSD</b><span>美国原油</span></div>
+  
+  <div class="q-px num" data-px>61.82</div>
+  <div class="q-chg num down">-1.35%</div>
+  
+</div><div class="q-row flash-down" data-sym="BTCUSD" data-v="112480.5" data-d="1">
+  <div class="q-name"><b>BTCUSD</b><span>比特币</span></div>
+  
+  <div class="q-px num" data-px>112,480.5</div>
+  <div class="q-chg num down">-0.92%</div>
+  
+</div><div class="q-row" data-sym="ETHUSD" data-v="4086.2" data-d="2">
+  <div class="q-name"><b>ETHUSD</b><span>以太坊</span></div>
+  
+  <div class="q-px num" data-px>4,086.20</div>
+  <div class="q-chg num down">-1.41%</div>
+  
+</div><div class="q-row" data-sym="XAUUSD" data-v="4126.35" data-d="2">
+  <div class="q-name"><b>XAUUSD</b><span>黄金</span></div>
+  
+  <div class="q-px num" data-px>4,126.35</div>
+  <div class="q-chg num up">+0.62%</div>
+  
+</div><div class="q-row" data-sym="XAGUSD" data-v="48.625" data-d="3">
+  <div class="q-name"><b>XAGUSD</b><span>白银</span></div>
+  
+  <div class="q-px num" data-px>48.625</div>
+  <div class="q-chg num up">+1.12%</div>
+  
+</div><div class="q-row" data-sym="EURUSD" data-v="1.1642" data-d="5">
+  <div class="q-name"><b>EURUSD</b><span>欧元/美元</span></div>
+  
+  <div class="q-px num" data-px>1.16420</div>
+  <div class="q-chg num up">+0.18%</div>
+  
+</div><div class="q-row" data-sym="GBPUSD" data-v="1.33185" data-d="5">
+  <div class="q-name"><b>GBPUSD</b><span>英镑/美元</span></div>
+  
+  <div class="q-px num" data-px>1.33185</div>
+  <div class="q-chg num down">-0.21%</div>
+  
+</div><div class="q-row" data-sym="USDJPY" data-v="151.842" data-d="3">
+  <div class="q-name"><b>USDJPY</b><span>美元/日元</span></div>
+  
+  <div class="q-px num" data-px>151.842</div>
+  <div class="q-chg num up">+0.35%</div>
+  
+</div><div class="q-row" data-sym="USDCNH" data-v="7.1325" data-d="5">
+  <div class="q-name"><b>USDCNH</b><span>美元/离岸人民币</span></div>
+  
+  <div class="q-px num" data-px>7.13250</div>
+  <div class="q-chg num down">-0.06%</div>
+  
+</div><div class="q-row" data-sym="NAS100" data-v="24812.6" data-d="1">
+  <div class="q-name"><b>NAS100</b><span>纳指 100</span></div>
+  
+  <div class="q-px num" data-px>24,812.6</div>
+  <div class="q-chg num up">+0.84%</div>
+  
+</div><div class="q-row" data-sym="XTIUSD" data-v="61.82" data-d="2">
+  <div class="q-name"><b>XTIUSD</b><span>美国原油</span></div>
+  
+  <div class="q-px num" data-px>61.82</div>
+  <div class="q-chg num down">-1.35%</div>
+  
+</div><div class="q-row" data-sym="BTCUSD" data-v="112480.5" data-d="1">
+  <div class="q-name"><b>BTCUSD</b><span>比特币</span></div>
+  
+  <div class="q-px num" data-px>112,480.5</div>
+  <div class="q-chg num down">-0.92%</div>
+  
+</div><div class="q-row" data-sym="ETHUSD" data-v="4086.2" data-d="2">
+  <div class="q-name"><b>ETHUSD</b><span>以太坊</span></div>
+  
+  <div class="q-px num" data-px>4,086.20</div>
+  <div class="q-chg num down">-1.41%</div>
+  
+</div></div></div></div>
+<div class="wrap"><div class="stats"><div><b>~50</b><span>热门品种</span></div><div><b>3 条链</b><span>ERC20 · TRC20 · BSC</span></div><div><b>1 USDT</b><span>最小充值</span></div><div style="border-right:0"><b>中 / EN</b><span>双语界面</span></div></div></div>
+<section><div class="wrap"><div class="sec-title">为交易而生</div><div class="sec-sub">一个 USDT 账户，交易全球热门品种</div>
+<div class="grid4"><div class="card"><div class="big">01</div><h4>一个 USDT 账户</h4><p>充值 USDT 就能交易全部品种，盈亏、手续费都按 USDT 结算，不用换汇。</p></div><div class="card"><div class="big">02</div><h4>报价透明</h4><p>买价、卖价、点差一目了然；下单前显示保证金、手续费和预估强平价。</p></div><div class="card"><div class="big">03</div><h4>手机优先</h4><p>为手机重新设计的下单流程，三次点击完成下单；可添加到主屏幕，像 App 一样打开。</p></div><div class="card"><div class="big">04</div><h4>风险可控</h4><p>逐仓保证金、止盈止损、追保提醒，单笔亏损不会影响其他持仓。</p></div></div></div></section>
+<section style="padding-top:0"><div class="wrap"><div class="sec-title">热门品种</div>
+<div class="hot"><div class="card q-tab"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><b>涨跌榜</b><span class="tag-sample">示例行情</span></div><div class="q-row flash-up" data-sym="XAUUSD" data-v="4126.35" data-d="2">
+  <div class="q-name"><b>XAUUSD</b><span>黄金</span></div>
+  
+  <div class="q-px num" data-px>4,126.35</div>
+  <div class="q-chg num up">+0.62%</div>
+  
+</div><div class="q-row" data-sym="XAGUSD" data-v="48.625" data-d="3">
+  <div class="q-name"><b>XAGUSD</b><span>白银</span></div>
+  
+  <div class="q-px num" data-px>48.625</div>
+  <div class="q-chg num up">+1.12%</div>
+  
+</div><div class="q-row" data-sym="EURUSD" data-v="1.1642" data-d="5">
+  <div class="q-name"><b>EURUSD</b><span>欧元/美元</span></div>
+  
+  <div class="q-px num" data-px>1.16420</div>
+  <div class="q-chg num up">+0.18%</div>
+  
+</div><div class="q-row flash-down" data-sym="GBPUSD" data-v="1.33185" data-d="5">
+  <div class="q-name"><b>GBPUSD</b><span>英镑/美元</span></div>
+  
+  <div class="q-px num" data-px>1.33185</div>
+  <div class="q-chg num down">-0.21%</div>
+  
+</div><div class="q-row" data-sym="USDJPY" data-v="151.842" data-d="3">
+  <div class="q-name"><b>USDJPY</b><span>美元/日元</span></div>
+  
+  <div class="q-px num" data-px>151.842</div>
+  <div class="q-chg num up">+0.35%</div>
+  
+</div><div class="q-row" data-sym="USDCNH" data-v="7.1325" data-d="5">
+  <div class="q-name"><b>USDCNH</b><span>美元/离岸人民币</span></div>
+  
+  <div class="q-px num" data-px>7.13250</div>
+  <div class="q-chg num down">-0.06%</div>
+  
+</div></div>
+<div class="card cats"><div><b>贵金属</b><i>XAUUSD 黄金 · XAGUSD 白银</i></div><div><b>外汇</b><i>EURUSD · GBPUSD · USDJPY · USDCNH</i></div><div><b>指数</b><i>NAS100 纳指 · US30 道指 · GER40 德指</i></div><div><b>能源</b><i>XTIUSD 美国原油</i></div><div><b>加密货币</b><i>BTCUSD 比特币 · ETHUSD 以太坊</i></div></div></div></div></section>
+<section style="padding-top:0"><div class="wrap"><div class="sec-title">三步开始</div><div class="steps"><div class="card"><div class="n">1</div><h4 style="font-size:22px;margin:16px 0 8px">注册</h4><p style="color:var(--muted)">用邮箱注册，1 分钟完成</p></div><div class="card"><div class="n">2</div><h4 style="font-size:22px;margin:16px 0 8px">充值</h4><p style="color:var(--muted)">向你的专属地址转入 USDT，支持 ERC20 / TRC20 / BSC，最小 1 USDT</p></div><div class="card"><div class="n">3</div><h4 style="font-size:22px;margin:16px 0 8px">交易</h4><p style="color:var(--muted)">选品种、选手数，一键买入或卖出</p></div></div></div></section>
+<section style="padding-top:0"><div class="wrap"><div class="sec-title">资金和安全</div><div class="safe"><div class="card"><h4 style="font-size:20px;margin-bottom:10px">专属充值地址</h4><p style="color:var(--muted)">每个账户独立的 USDT 充值地址，到账自动入账。</p></div><div class="card"><h4 style="font-size:20px;margin-bottom:10px">提现多重确认</h4><p style="color:var(--muted)">只能提到白名单地址；新地址有冷静期；每笔提现人工审核。</p></div><div class="card"><h4 style="font-size:20px;margin-bottom:10px">身份认证</h4><p style="color:var(--muted)">完成身份认证（KYC）后才能提现，保护账户安全。</p></div></div><div class="tbd">监管与牌照信息：待提供</div></div></section>
+<section style="padding-top:0"><div class="wrap"><div class="sec-title">常见问题</div><div class="faq"><div>什么是差价合约（CFD）？<span>＋</span></div><div>支持哪些充值网络？最少充多少？<span>＋</span></div><div>提现需要多久？<span>＋</span></div><div>交易时间是什么时候？<span>＋</span></div><div>手机上怎么使用？<span>＋</span></div></div></div></section>
+<div class="final"><div class="sec-title">准备好了吗？</div><div style="margin-top:28px"><a class="btn pri" style="height:56px;padding:0 48px">免费注册</a></div></div>
+<footer><div class="wrap"><a class="logo"><span class="mark">Q</span><span class="word">Quick Come</span></a><div class="links"><a>服务条款</a><a>隐私政策</a><a>风险披露</a></div><p>风险提示：差价合约是复杂的金融产品，因杠杆作用，亏损可能迅速扩大，你可能损失全部保证金。请确认你了解其运作方式，并能承受相应风险。本网站信息不构成投资建议。</p><p class="tbd" style="margin:12px 0 0">公司信息：待提供</p><p style="margin-top:12px">© 2026 Quick Come</p></div></footer><script>
+(function(){
+  if (location.search.indexOf('static') >= 0) return;
+  document.documentElement.classList.add('anim');
+  document.querySelectorAll('.flash-up,.flash-down').forEach(function(e){e.classList.remove('flash-up','flash-down');});
+  var rows = Array.prototype.slice.call(document.querySelectorAll('[data-sym]'));
+  setInterval(function(){
+    for (var k = 0; k < 3; k++) {
+      var r = rows[Math.floor(Math.random() * rows.length)]; if (!r) return;
+      var px = r.querySelector('[data-px]'), d = +r.getAttribute('data-d'), v = +r.getAttribute('data-v');
+      var up = Math.random() > 0.5, nv = v * (1 + (up ? 1 : -1) * Math.random() * 0.0004);
+      r.setAttribute('data-v', nv);
+      px.textContent = nv.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
+      r.classList.remove('flash-up','flash-down'); void r.offsetWidth; r.classList.add(up ? 'flash-up' : 'flash-down');
+      (function(el){ setTimeout(function(){ el.classList.remove('flash-up','flash-down'); }, 600); })(r);
+    }
+  }, 1000);
+})();
+</script></body></html>
