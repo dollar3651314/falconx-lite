@@ -18,7 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 class KycController {
 
   /** 返回给客户的 KYC 信息。证件号只显示后 4 位；不返回图片和存储路径。 */
-  record KycView(String status, String docType, String docNumber, LocalDateTime submittedAt, LocalDateTime reviewedAt, String rejectReason) {}
+  record KycView(String status, String docType, String docNumber, String submittedAt, String reviewedAt, String rejectReason) {}
 
   private final KycService kyc;
 
@@ -34,7 +34,7 @@ class KycController {
   KycView get() {
     KycRow r = kyc.latest(CurrentUser.id());
     if (r == null) return new KycView("none", null, null, null, null, null);
-    return new KycView(r.status().toLowerCase(), "ID_CARD".equals(r.docType()) ? "idCard" : "passport", mask(r.docNumber()), r.submittedAt(), r.reviewedAt(),
+    return new KycView(r.status().toLowerCase(), "ID_CARD".equals(r.docType()) ? "idCard" : "passport", mask(r.docNumber()), utc(r.submittedAt()), utc(r.reviewedAt()),
         "REJECTED".equals(r.status()) ? r.rejectReason() : null);
   }
 
@@ -54,5 +54,10 @@ class KycController {
   ResponseEntity<ApiError> invalid(KycService.KycValidationException e) {
     var fields = e.errors.stream().map(s -> s.split(":", 2)).map(p -> new ApiError.FieldError(p[0], p[1])).toList();
     return ResponseEntity.badRequest().body(new ApiError("VALIDATION_FAILED", "请求字段不合法", fields));
+  }
+
+  /** 时间统一输出带时区的 UTC，和其他接口一致 */
+  static String utc(LocalDateTime t) {
+    return t == null ? null : t.toInstant(java.time.ZoneOffset.UTC).toString();
   }
 }

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 class ProfileController {
 
   record ProfileView(String userId, String email, String firstName, String middleName, String lastName, LocalDate birthDate, String nationality,
-      LocalDateTime registeredAt, boolean locked) {}
+      String registeredAt, boolean locked) {}
 
   record ProfileUpdate(
       @NotBlank(message = "REQUIRED") @Size(max = 64, message = "TOO_LONG") String firstName,
@@ -45,7 +45,7 @@ class ProfileController {
     long id = CurrentUser.id();
     ProfileRow p = mapper.find(id);
     if (p == null) throw new BizException("USER_NOT_FOUND", "用户不存在");
-    return new ProfileView(String.valueOf(p.userId()), p.email(), p.firstName(), p.middleName(), p.lastName(), p.birthDate(), p.nationality(), p.registeredAt(),
+    return new ProfileView(String.valueOf(p.userId()), p.email(), p.firstName(), p.middleName(), p.lastName(), p.birthDate(), p.nationality(), utc(p.registeredAt()),
         kyc.status(id) == KycStatus.APPROVED);
   }
 
@@ -56,5 +56,10 @@ class ProfileController {
     if (kyc.status(id) == KycStatus.APPROVED) throw new BizException("PROFILE_LOCKED", "身份认证通过后不能修改资料");
     mapper.update(id, u.firstName().trim(), u.middleName() == null ? "" : u.middleName().trim(), u.lastName().trim(), u.birthDate(), u.nationality());
     return get();
+  }
+
+  /** 时间统一输出带时区的 UTC（例如 2026-10-14T10:00:00Z），和其他接口一致 */
+  static String utc(LocalDateTime t) {
+    return t == null ? null : t.toInstant(java.time.ZoneOffset.UTC).toString();
   }
 }

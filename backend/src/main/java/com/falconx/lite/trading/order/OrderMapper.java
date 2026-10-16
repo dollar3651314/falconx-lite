@@ -142,4 +142,18 @@ interface OrderMapper {
 
   /** 从 since 起某种账本类型在余额上的合计（所有客户） */
   java.math.BigDecimal ledgerTotalSince(@Param("type") String type, @Param("since") LocalDateTime since);
+
+  /** 客户端资金流水（S17 补充）：只看余额的变动，按类型和时间筛选 */
+  List<LedgerRow> userLedger(@Param("userId") long userId, @Param("types") java.util.Collection<String> types, @Param("since") LocalDateTime since,
+      @Param("offset") int offset, @Param("limit") int limit);
+
+  long countUserLedger(@Param("userId") long userId, @Param("types") java.util.Collection<String> types, @Param("since") LocalDateTime since);
+
+  /** 流水的备注（取里面的品种或网络） */
+  class LedgerRemark {
+    long id;
+    String remark;
+  }
+
+  List<LedgerRemark> ledgerRemarks(@Param("ids") java.util.Collection<Long> ids);
 }
