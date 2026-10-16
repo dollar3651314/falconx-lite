@@ -137,6 +137,8 @@ lcurl -skf --max-time 3 --resolve "$APP_DOMAIN:18443:127.0.0.1" "https://$APP_DO
 # 品种和交易时段在后端启动时加载，所以改完重启一次后端。
 if [ -n "${LOAD_ALL_OPEN:-}" ]; then
   say "LOAD_ALL_OPEN=1：临时库里美股加全天交易时段、BTCUSD 取消暂停开仓，重启后端"
+  # 单引号是故意的：密码在容器里展开，不经过本机命令行
+  # shellcheck disable=SC2016
   compose exec -T mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" falconx 2> /dev/null' << 'SQL'
 INSERT INTO market_session (symbol, day_of_week, open_minute, close_minute)
 SELECT s.code, d.d, 0, 1440 FROM market_symbol s
