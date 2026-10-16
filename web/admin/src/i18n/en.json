@@ -365,7 +365,7 @@
     "balance": "Balance",
     "balanceAfter": "Balance after",
     "birthDate": "Date of birth",
-    "birthDateHint": "Format YYYY-MM-DD; must be 18 or older",
+    "birthDateHint": "For example, 27 3 1990; must be 18 or older. You can also paste 1990-03-27",
     "confirmAdjust": "Adjust",
     "confirmEditProfile": "Save changes",
     "confirmFreeze": "Freeze",
@@ -447,6 +447,11 @@
     "credited": "Credited",
     "ignored": "Ignored (unknown contract)",
     "reversed": "Reversed"
+  },
+  "dateFields": {
+    "year": "Year",
+    "month": "Month",
+    "day": "Day"
   },
   "deposits": {
     "amount": "Amount USDT",
@@ -1170,7 +1175,7 @@
     "amountRequired": "Enter an amount",
     "codeFormat": "Lowercase letters, digits and underscores",
     "currencyFormat": "Enter 3–4 capital letters, e.g. USD",
-    "dateFormat": "Use YYYY-MM-DD",
+    "dateIncomplete": "Enter the day, month and year",
     "dateInvalid": "Not a valid date (after 1900, not in the future)",
     "digitsRange": "Enter a whole number from 0 to 8",
     "emailFormat": "Enter a valid email",
@@ -1200,7 +1205,8 @@
     "symbolCode": "Capital letter first, capitals and digits only, 2–16 characters",
     "timeFormat": "Use HH:mm",
     "tooLong": "At most {{max}} characters",
-    "usernameFormat": "Start with a lowercase letter, 3–40 chars: a-z 0-9 . _ -"
+    "usernameFormat": "Start with a lowercase letter, 3–40 chars: a-z 0-9 . _ -",
+    "yearFormat": "Year must be 4 digits, e.g. 1990"
   },
   "weekday": {
     "0": "Sun",

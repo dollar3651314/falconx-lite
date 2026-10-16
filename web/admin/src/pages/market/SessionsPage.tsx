@@ -4,7 +4,8 @@
  * - 休市日挂在品种上（"*" 表示全部品种），只有全天休市，可以增删。
  */
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Button, Form, Input, Modal, Popconfirm, Select } from 'antd';
+import { Alert, Button, DatePicker, Form, Grid, Input, Modal, Popconfirm, Select } from 'antd';
+import dayjs, { type Dayjs } from 'dayjs';
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { addHoliday, deleteHoliday, listHolidays, listSessions } from '../../api';
@@ -20,6 +21,9 @@ import { Pill } from '../../components/Pill';
 import { Num } from '../../components/Num';
 
 const ALL = '*';
+const DATE_FMT = 'YYYY-MM-DD';
+/** 今天的 UTC 日期（休市日按 UTC，后端拒绝早于今天的日期） */
+const todayUtc = () => new Date().toISOString().slice(0, 10);
 
 /** 后端 day：1 = 周一 … 7 = 周日；翻译键 weekday.0 = 周日 */
 const weekdayKey = (day: number) => `weekday.${day % 7}`;
@@ -37,6 +41,8 @@ export function SessionsPage() {
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form] = Form.useForm<HolidayInput>();
+  // 手机宽度下点日期框只弹日历、不弹键盘（键盘会把日历顶出屏幕）
+  const screens = Grid.useBreakpoint();
 
   const rows = useMemo(
     () => (sessions.data ?? []).filter((s) => !filter || s.symbol.toLowerCase().includes(filter.toLowerCase())),
@@ -136,8 +142,23 @@ export function SessionsPage() {
       />
       <Modal open={adding} title={t('sessions.addHoliday')} okText={t('common.save')} cancelText={t('common.cancel')} confirmLoading={busy} onOk={() => void submit()} onCancel={() => setAdding(false)} destroyOnClose>
         <Form form={form} layout="vertical" name="holiday" initialValues={{ symbol: ALL }} preserve={false}>
-          <Form.Item name="date" label={t('sessions.date')} extra={t('sessions.dateHint')} rules={[{ required: true, pattern: /^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, message: t('validation.dateFormat') }]}>
-            <Input placeholder="2026-12-31" inputMode="numeric" />
+          {/* 休市日是"在日历上选一天"（近期、要看星期几），用 antd DatePicker；表单值仍是 YYYY-MM-DD 字符串（技术方案/v2-日期输入.md） */}
+          <Form.Item
+            name="date"
+            label={t('sessions.date')}
+            extra={t('sessions.dateHint')}
+            rules={[{ required: true, message: t('validation.required') }]}
+            getValueProps={(v: string | undefined) => ({ value: v ? dayjs(v) : null })}
+            normalize={(d: Dayjs | null) => (d ? d.format(DATE_FMT) : '')}
+          >
+            <DatePicker
+              style={{ width: '100%' }}
+              format={DATE_FMT}
+              placeholder={DATE_FMT}
+              disabledDate={(d) => d.format(DATE_FMT) < todayUtc()}
+              inputReadOnly={!screens.md}
+              showNow={false}
+            />
           </Form.Item>
           <Form.Item name="symbol" label={t('sessions.symbol')} rules={[{ required: true, message: t('validation.required') }]}>
             <Select

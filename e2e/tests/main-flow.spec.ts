@@ -84,7 +84,12 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await page.getByLabel('确认密码').fill(CLIENT_PASSWORD);
       await page.getByLabel('名', { exact: true }).fill('测试');
       await page.getByLabel('姓', { exact: true }).fill('端到端');
-      await page.getByLabel('出生日期').fill('1990-01-01');
+      // 出生日期是 年 / 月 / 日 三个数字框：像手机上一样点一下年份框，逐个输入数字，输满自动跳到下一格
+      const birth = page.getByRole('group', { name: '出生日期' });
+      await birth.getByLabel('年', { exact: true }).tap();
+      await page.keyboard.type('19900127');
+      await expect(birth.getByLabel('日', { exact: true }), '输满自动跳格：日期最后两位落在"日"').toHaveValue('27');
+      await expect(birth.getByLabel('月', { exact: true })).toHaveValue('01');
       await page.getByLabel('国籍').click();
       await page.getByRole('textbox', { name: '搜索' }).fill('CN');
       await page.getByRole('option').first().click();

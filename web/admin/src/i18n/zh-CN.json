@@ -365,7 +365,7 @@
     "balance": "账户余额",
     "balanceAfter": "变动后余额",
     "birthDate": "出生日期",
-    "birthDateHint": "格式 YYYY-MM-DD，须年满 18 周岁",
+    "birthDateHint": "例如 1990 年 3 月 27 日，须年满 18 周岁；可以直接粘贴 1990-03-27",
     "confirmAdjust": "确认调整",
     "confirmEditProfile": "确认修改",
     "confirmFreeze": "确认冻结",
@@ -447,6 +447,11 @@
     "credited": "已入账",
     "ignored": "未入账（非配置合约）",
     "reversed": "已冲正"
+  },
+  "dateFields": {
+    "year": "年",
+    "month": "月",
+    "day": "日"
   },
   "deposits": {
     "amount": "金额 USDT",
@@ -1170,7 +1175,7 @@
     "amountRequired": "请输入金额",
     "codeFormat": "小写字母开头，可含数字和下划线",
     "currencyFormat": "请输入 3–4 位大写字母，例如 USD",
-    "dateFormat": "日期格式为 YYYY-MM-DD",
+    "dateIncomplete": "请把年、月、日填写完整",
     "dateInvalid": "不是有效日期（1900 年以后、不晚于今天）",
     "digitsRange": "请输入 0–8 的整数",
     "emailFormat": "请输入正确的邮箱",
@@ -1200,7 +1205,8 @@
     "symbolCode": "大写字母开头，只含大写字母和数字，2–16 位",
     "timeFormat": "时间格式为 HH:mm",
     "tooLong": "最多 {{max}} 个字",
-    "usernameFormat": "小写字母开头，3–40 位，可含数字和 . _ -"
+    "usernameFormat": "小写字母开头，3–40 位，可含数字和 . _ -",
+    "yearFormat": "年份需要 4 位数字，例如 1990"
   },
   "weekday": {
     "0": "周日",

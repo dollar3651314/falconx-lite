@@ -1,6 +1,7 @@
 /**
  * 表单校验规则（纯函数，便于单元测试）。返回翻译键列表：一次给出全部问题（规则 C56）。
  */
+import { splitDate } from './dateParts';
 import { compareAmounts, isValidAmountInput } from './money';
 
 export const PASSWORD_MIN = 10;
@@ -61,15 +62,19 @@ export function nameProblems(v: string, required: boolean): string[] {
   return out;
 }
 
-/** 出生日期：YYYY-MM-DD，真实日期，不早于 1900 年、不晚于今天，年满 18 周岁（按 UTC 日期） */
+/**
+ * 出生日期：由三框组件 `DateFields` 合成（`utils/dateParts.ts`），真实日期，不早于 1900 年、不晚于今天，年满 18 周岁（按 UTC 日期）。
+ * 和客户端 `validateBirthDate` 同一顺序，只报一类：没填 → 没填完整 → 年份不是 4 位 → 日期不存在 → 早于 1900 年或晚于今天 → 未满 18 岁。
+ */
 export function birthDateProblems(v: string, today: Date = new Date()): string[] {
   const text = (v ?? '').trim();
   if (!text) return ['validation.required'];
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-  if (!m) return ['validation.dateFormat'];
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const p = splitDate(text);
+  if (!p.y || !p.m || !p.d) return ['validation.dateIncomplete'];
+  if (!/^\d{4}$/.test(p.y)) return ['validation.yearFormat'];
+  const [y, mo, d] = [Number(p.y), Number(p.m), Number(p.d)];
   const dt = new Date(Date.UTC(y, mo - 1, d));
-  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d || y < 1900 || dt.getTime() > today.getTime()) {
+  if (mo < 1 || mo > 12 || dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d || y < 1900 || dt.getTime() > today.getTime()) {
     return ['validation.dateInvalid'];
   }
   const adult = new Date(Date.UTC(y + 18, mo - 1, d));
