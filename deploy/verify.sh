@@ -31,7 +31,8 @@ echo "== 页面"
 [ "$(code "https://$admin/admin/")" = 200 ] && ok "后台首页 200" || bad "后台首页打不开"
 
 echo "== 不该对外的路径"
-for u in "https://$app/api/admin/me" "https://$app/api/e2e/mail/code" "https://$app/actuator/health" "https://$admin/actuator/health" "https://$admin/api/trading/ledger"; do
+# 带分号的写法（Spring 会忽略分号后面的内容）也要拦住（安全审查 SEC-02）
+for u in "https://$app/api/admin/me" "https://$app/api/admin;x/me" "https://$app/api/e2e/mail/code" "https://$app/actuator/health" "https://$admin/actuator/health" "https://$admin/api/trading/ledger"; do
   c=$(code "$u"); { [ "$c" = 404 ] || [ "$c" = 401 ]; } && ok "$c $u" || bad "$c $u（应为 404）"
 done
 

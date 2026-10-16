@@ -32,9 +32,10 @@ server {
 
   root /usr/share/nginx/client;
 
-  # 后台接口只在后台域名开放；端到端测试接口、应用管理端点一律不转发
-  location /api/admin/ { return 404; }
-  location /api/e2e/ { return 404; }
+  # 后台接口只在后台域名开放；端到端测试接口、应用管理端点一律不转发。
+  # 用正则而不是 location /api/admin/：后端（Spring）匹配路径时忽略分号后面的内容，/api/admin;x/me 会被当成 /api/admin/me，
+  # 前缀写法拦不住（安全审查 SEC-02）；这里把 /api/admin 后面跟 / ; 或结尾的都拦下，大小写都算（正则里有分号，必须加引号）。后端也拒绝带分号的路径（CrossSiteGuard）。
+  location ~* "^/api/(admin|e2e)([/;]|$)" { return 404; }
   location /actuator { return 404; }
 
   location /api/ws/ {

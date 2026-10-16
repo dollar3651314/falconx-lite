@@ -67,6 +67,26 @@ class AdminSystemTest extends AdminTestSupport {
     assertThat(audits("admin.update")).anyMatch(l -> l.startsWith("FAILURE " + a.username() + " CANNOT_ASSIGN_SUPER"));
   }
 
+  /**
+   * 安全审查 SEC-04：原来只拦"重置超级管理员的密码"。有"编辑管理员"权限的普通管理员可以重置权限比自己大的管理员的密码，
+   * 拿到临时密码后登录成对方，绕过"不能分配超出自己权限的角色"（后台方案第 9 节补充）。现在要求对方的权限点都在自己的范围内。
+   */
+  @Test
+  void SEC04_非超级管理员不能重置权限超出自己的管理员的密码() throws Exception {
+    String ops = role(Permission.ADMIN_VIEW, Permission.ADMIN_EDIT, Permission.AUDIT_VIEW);
+    Admin a = withRoles(ops);
+    long bigger = createAdmin(unique("bg_"), false, role(Permission.CONFIG_VIEW, Permission.CONFIG_EDIT, Permission.AUDIT_VIEW));
+    MockHttpServletResponse r = call(post("/api/admin/admins/" + bigger + "/reset-password"), a.cookie(), "{\"reason\":\"试试\"}");
+    assertThat(r.getStatus()).as(r.getContentAsString()).isEqualTo(400);
+    assertThat(r.getContentAsString()).contains("PERMISSION_EXCEEDS_OWN").doesNotContain("temporaryPassword");
+    assertThat(jdbc.queryForObject("SELECT must_change_password FROM admin_user WHERE id = ?", Boolean.class, bigger)).as("密码没有被改").isFalse();
+    assertThat(audits("admin.reset_password")).anyMatch(l -> l.startsWith("FAILURE " + a.username() + " "));
+    // 权限在自己范围内的可以重置；超级管理员可以重置任何人
+    long smaller = createAdmin(unique("sm_"), false, role(Permission.AUDIT_VIEW));
+    assertThat(call(post("/api/admin/admins/" + smaller + "/reset-password"), a.cookie(), "{\"reason\":\"忘记密码\"}").getStatus()).isEqualTo(200);
+    assertThat(call(post("/api/admin/admins/" + bigger + "/reset-password"), superAdmin().cookie(), "{\"reason\":\"忘记密码\"}").getStatus()).isEqualTo(200);
+  }
+
   @Test
   void 新建管理员返回一次临时密码_首次登录要改_重置密码同理_审计里没有密码_AC34() throws Exception {
     Admin s = superAdmin();

@@ -35,8 +35,8 @@ class AuthController {
   }
 
   @PostMapping("/api/auth/email-code")
-  ResponseEntity<Void> sendCode(@Valid @RequestBody SendCode r) {
-    auth.sendCode(r.email(), r.purpose());
+  ResponseEntity<Void> sendCode(@Valid @RequestBody SendCode r, HttpServletRequest req) {
+    auth.sendCode(r.email(), r.purpose(), req.getRemoteAddr());
     return ResponseEntity.noContent().build();
   }
 
