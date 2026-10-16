@@ -83,7 +83,7 @@
     "sellShort": "卖"
   },
   "auth": {
-    "loginTitle": "登录 FalconX",
+    "loginTitle": "登录 Quick Come",
     "loginSubtitle": "USDT 保证金差价合约交易",
     "loginProtoHint": "原型：任意邮箱和 8 位以上密码都能登录；密码填 wrongpass1 可查看\"密码错误\"，邮箱含 locked 可查看\"账号已锁定\"。",
     "email": "邮箱",
@@ -164,7 +164,8 @@
     "removeFav": "取消自选",
     "emptyFav": "还没有自选品种",
     "emptyFavHint": "在行情列表点星标加入自选",
-    "bidAsk": "卖价 / 买价"
+    "bidAsk": "卖价 / 买价",
+    "ticker": "热门品种行情"
   },
   "trade": {
     "change": "涨跌",
@@ -516,7 +517,7 @@
     "logout": "退出登录",
     "logoutTitle": "退出登录",
     "logoutBody": "确定退出当前账号吗？",
-    "version": "FalconX Lite · 原型 v0.1",
+    "version": "Quick Come · v2.0",
     "upDown": "涨跌颜色",
     "upDownGreen": "绿涨红跌",
     "upDownRed": "红涨绿跌"

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EnvBanner } from '../../components/EnvBanner';
-import { Logo } from '../../components/Icon';
+import { Brand } from '../../components/Icon';
 import { ProtoBanner } from '../../components/Layout';
 import { LangSwitch } from '../../components/LangSwitch';
 import { ProtoPanel } from '../../components/ProtoPanel';
@@ -14,8 +14,7 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
       <EnvBanner />
       <div className="auth-top">
         <div className="brand">
-          <Logo />
-          FalconX<small>Lite</small>
+          <Brand />
         </div>
         <LangSwitch />
       </div>

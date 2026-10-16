@@ -31,9 +31,9 @@ export default defineConfig(({ mode }) => ({
       injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'FalconX',
-        short_name: 'FalconX',
-        description: 'FalconX Lite — USDT 保证金差价合约交易（原型）',
+        name: 'Quick Come',
+        short_name: 'Quick Come',
+        description: 'Quick Come — USDT 保证金差价合约交易',
         lang: 'zh-CN',
         start_url: '/',
         scope: '/',
