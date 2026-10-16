@@ -142,4 +142,16 @@ class CustomerAdmin implements CustomerAdminApi {
   public long pendingKyc() {
     return mapper.pendingKyc();
   }
+
+  @Override
+  @Transactional(readOnly = true)
+  public long registeredSince(java.time.LocalDateTime since) {
+    return mapper.registeredSince(since);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public long activeSince(java.time.LocalDateTime since) {
+    return mapper.activeSince(since);
+  }
 }

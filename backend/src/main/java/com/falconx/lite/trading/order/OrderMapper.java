@@ -100,4 +100,46 @@ interface OrderMapper {
   List<UserAmount> balances(@Param("ids") java.util.Collection<Long> ids);
 
   List<UserAmount> openPositionCounts(@Param("ids") java.util.Collection<Long> ids);
+
+  /** 后台（S16c）：订单和它的手续费（成交了才有） */
+  class AdminOrderRow {
+    long id;
+    long userId;
+    String symbol;
+    String orderType;
+    String side;
+    java.math.BigDecimal lots;
+    int leverage;
+    java.math.BigDecimal limitPrice;
+    java.math.BigDecimal fillPrice;
+    java.math.BigDecimal takeProfit;
+    java.math.BigDecimal stopLoss;
+    java.math.BigDecimal frozenAmount;
+    java.math.BigDecimal fee;
+    String status;
+    LocalDateTime createdAt;
+  }
+
+  List<AdminOrderRow> adminOrders(@Param("symbol") String symbol, @Param("side") String side, @Param("status") String status,
+      @Param("userIds") java.util.Collection<Long> userIds, @Param("offset") int offset, @Param("limit") int limit);
+
+  long countAdminOrders(@Param("symbol") String symbol, @Param("side") String side, @Param("status") String status,
+      @Param("userIds") java.util.Collection<Long> userIds);
+
+  List<PositionRow> adminPositions(@Param("symbol") String symbol, @Param("side") String side, @Param("userIds") java.util.Collection<Long> userIds,
+      @Param("offset") int offset, @Param("limit") int limit);
+
+  long countAdminPositions(@Param("symbol") String symbol, @Param("side") String side, @Param("userIds") java.util.Collection<Long> userIds);
+
+  PositionRow positionById(@Param("id") long id);
+
+  OrderRow orderById(@Param("id") long id);
+
+  /** 某个品种还在用的：持仓数 + 挂单数 */
+  long openUsage(@Param("symbol") String symbol);
+
+  long openPositionTotal();
+
+  /** 从 since 起某种账本类型在余额上的合计（所有客户） */
+  java.math.BigDecimal ledgerTotalSince(@Param("type") String type, @Param("since") LocalDateTime since);
 }

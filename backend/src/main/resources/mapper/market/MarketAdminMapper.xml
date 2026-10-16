@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 后台的品种、时段、休市日维护。只有 market 模块使用。 -->
+<mapper namespace="com.falconx.lite.market.admin.MarketAdminMapper">
+
+  <sql id="symbolCols">
+    code, name_zh, name_en, category, digits, contract_size, unit, base_ccy, quote_ccy, max_leverage, min_lots, max_lots, lot_step, fee_rate,
+    maintenance_margin_rate, markup, swap_long, swap_short, hot, open_paused, sort_order, enabled, updated_at
+  </sql>
+
+  <select id="symbols" resultType="com.falconx.lite.market.admin.MarketAdminMapper$SymbolRow">
+    SELECT <include refid="symbolCols"/> FROM market_symbol ORDER BY sort_order, code
+  </select>
+
+  <select id="symbol" resultType="com.falconx.lite.market.admin.MarketAdminMapper$SymbolRow">
+    SELECT <include refid="symbolCols"/> FROM market_symbol WHERE code = #{code} FOR UPDATE
+  </select>
+
+  <update id="updateSymbol">
+    UPDATE market_symbol SET name_zh = #{nameZh}, name_en = #{nameEn}, max_leverage = #{maxLeverage}, min_lots = #{minLots}, max_lots = #{maxLots},
+      lot_step = #{lotStep}, fee_rate = #{feeRate}, maintenance_margin_rate = #{maintenanceMarginRate}, markup = #{markup}, swap_long = #{swapLong},
+      swap_short = #{swapShort}, hot = #{hot}, sort_order = #{sortOrder}
+    WHERE code = #{code}
+  </update>
+
+  <update id="setEnabled">UPDATE market_symbol SET enabled = #{enabled} WHERE code = #{code}</update>
+
+  <select id="sessions" resultType="com.falconx.lite.market.admin.MarketAdminMapper$SessionRow">
+    SELECT symbol, day_of_week, open_minute, close_minute FROM market_session ORDER BY symbol, day_of_week, open_minute
+  </select>
+
+  <select id="holidays" resultType="com.falconx.lite.market.admin.MarketAdminMapper$HolidayRow">
+    SELECT id, symbol, trade_date, reason FROM market_holiday WHERE trade_date &gt;= #{from} ORDER BY trade_date, symbol
+  </select>
+
+  <select id="holiday" resultType="com.falconx.lite.market.admin.MarketAdminMapper$HolidayRow">
+    SELECT id, symbol, trade_date, reason FROM market_holiday WHERE id = #{id}
+  </select>
+
+  <select id="holidayOf" resultType="com.falconx.lite.market.admin.MarketAdminMapper$HolidayRow">
+    SELECT id, symbol, trade_date, reason FROM market_holiday WHERE symbol = #{symbol} AND trade_date = #{date}
+  </select>
+
+  <insert id="insertHoliday" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO market_holiday (symbol, trade_date, reason) VALUES (#{symbol}, #{tradeDate}, #{reason})
+  </insert>
+
+  <delete id="deleteHoliday">DELETE FROM market_holiday WHERE id = #{id}</delete>
+</mapper>

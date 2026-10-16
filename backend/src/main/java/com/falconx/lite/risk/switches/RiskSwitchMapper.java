@@ -42,4 +42,6 @@ interface RiskSwitchMapper {
 
   int insertEvent(@Param("kind") String kind, @Param("symbol") String symbol, @Param("netUsd") BigDecimal netUsd, @Param("threshold") BigDecimal threshold,
       @Param("operatorId") Long operatorId);
+
+  List<com.falconx.lite.risk.api.RiskApi.Event> events(@Param("limit") int limit);
 }

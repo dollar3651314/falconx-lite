@@ -121,7 +121,7 @@ class SystemService {
   // ---------- 系统配置 ----------
 
   List<ConfigView> configs() {
-    return config.list().stream().map(e -> new ConfigView(e.key().key, e.value(), e.key().unit.api(), e.key().group, AdminUserService.time(e.updatedAt()))).toList();
+    return config.list().stream().filter(e -> e.key().configPage).map(e -> new ConfigView(e.key().key, e.value(), e.key().unit.api(), e.key().group, AdminUserService.time(e.updatedAt()))).toList();
   }
 
   /**
@@ -132,7 +132,7 @@ class SystemService {
   ConfigView updateConfig(AdminContext actor, String key, String value, String reason) {
     String r = Audit.requireReason(reason);
     return audit.run("config.update", key, true, r, () -> {
-      ConfigKey k = ConfigKey.of(key).orElseThrow(() -> new BizException("NOT_FOUND", "配置项不存在"));
+      ConfigKey k = ConfigKey.of(key).filter(x -> x.configPage).orElseThrow(() -> new BizException("NOT_FOUND", "配置项不存在"));
       String v = k.normalize(value).orElseThrow(() -> new ValidationException(List.of(new ValidationException.Field("value", "invalid"))));
       if (k == ConfigKey.ADMIN_IP_WHITELIST && !v.isEmpty()) {
         IpRanges ranges = IpRanges.parse(v).orElseThrow(() -> new ValidationException(List.of(new ValidationException.Field("value", "invalid"))));

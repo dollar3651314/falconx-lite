@@ -88,4 +88,10 @@ class WalletAdmin implements WalletAdminApi {
   public long pendingReview() {
     return mapper.countWithdrawals(List.of("REVIEWING"), null, null, null, null);
   }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Bucket creditedSince(LocalDateTime since) {
+    return bucket(mapper.creditedSince(since));
+  }
 }

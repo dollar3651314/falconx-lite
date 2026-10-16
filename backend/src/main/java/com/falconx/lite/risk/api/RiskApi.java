@@ -68,4 +68,12 @@ public interface RiskApi {
 
   /** 平台总净敞口阈值（USD）；传空表示不监控 */
   void setPlatformThreshold(BigDecimal threshold, long operatorId);
+
+  /**
+   * 一条风控事件（S16c 后台看板）。kind 见 risk_event 表注释；operatorId 为空表示系统自动。
+   */
+  record Event(long id, String kind, String symbol, BigDecimal netUsd, BigDecimal threshold, Long operatorId, java.time.LocalDateTime createdAt) {}
+
+  /** 最近的风控事件，最新的在前 */
+  List<Event> events(int limit);
 }
