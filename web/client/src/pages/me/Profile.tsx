@@ -6,6 +6,7 @@ import { getProfile, updateProfile } from '../../api/user';
 import type { Profile as ProfileT } from '../../api/types';
 import { useToast } from '../../app/contexts';
 import { AsyncView } from '../../components/AsyncView';
+import { DateFields } from '../../components/DateFields';
 import { Select, TextField } from '../../components/Form';
 import { PageHeader } from '../../components/Layout';
 import { useAsync } from '../../hooks/useAsync';
@@ -46,8 +47,8 @@ function Editor({ p, onSaved, onCancel }: { p: ProfileT; onSaved: (p: ProfileT) 
         <TextField label={t('profile.middleName')} labelExtra={<em>{t('common.optional')}</em>} value={f.middleName} onChange={(v) => set('middleName', v)} errors={shown.middleName} />
         <TextField label={t('profile.lastName')} value={f.lastName} onChange={(v) => set('lastName', v)} errors={shown.lastName} />
       </div>
-      <div className="row2">
-        <TextField label={t('profile.birthDate')} placeholder="YYYY-MM-DD" value={f.birthDate} onChange={(v) => set('birthDate', v)} errors={shown.birthDate} mono />
+      <div className="row2 row2-date">
+        <DateFields label={t('profile.birthDate')} hint={t('dateFields.birthHint')} autoCompletePrefix="bday" value={f.birthDate} onChange={(v) => set('birthDate', v)} errors={shown.birthDate} />
         <Select label={t('profile.nationality')} value={f.nationality} onChange={(v) => set('nationality', v)} options={COUNTRIES.map((c) => ({ value: c, label: t(`countries.${c}`) }))} searchable errors={shown.nationality} />
       </div>
       <p className="muted small">{t('profile.kycNote')}</p>

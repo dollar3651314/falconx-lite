@@ -51,6 +51,18 @@
 .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 480px) { .row3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .row3 > :last-child { grid-column: 1 / -1; } }
+/* "已知日期"三框输入（DateFields，见 技术方案/v2-日期输入.md）：出错时只给有问题的框标红 */
+.row2-date { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } /* 放不下三框时国籍换到下一行 */
+.date-fields { border: 0; padding: 0; margin: 0 0 12px; min-width: 0; }
+.date-fields > legend.field-label { padding: 0; width: 100%; }
+.date-fields .date-hint { margin: 0 0 6px; }
+.date-row { display: flex; gap: 8px; align-items: flex-end; }
+.date-part { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.date-part > label { font-size: 12px; color: var(--subtle); }
+.date-part .input-wrap { flex: none; padding: 0 8px; }
+.date-part input { text-align: center; font-size: 16px; } /* 16px：iPhone Safari 聚焦时不自动放大页面 */
+.date-part-y { width: 92px; }
+.date-part-m, .date-part-d { width: 64px; }
 .form-section { font-size: 13px; font-weight: 700; margin: 6px 0 8px; padding-top: 10px; border-top: 1px dashed var(--border); }
 .form-summary { font-size: 13px; color: var(--err-text); background: var(--err-bg); border: 1px solid var(--err-border); border-radius: var(--r-md); padding: 8px 10px; margin: 8px 0; }
 .check { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--muted); margin: 4px 0; cursor: pointer; }

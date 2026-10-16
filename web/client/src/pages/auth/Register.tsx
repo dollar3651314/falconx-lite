@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { register } from '../../api/auth';
 import { errorKey, isApiError } from '../../api/errors';
 import { useAuth } from '../../app/contexts';
+import { DateFields } from '../../components/DateFields';
 import { FieldErrors, PasswordField, Select, TextField } from '../../components/Form';
 import { COUNTRIES } from '../../lib/countries';
 import { hasErrors, validateRegister, type RegisterForm } from '../../lib/validators';
@@ -68,8 +69,8 @@ export default function Register() {
           <TextField label={t('profile.middleName')} labelExtra={<em>{t('common.optional')}</em>} autoComplete="additional-name" value={f.middleName} onChange={(v) => set('middleName', v)} errors={shown('middleName')} />
           <TextField label={t('profile.lastName')} autoComplete="family-name" value={f.lastName} onChange={(v) => set('lastName', v)} errors={shown('lastName')} />
         </div>
-        <div className="row2">
-          <TextField label={t('profile.birthDate')} placeholder="YYYY-MM-DD" inputMode="numeric" autoComplete="bday" value={f.birthDate} onChange={(v) => set('birthDate', v)} errors={shown('birthDate')} mono />
+        <div className="row2 row2-date">
+          <DateFields label={t('profile.birthDate')} hint={t('dateFields.birthHint')} autoCompletePrefix="bday" value={f.birthDate} onChange={(v) => set('birthDate', v)} errors={shown('birthDate')} />
           <Select
             label={t('profile.nationality')}
             value={f.nationality}

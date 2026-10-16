@@ -3,6 +3,7 @@
  * 返回值里的字符串都是 i18n 键（在 validation.* 下）。
  */
 import { cmp, dec, isDecimalString, sub, add, ZERO, type Dec } from './decimal';
+import { splitDate } from './dateParts';
 import type { Network, Side, SymbolInfo, WithdrawInfo, WhitelistAddress } from '../api/types';
 
 export type FieldErrors<K extends string = string> = Partial<Record<K, string[]>>;
@@ -46,16 +47,22 @@ function validateName(v: string, required: boolean): string[] {
   return out;
 }
 
-/** 出生日期：YYYY-MM-DD，必须是真实日期，年满 18 周岁，不早于 1900 年 */
+/**
+ * 出生日期：由三框组件 `DateFields` 合成（见 `lib/dateParts.ts`），必须是真实日期，年满 18 周岁，不早于 1900 年。
+ * 错误按优先级只报一类（GOV.UK 的做法）：没填 → 没填完整 → 年份不是 4 位 → 日期不存在 → 早于 1900 年 → 未满 18 岁。
+ */
 export function validateBirthDate(v: string, today: Date = new Date()): string[] {
-  if (!v.trim()) return ['validation.required'];
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.trim());
-  if (!m) return ['validation.dateFormat'];
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const text = (v ?? '').trim();
+  if (!text) return ['validation.required'];
+  const p = splitDate(text);
+  if (!p.y || !p.m || !p.d) return ['validation.dateIncomplete'];
+  if (!/^\d{4}$/.test(p.y)) return ['validation.yearFormat'];
+  const [y, mo, d] = [Number(p.y), Number(p.m), Number(p.d)];
   const dt = new Date(Date.UTC(y, mo - 1, d));
-  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d || y < 1900) {
+  if (mo < 1 || mo > 12 || dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) {
     return ['validation.dateInvalid'];
   }
+  if (y < 1900) return ['validation.dateTooEarly'];
   const adult = new Date(Date.UTC(y + 18, mo - 1, d));
   return adult.getTime() > today.getTime() ? ['validation.ageUnder18'] : [];
 }

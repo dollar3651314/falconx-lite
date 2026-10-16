@@ -21,6 +21,7 @@ import { Pill } from '../../components/Pill';
 import { Amount, Num } from '../../components/Num';
 import { customerTone, kycTone } from '../../utils/status';
 import { formatAmount, subtractAmounts } from '../../utils/money';
+import { DateFields } from '../../components/DateFields';
 import { adjustAmountProblems, birthDateProblems, nameProblems, nationalityProblems } from '../../utils/validators';
 import { fullTime, shortTime } from '../../utils/display';
 
@@ -94,7 +95,7 @@ export function CustomerDetailPage() {
             </Form.Item>
           </div>
           <Form.Item name="birthDate" label={t('customers.birthDate')} required extra={t('customers.birthDateHint')} rules={[rule((v) => birthDateProblems(v))]}>
-            <Input placeholder="1990-01-31" inputMode="numeric" autoComplete="off" />
+            <DateFields groupLabel={t('customers.birthDate')} />
           </Form.Item>
           <Form.Item
             name="nationality"
