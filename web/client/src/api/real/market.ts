@@ -1,11 +1,11 @@
 /**
  * 行情的真实接口（`market/web/MarketController.java`、`MarketPush.java`）：
- * - 品种、K 线历史、今日走势走 HTTP；
+ * - 品种、K 线历史、今日走势、最近逐笔报价（Tick 图）走 HTTP；
  * - 报价和 K 线更新走 `WS /api/ws/market`：连上先推全部报价，之后每 250 毫秒推有变化的；
  *   K 线发 `{op:'subKline', symbol, tf}` 订阅（每个连接同时只订阅一个）。断线自动重连，重连后重新订阅。
  */
 import { get } from '../http';
-import type { Kline, Quote, SymbolInfo, Timeframe } from '../types';
+import type { Kline, Quote, SymbolInfo, Tick, Timeframe } from '../types';
 import { ReconnectingSocket } from '../ws';
 import { isLoggedIn, onSessionChange } from './session';
 
@@ -14,6 +14,9 @@ export const listSymbols = (): Promise<SymbolInfo[]> => get<SymbolInfo[]>('/api/
 export const getSparklines = (): Promise<Record<string, string[]>> => get<Record<string, string[]>>('/api/market/sparklines');
 
 export const getKlines = (symbol: string, tf: Timeframe): Promise<Kline[]> => get<Kline[]>('/api/market/klines', { query: { symbol, tf, limit: 300 } });
+
+/** 最近逐笔报价（后端只在内存里保留每个品种最近 500 笔） */
+export const getTicks = (symbol: string): Promise<Tick[]> => get<Tick[]>('/api/market/ticks', { query: { symbol, limit: 500 } });
 
 type QuoteListener = (quotes: Quote[]) => void;
 type BarListener = (bar: Kline) => void;

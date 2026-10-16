@@ -1119,6 +1119,7 @@
     "bodyZh": "Body (Chinese)",
     "builtIn": "Built-in",
     "builtInHint": "Built-in templates can only be reworded, not disabled: withdrawal, liquidation and other flows depend on them.",
+    "oldBrandHint": "These templates still mention the old brand name. Please change it to Quick Come: {{codes}}. (The upgrade only renamed built-in templates that had never been edited; edited ones were left as they were.)",
     "cannotDisable": "Built-in templates cannot be disabled",
     "channels": "Channels",
     "code": "Code",

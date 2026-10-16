@@ -29,7 +29,6 @@
   --banner-h: 24px;
   --header-h: 52px;
   /* v2 E2：原来写死在下面各处的浅色值，改成变量，深色主题里重新定义 */
-  --logo: #0e7490;
   --proto-bg: #fff7ed;
   --proto-fg: #7c2d12;
   --proto-bd: #fdba74;
@@ -89,7 +88,8 @@ body { overflow-x: hidden; }
   display: flex; align-items: center; gap: 14px;
   border-bottom: 1px solid var(--border); line-height: normal;
 }
-.logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: var(--primary-deep); flex: none; }
+.logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; letter-spacing: -0.01em; color: var(--text); flex: none; white-space: nowrap; }
+.logo .logo-mark { flex: none; }
 .app-header .logo { min-width: 0; }
 @media (min-width: 992px) { .app-header .logo { width: 168px; } }
 .logo small { font-size: 12px; font-weight: 600; color: var(--muted); }
@@ -310,8 +310,6 @@ body { overflow-x: hidden; }
 .symbol-form .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
 @media (max-width: 480px) { .symbol-form .grid2 { grid-template-columns: minmax(0, 1fr); } }
 
-/* 标志颜色（Logo 的 SVG 写的是浅色主色，这里统一按主题换） */
-.logo svg path { fill: var(--logo); }
 
 /* ======================================================================
    v2 E2 深色主题（slate 底，和客户端同一方向）。
@@ -341,7 +339,6 @@ body { overflow-x: hidden; }
   --danger-bg: rgba(248, 113, 113, 0.12);
   --danger-bd: rgba(248, 113, 113, 0.45);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
-  --logo: #5fd4e8;
   --proto-bg: #3b2a14;
   --proto-fg: #fed7aa;
   --proto-bd: #92400e;

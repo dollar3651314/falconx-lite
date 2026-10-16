@@ -2,7 +2,7 @@
  * 主流程（S19；需求说明书第 7 节 AC 对照见 测试报告/v1-端到端测试方案.md 第 5 节）：
  * 客户在 390px 宽的手机上：注册（邮箱验证码）→ 退出后登录 → 充值到账 → 提交 KYC → 市价下单 → 设止盈止损 → 报价触发止盈自动平仓
  * → 再开一单手动平仓 → 资金流水 → 加白名单 → 提现；超管在电脑上：首次登录改密码 → 审核 KYC → 出金审核 → 查看客户；
- * 广播成功、链上确认后客户看到提现已完成。
+ * 广播成功、链上确认后客户看到提现已完成。v2：检查品牌改名（标题、页面文字、邮件标题没有旧品牌名，AC2-11、AC2-12）和电脑宽度的顶栏跑马灯（AC2-17）。
  * 每轮用新邮箱、新证件号，不依赖上一轮的数据。外部依赖（邮件、链、LP 行情、提现广播）由后端 e2e profile 的替身代替。
  * 两种形态共用（tests/targets.ts）：默认经 server.mjs；部署形态经 Nginx 镜像（HTTPS、两个域名），另外检查登录 Cookie 带 Secure、
  * 两个前端顶部有"测试环境"标识条。
@@ -66,6 +66,7 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       test.info().annotations.push({ type: '超管', description: first ? '首次登录，已改密码' : '已改过密码，直接登录' });
       await expectSecureCookie(admin, 'fx_admin_session');
       await expectEnvBanner(adminPage);
+      await expect(adminPage, 'AC2-11：后台标签页标题').toHaveTitle('Quick Come 管理后台');
       // 测试不等 2 小时冷静期和 24 小时白名单生效：超管在系统配置里改成 0（规则本身由后端测试覆盖，AC-17、AC-18）
       await setConfig(adminPage, 'withdraw.coolingHours', '0');
       await setConfig(adminPage, 'whitelist.effectiveHours', '0');
@@ -105,6 +106,28 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await expectSecureCookie(client, 'fx_session');
       await expectEnvBanner(page);
       await expectNoHorizontalScroll(page, '行情页');
+      // AC2-11：标签页标题和页面文字是 Quick Come，没有旧品牌名
+      await expect(page).toHaveTitle('Quick Come');
+      expect(await page.locator('body').innerText(), '客户端页面文字').not.toMatch(/falcon\s*x/i);
+      await expect(page.getByTestId('hot-ticker'), '手机上没有跑马灯').toHaveCount(0);
+    });
+
+    await step('客户：电脑宽度顶栏跑马灯（AC2-17）：热门品种滚动、悬停暂停、点击进入交易页', async () => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      const ticker = page.getByTestId('hot-ticker');
+      await expect(ticker).toBeVisible();
+      const track = ticker.locator('.ticker-track');
+      await expect.poll(() => track.evaluate((el) => getComputedStyle(el).animationName), { message: '在滚动' }).toBe('ticker-scroll');
+      const item = ticker.locator('[data-testid^="ticker-"]').first();
+      await expect(item).not.toContainText('—', { timeout: 15_000 });
+      await ticker.hover();
+      await expect.poll(() => track.evaluate((el) => getComputedStyle(el).animationPlayState), { message: '悬停时暂停' }).toBe('paused');
+      const code = (await item.getAttribute('data-testid'))!.replace('ticker-', '');
+      await item.click();
+      await expect(page).toHaveURL(new RegExp(`/trade/${code}$`));
+      await expectNoHorizontalScroll(page, '电脑宽度交易页');
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(ticker, '回到手机宽度不显示').toHaveCount(0);
     });
 
     let address = '';
@@ -277,11 +300,12 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
 
     await step('通知邮件：验证码、入金到账、KYC 结果、出金状态都发到客户邮箱', async () => {
       // 邮件任务每 2 秒发一次：等全部到齐（AC-05 KYC 结果、AC-07 到账通知、AC-19 提现状态）
-      for (const subject of ['FalconX 验证码', '充值已到账', '身份认证结果', '止盈止损已触发', '提现状态更新']) {
+      for (const subject of ['Quick Come 验证码', '充值已到账', '身份认证结果', '止盈止损已触发', '提现状态更新']) {
         await expect.poll(async () => (await e2e.mailSubjects(request, email)).join(' | '), { message: `等邮件「${subject}」`, timeout: 20_000 }).toContain(subject);
       }
       const subjects = (await e2e.mailSubjects(request, email)).join(' | ');
       test.info().annotations.push({ type: '客户收到的邮件', description: subjects });
+      expect(subjects, 'AC2-12：邮件标题里没有旧品牌名').not.toMatch(/falcon\s*x/i);
     });
 
     await step('AC-23 风控信息不外泄、AC-29 不依赖 Google', async () => {

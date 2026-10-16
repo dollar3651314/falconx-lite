@@ -1,6 +1,6 @@
 /**
  * 登录后的整体布局：顶部原型横幅（只在 mock 模式）或测试环境标识条（只在 real 模式且后端返回了 env，S20）；手机为底部 5 个导航（行情 / 交易 / 持仓 / 资产 / 我的，U4），
- * 桌面（≥1024）为顶部导航（持仓在交易页里，不单列）。
+ * 桌面（≥1024）为顶部导航（持仓在交易页里，不单列）；1280 宽以上顶部导航中间有热门品种跑马灯（E4，HotTicker）。
  */
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
@@ -11,7 +11,9 @@ import { useUnread } from '../hooks/useUnread';
 import { formatAmount, formatPercent } from '../lib/format';
 import { marginLevelTone } from '../lib/trading';
 import { EnvBanner } from './EnvBanner';
-import { Icon, Logo, type IconName } from './Icon';
+import { BRAND_NAME } from '../lib/brand';
+import { HotTicker } from './HotTicker';
+import { Brand, Icon, type IconName } from './Icon';
 import { ProtoPanel } from './ProtoPanel';
 import { PushListener } from './PushListener';
 
@@ -67,9 +69,8 @@ export function Layout() {
       <ProtoBanner />
       <EnvBanner />
       <header className="topnav">
-        <NavLink to="/markets" className="brand" aria-label="FalconX">
-          <Logo />
-          FalconX<small>Lite</small>
+        <NavLink to="/markets" className="brand" aria-label={BRAND_NAME}>
+          <Brand />
         </NavLink>
         <nav className="topnav-menu" aria-label={t('nav.main')}>
           {NAV.filter((n) => n.desktop).map((n) => (
@@ -78,6 +79,7 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
+        <HotTicker />
         <TopAccount />
         <button type="button" className="btn btn-primary btn-sm" onClick={() => navigate('/assets')}>
           {t('assets.deposit')}
