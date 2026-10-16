@@ -78,18 +78,19 @@ class AdminMonitorTest extends AdminTestSupport {
     Customer c = customer("2000");
     order(c, "market", "buy", null);
     String pendingId = order(c, "limit", "buy", "4000.00");
-    JsonNode orders = body(call(get("/api/admin/orders?keyword=" + c.id()), view.cookie(), null));
+    // 按唯一的客户名搜：搜数字（客户号）时也会按邮箱里的数字、对外编号匹配到别人的单
+    JsonNode orders = body(call(get("/api/admin/orders?keyword=" + c.name()), view.cookie(), null));
     assertThat(orders.get("total").asLong()).isEqualTo(2);
     JsonNode filled = orders.get("items").get(1);
     assertThat(filled.get("status").asString()).isEqualTo("filled");
     assertThat(filled.get("price").asString()).isEqualTo("4126.75");
     assertThat(filled.get("customerName").asString()).isEqualTo(c.name() + " T");
     assertThat(filled.get("fee").asString()).isNotNull();
-    assertThat(body(call(get("/api/admin/orders?keyword=" + c.id() + "&status=pending&side=buy"), view.cookie(), null)).get("total").asLong()).isEqualTo(1);
-    JsonNode pend = body(call(get("/api/admin/pending?keyword=" + c.id()), view.cookie(), null)).get("items").get(0);
+    assertThat(body(call(get("/api/admin/orders?keyword=" + c.name() + "&status=pending&side=buy"), view.cookie(), null)).get("total").asLong()).isEqualTo(1);
+    JsonNode pend = body(call(get("/api/admin/pending?keyword=" + c.name()), view.cookie(), null)).get("items").get(0);
     assertThat(pend.get("limitPrice").asString()).isEqualTo("4000");
     assertThat(pend.get("currentPrice").asString()).as("买单看 ask").isEqualTo("4126.75");
-    JsonNode pos = body(call(get("/api/admin/positions?keyword=" + c.id()), view.cookie(), null)).get("items").get(0);
+    JsonNode pos = body(call(get("/api/admin/positions?keyword=" + c.name()), view.cookie(), null)).get("items").get(0);
     assertThat(pos.get("side").asString()).isEqualTo("buy");
     assertThat(pos.get("currentPrice").asString()).as("多单平仓看 bid").isEqualTo("4126.35");
     assertThat(call(post("/api/admin/positions/" + pos.get("id").asString() + "/liquidate"), view.cookie(), "{\"reason\":\"x\"}").getStatus()).isEqualTo(403);
@@ -172,7 +173,7 @@ class AdminMonitorTest extends AdminTestSupport {
     assertThat(byNo.get("items").get(0).get("id").asString()).isEqualTo(orderNo);
     assertThat(byNo.get("items").get(0).get("customerId").asLong()).isEqualTo(c.id());
     JsonNode byCustomer = body(call(get("/api/admin/orders?keyword=" + c.id()), view.cookie(), null));
-    assertThat(byCustomer.get("total").asLong()).as("客户号照常能搜").isEqualTo(2);
+    assertThat(byCustomer.get("items").toString()).as("客户号照常能搜").contains("\"id\":\"" + orderNo + "\"").contains("\"id\":\"" + pendingNo + "\"");
     assertThat(body(call(get("/api/admin/pending?keyword=" + pendingNo), view.cookie(), null)).get("items").get(0).get("id").asString()).isEqualTo(pendingNo);
     String posNo = jdbc.queryForObject("SELECT p.public_no FROM trading_position p JOIN trading_order o ON o.position_id = p.id WHERE o.public_no = ?", String.class,
         Long.parseLong(orderNo));
