@@ -145,6 +145,7 @@ export const FIELD_CODES: Record<string, string> = {
   EMAIL_INVALID: 'validation.emailFormat',
   CODE_FORMAT: 'validation.codeFormat',
   PASSWORD_LENGTH: 'validation.passwordLength',
+  PASSWORD_MIX: 'validation.passwordMix',
   TOO_LONG: 'validation.tooLong',
   BIRTH_DATE_INVALID: 'validation.dateInvalid',
   NATIONALITY_INVALID: 'validation.nationalityInvalid',

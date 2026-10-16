@@ -15,6 +15,9 @@ import java.time.LocalDate;
 final class AuthRequests {
   private AuthRequests() {}
 
+  /** 客户密码：8–64 位，至少包含一个字母和一个数字（前后端一致，Amos 2026-10-16 确认） */
+  static final String PASSWORD_MIX = "(?s)(?=.*[A-Za-z])(?=.*\\d).*";
+
   record SendCode(
       @NotBlank(message = "REQUIRED") @Email(message = "EMAIL_INVALID") @Size(max = 254, message = "EMAIL_INVALID") String email,
       @NotNull(message = "REQUIRED") EmailCodeService.Purpose purpose) {}
@@ -22,7 +25,7 @@ final class AuthRequests {
   record Register(
       @NotBlank(message = "REQUIRED") @Email(message = "EMAIL_INVALID") @Size(max = 254, message = "EMAIL_INVALID") String email,
       @NotBlank(message = "REQUIRED") @Pattern(regexp = "\\s*\\d{6}\\s*", message = "CODE_FORMAT") String code,
-      @NotBlank(message = "REQUIRED") @Size(min = 8, max = 64, message = "PASSWORD_LENGTH") String password,
+      @NotBlank(message = "REQUIRED") @Size(min = 8, max = 64, message = "PASSWORD_LENGTH") @Pattern(regexp = PASSWORD_MIX, message = "PASSWORD_MIX") String password,
       @NotBlank(message = "REQUIRED") @Size(max = 64, message = "TOO_LONG") String firstName,
       @Size(max = 64, message = "TOO_LONG") String middleName,
       @NotBlank(message = "REQUIRED") @Size(max = 64, message = "TOO_LONG") String lastName,
@@ -34,11 +37,11 @@ final class AuthRequests {
   record ResetPassword(
       @NotBlank(message = "REQUIRED") @Email(message = "EMAIL_INVALID") String email,
       @NotBlank(message = "REQUIRED") @Pattern(regexp = "\\s*\\d{6}\\s*", message = "CODE_FORMAT") String code,
-      @NotBlank(message = "REQUIRED") @Size(min = 8, max = 64, message = "PASSWORD_LENGTH") String password) {}
+      @NotBlank(message = "REQUIRED") @Size(min = 8, max = 64, message = "PASSWORD_LENGTH") @Pattern(regexp = PASSWORD_MIX, message = "PASSWORD_MIX") String password) {}
 
   record ChangePassword(
       @NotBlank(message = "REQUIRED") String currentPassword,
-      @NotBlank(message = "REQUIRED") @Size(min = 8, max = 64, message = "PASSWORD_LENGTH") String newPassword) {}
+      @NotBlank(message = "REQUIRED") @Size(min = 8, max = 64, message = "PASSWORD_LENGTH") @Pattern(regexp = PASSWORD_MIX, message = "PASSWORD_MIX") String newPassword) {}
 
   /** 登录后返回给前端的信息（令牌在 Cookie 里，不在响应体里） */
   record SessionView(String userId, String email) {}

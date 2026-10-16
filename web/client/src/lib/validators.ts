@@ -22,11 +22,11 @@ export function validateEmail(email: string): string[] {
   return EMAIL_RE.test(email.trim()) ? [] : ['validation.emailFormat'];
 }
 
-/** 密码：8–32 位，至少包含字母和数字 */
+/** 密码：8–64 位，至少包含字母和数字（和后端一致） */
 export function validatePassword(pw: string): string[] {
   if (!pw) return ['validation.required'];
   const out: string[] = [];
-  if (pw.length < 8 || pw.length > 32) out.push('validation.passwordLength');
+  if (pw.length < 8 || pw.length > 64) out.push('validation.passwordLength');
   if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) out.push('validation.passwordMix');
   return out;
 }
