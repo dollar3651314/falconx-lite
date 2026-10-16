@@ -172,7 +172,7 @@
     "bidAsk": "卖 / 买",
     "high": "今日最高",
     "low": "今日最低",
-    "timeframe": "K 线周期",
+    "timeframe": "图表周期",
     "spread": "点差",
     "pickSymbol": "切换品种",
     "symbolNotFound": "找不到品种 {{code}}",
@@ -186,7 +186,15 @@
     "close": "收",
     "empty": "暂无 K 线数据",
     "aria": "{{symbol}} {{tf}} K 线图",
-    "credit": "图表由开源库 Lightweight Charts™ 提供，版权归"
+    "credit": "图表由开源库 Lightweight Charts™ 提供，版权归",
+    "bid": "卖价",
+    "ask": "买价",
+    "tick": "Tick",
+    "tickMid": "中间价",
+    "ariaTick": "{{symbol}} Tick 图（最近逐笔中间价）",
+    "emptyTick": "暂无逐笔报价，收到新报价后会显示",
+    "indicators": "指标",
+    "bidAsk": "买卖价线"
   },
   "order": {
     "title": "下单",

@@ -186,7 +186,15 @@
     "close": "C",
     "empty": "No chart data",
     "aria": "{{symbol}} {{tf}} candlestick chart",
-    "credit": "Charts by the open-source Lightweight Charts™ library, ©"
+    "credit": "Charts by the open-source Lightweight Charts™ library, ©",
+    "bid": "Bid",
+    "ask": "Ask",
+    "tick": "Tick",
+    "tickMid": "Mid",
+    "ariaTick": "{{symbol}} tick chart (recent mid prices)",
+    "emptyTick": "No ticks yet. They appear as new quotes arrive",
+    "indicators": "Indicators",
+    "bidAsk": "Bid/Ask lines"
   },
   "order": {
     "title": "Order",

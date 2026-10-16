@@ -2,7 +2,7 @@
  * 模拟行情：每秒随机跳动报价，并据此实时更新 K 线最后一根。
  * 价格内部用"最小变动单位的整数个数"表示，避免浮点误差。
  */
-import type { Kline, Quote, SymbolInfo, Timeframe } from '../api/types';
+import type { Kline, Quote, SymbolInfo, Tick, Timeframe } from '../api/types';
 import { SYMBOL_SEEDS } from './data/symbols';
 import { seeded } from './ids';
 
@@ -107,6 +107,7 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 function publish(quotes: Quote[]): void {
   updateKlines(quotes);
+  recordTicks(quotes);
   tickHooks.forEach((h) => h(quotes));
   quoteListeners.forEach((l) => l(quotes));
 }
@@ -248,4 +249,40 @@ export function sparklines(): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const s of symbols()) out[s.code] = klines(s.code, '1h').slice(-24).map((k) => k.close);
   return out;
+}
+
+// ---------- 最近逐笔报价（Tick 图） ----------
+const TICK_CAP = 500;
+const tickBuf = new Map<string, Tick[]>();
+
+/** 第一次要某个品种时，从当前价往回生成 200 笔（约每秒一笔的随机游走），之后跟着模拟报价往后追加 */
+export function ticks(code: string): Tick[] {
+  const q = live.get(code);
+  if (!q) return [];
+  let buf = tickBuf.get(code);
+  if (!buf) {
+    const r = seeded(code.length * 7919 + q.bid);
+    const out: Tick[] = [];
+    let bid = q.bid;
+    let t = q.time;
+    for (let i = 0; i < 200; i++) {
+      out.push({ time: t, bid: ticksToStr(bid, q.digits), ask: ticksToStr(bid + q.spread, q.digits) });
+      bid = Math.max(1, bid - Math.round((r() - 0.5) * 2 * q.vol));
+      t -= 600 + Math.round(r() * 1400);
+    }
+    buf = out.reverse();
+    tickBuf.set(code, buf);
+  }
+  return buf.slice();
+}
+
+function recordTicks(quotes: Quote[]): void {
+  for (const qt of quotes) {
+    const buf = tickBuf.get(qt.symbol);
+    if (!buf) continue;
+    const time = Date.parse(qt.time);
+    if (buf.length && buf[buf.length - 1].time >= time) continue;
+    buf.push({ time, bid: qt.bid, ask: qt.ask });
+    if (buf.length > TICK_CAP) buf.shift();
+  }
 }
