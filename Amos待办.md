@@ -1,8 +1,8 @@
 # Amos 待办
 - 用途：记下**需要 Amos 做的事**和**等 Amos 回答的问题**，避免遗漏。智能体每次汇报时对照本文件提醒；Amos 说"做完了"或答复后，智能体核实，删除对应条目，并在文末"已完成"里留一行记录。
-- 维护：智能体（PM）。新增的事项写清楚"做什么、为什么、怎么确认做好了、截止或阻塞了什么"。**不写任何密钥、密码的值**（只写变量名）。
-- 版本：v1.3（2026-10-17）
-- 变更历史：v1（2026-10-17）Amos 要求创建（"创建一个文件，用来记录需要我做的事情……如果有我没回复的问题，你也可以及时找到并提醒我"），按 2026-10-16 至 10-17 的对话整理；v1.1（2026-10-17）Amos 答复 Q1–Q5：Q1 暂不做，Q2 按 1:1，Q3 去谈并入 T3，Q4 转为 T21，Q5 已删除；v1.2（2026-10-17）新增 Q6–Q8、T22–T23，T4 写明变量名；v1.3（2026-10-17）Amos 答复 Q6 选 B、Q7 买卖合计加 20 点（每边 10 点）（都已实现），Q8 和 T22 他自己处理、不再提醒
+- 维护：智能体（PM）。新增的事项写清楚"做什么、为什么、怎么确认做好了、截止或阻塞了什么"。**不写任何密钥、密码的值**（只写变量名）。**凡是需要 Amos 注册、沟通、协商的事，智能体把已经查到的资料写全**（网址、联系方式、要问的问题、要填的地址和变量），放在下面的"📚 资料"一节，Amos 不用再自己找一遍（Amos 2026-10-17 要求）。
+- 版本：v1.4（2026-10-17）
+- 变更历史：v1（2026-10-17）Amos 要求创建（"创建一个文件，用来记录需要我做的事情……如果有我没回复的问题，你也可以及时找到并提醒我"），按 2026-10-16 至 10-17 的对话整理；v1.1（2026-10-17）Amos 答复 Q1–Q5：Q1 暂不做，Q2 按 1:1，Q3 去谈并入 T3，Q4 转为 T21，Q5 已删除；v1.2（2026-10-17）新增 Q6–Q8、T22–T23，T4 写明变量名；v1.3（2026-10-17）Amos 答复 Q6 选 B、Q7 买卖合计加 20 点（每边 10 点）（都已实现），Q8 和 T22 他自己处理、不再提醒；v1.4（2026-10-17）Amos 要求：新增"📚 资料"一节——AllTick、iTick 的注册和联系方式，币安、OKX 的行情地址和条款，三条测试链的节点、浏览器、水龙头、测试 USDT 合约（链上实测核对过），T3–T5 指向它
 
 ## 一图看懂
 
@@ -27,9 +27,9 @@ flowchart LR
 ## 🟠 阻塞功能开发
 | # | 做什么 | 为什么 | 怎么确认做好了 | 提出时间 |
 |---|---|---|---|---|
-| T3 | **谈报价源授权**：AllTick（主，support@alltick.co）、iTick（备，Telegram @iticksupport）。要书面授权，写明"作为差价合约报价基准"和"在官网、客户端公开展示"两项；问清 50 个品种是否都有买卖价、外汇/指数/原油的数据来源、美股实时数据的交易所授权、香港机房接入延迟、SLA 赔偿。币安由你自己谈；**OKX 也去谈**（Amos 10-17 决定，加密货币可做第三个源交叉校验） | 条款默认禁止商用和再分发；没有授权，生产不能用真实报价 | 拿到书面授权文件 | 10-16 |
-| T4 | **注册 AllTick、iTick 的试用账号，把 token 填进测试服务器 `.env`**：`FX_QUOTE_ALLTICK_TOKEN`、`FX_QUOTE_ITICK_TOKEN`（用 `sudo nano /opt/falconx/.env`；**不要把 token 发给我**）。先确认试用条款允许内部测试使用 | 接入代码在做，没有 token 只能用模拟报价 | 后台品种页"最后报价时间"在走，后台域名健康检查里报价源是 UP | 10-17 |
-| T5 | **测试网资源**：三条链（ERC20 Sepolia、BEP20 BSC 测试网、TRC20 Nile）的节点地址、测试用 xpub、测试热钱包，以及测试 USDT 合约（测试网没有官方 USDT，需要部署或选一个公开测试币） | 没有这些，充值一直显示"暂未开通"，提现也走不通（验收 3.3 节） | 充值页显示地址；转测试币能到账 | 10-16 |
+| T3 | **谈报价源授权**（联系方式、网址见下面"📚 资料" R1–R4）：AllTick（主）、iTick（备）。要书面授权，写明"作为差价合约报价基准"和"在官网、客户端公开展示"两项；问清 50 个品种是否都有买卖价、外汇/指数/原油的数据来源、美股实时数据的交易所授权、香港机房接入延迟、SLA 赔偿。币安由你自己谈；**OKX 也去谈**（Amos 10-17 决定，加密货币可做第三个源交叉校验） | 条款默认禁止商用和再分发；没有授权，生产不能用真实报价 | 拿到书面授权文件 | 10-16 |
+| T4 | **注册 AllTick、iTick 的试用账号**（注册网址见"📚 资料" R1、R2），**把 token 填进测试服务器 `.env`**：`FX_QUOTE_ALLTICK_TOKEN`、`FX_QUOTE_ITICK_TOKEN`（用 `sudo nano /opt/falconx/.env`；**不要把 token 发给我**）。先确认试用条款允许内部测试使用 | 接入代码在做，没有 token 只能用模拟报价 | 后台品种页"最后报价时间"在走，后台域名健康检查里报价源是 UP | 10-17 |
+| T5 | **测试网资源**：节点地址、测试 USDT 合约、水龙头我都查好了（"📚 资料" R5，可以直接复制进 `.env`）。**你要做的只剩**：①离线生成测试用助记词，导出 ETH 和 TRON 的账户级 xpub（只有公钥）；②建两个测试热钱包（ETH/BSC 共用一个、TRON 一个），在水龙头领测试币；③把 xpub、热钱包地址和私钥填进 `.env`（**私钥只由你填，不要发给我**） | 没有这些，充值一直显示"暂未开通"，提现也走不通（验收 3.3 节） | 充值页显示地址；转测试币能到账 | 10-16 |
 
 ## 🟡 测试环境验收（S21，清单见 `交付记录/v1-交付说明.md` 第 3 节）
 | # | 做什么 | 预期 | 提出时间 |
@@ -60,6 +60,73 @@ flowchart LR
 | # | 问题 | 我的建议（默认） | 提出时间 |
 |---|---|---|---|
 | — | 目前没有等你回答的问题 | | |
+
+## 📚 资料（注册、联系、地址）
+标注：【实测】= 我从开发环境实际调用核对过；【官网】= 实际打开过官方页面；【未核实】= 只查到第三方资料，请以页面为准。
+
+### R1 AllTick（报价主源）
+| 用途 | 地址 / 方式 |
+|---|---|
+| 注册（拿免费 token） | https://alltick.co/zh-CN/register 【官网】 |
+| 登录 | https://alltick.co/zh-CN/login 【官网】 |
+| 联系销售（谈商用授权） | https://alltick.co/zh-CN/contact 【官网】；Telegram：https://t.me/alltick_cn 、https://t.me/alltick001 【官网】；邮箱 support@alltick.co（调研报告记录，价格页上没列出）【未核实】 |
+| 价格 | https://alltick.co/zh-CN/pricing （2026-10-16：免费 10 个演示品种；基础版 99 USDT/月 100 个品种；高级版 199 USDT/月）【官网】 |
+| 条款 | https://alltick.co/terms （"不用于交易……不得再分发"，所以要谈书面授权）【官网】 |
+| 接口文档 | https://github.com/alltick/realtime-forex-crypto-stock-tick-finance-websocket-api 【官网】 |
+| 填进服务器 | `FX_QUOTE_ALLTICK_TOKEN` |
+
+### R2 iTick（报价备源）
+| 用途 | 地址 / 方式 |
+|---|---|
+| 注册 / 登录（页面上的"Login/Sign Up"） | https://itick.org/en/dashboard 【官网】（中文站 https://itick.org/zh-cn/pricing ） |
+| 联系（谈商用授权、问连接数） | https://itick.org/en/contact ；Telegram：https://t.me/iticksupport ；WhatsApp：https://wa.me/85259046663 （+852 5904 6663）【官网】 |
+| 价格 | https://itick.org/en/pricing （2026-10-16：Basic $99、Professional $199，新用户 8 折；我们要 4 条连接，Professional 够，见 T23）【官网】 |
+| 条款 | https://itick.org/en/terms （"未经许可禁止再分发"）【官网】 |
+| 接口文档 | https://docs.itick.org/en/websocket/forex 【官网】 |
+| 填进服务器 | `FX_QUOTE_ITICK_TOKEN` |
+
+### R3 币安（你自己谈）
+| 用途 | 地址 |
+|---|---|
+| 现货 REST（只读行情专用，美国能访问） | `https://data-api.binance.vision` 【实测】 |
+| 现货 WebSocket（只读行情专用） | `wss://data-stream.binance.vision` 【官网】 |
+| 现货 REST 主站（美国返回 451 地区限制） | `https://api.binance.com/api/v3/ticker/bookTicker` 【实测】 |
+| 合约 REST / WebSocket（美国返回 451） | `https://fapi.binance.com` / `wss://fstream.binance.com` 【实测】 |
+| 文档 | 现货 REST：https://developers.binance.com/docs/binance-spot-api-docs/rest-api/general-api-information ；现货 WS：https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md ；只读行情域名说明：https://github.com/binance/binance-spot-api-docs/blob/master/faqs/market_data_only.md ；合约 WS：https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams 【官网】 |
+| 条款 | 公开数据条款 https://data.binance.vision/Binance_Vision-Terms_of_Use.pdf （第 3.4 条：商业使用要另签企业数据许可；第 4.4 条：不得集成进商业金融产品）【官网】；主服务条款 https://www.binance.com/en/terms （我这边打开是空白，请你在浏览器看） |
+| 商务联系 | 【未查到】官方数据授权的联系入口，建议通过币安机构服务或客服询问"enterprise market data license" |
+
+### R4 OKX（去谈）
+| 用途 | 地址 |
+|---|---|
+| REST 行情 | `https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT`（美国能访问）【实测】 |
+| WebSocket 公共频道 | `wss://ws.okx.com:8443/ws/v5/public`（`bbo-tbt` 买一卖一，有变化每 10 毫秒推送）【官网】 |
+| 文档 | https://www.okx.com/docs-v5/en/ 【官网】 |
+| 条款 | API 协议 https://www.okx.com/en-us/help/okx-api-agreement （§9.4：行情只限个人非商业使用，商业用途要另签数据授权）；服务条款 https://www.okx.com/help/terms-of-service 【官网】 |
+| 地区 | 香港在 OKX 的限制地区名单上：https://www.okx.com/en-us/help/360021813591 ——谈的时候问清香港服务器能不能用【官网】 |
+| 商务联系 | 【未查到】，建议通过 OKX 机构服务或客服询问数据授权 |
+
+### R5 三条测试链（可以直接复制进测试服务器 `.env`）
+| 链 | 节点地址（RPC） | chainId | 测试 USDT 合约 | 浏览器 | 水龙头（领测试币） |
+|---|---|---|---|---|---|
+| ERC20：以太坊 Sepolia | `https://ethereum-sepolia-rpc.publicnode.com`【实测】 | 11155111【实测】 | `0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0`（USDT，6 位小数【实测】；一般认为是 Aave 测试市场的 USDT，可以在 https://gho.aave.com/faucet 打开 Testnet 模式领取【未核实】） | https://sepolia.etherscan.io | 测试 ETH（付手续费）：Google Cloud https://cloud.google.com/application/web3/faucet/ethereum/sepolia （可能要求钱包在主网有 0.001 ETH）【未核实】 |
+| BEP20：BSC 测试网 | `https://bsc-testnet-rpc.publicnode.com`【实测】（备用 `https://bsc-testnet.drpc.org`【实测】） | 97【实测】 | `0x337610d27c682E347C9cD60BD4b3b107C9d34dDd`（USDT，18 位小数【实测】，和我们配置的 18 位一致） | https://testnet.bscscan.com | 官方水龙头（tBNB 和 USDT）：https://www.bnbchain.org/en/testnet-faucet ，说明 https://docs.bnbchain.org/bnb-smart-chain/developers/faucet 【官网】 |
+| TRC20：TRON Nile | `https://nile.trongrid.io`【实测】 | — | `TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`（TetherToken，6 位小数【实测】） | https://nile.tronscan.org | 官方水龙头（TRX 和测试 USDT）：https://nileex.io/join/getJoinPage ，说明 https://developers.tron.network/docs/getting-testnet-tokens-on-tron 【官网】 |
+
+**复制进 `.env` 的内容**（这些不是密钥，可以直接用；`sudo nano /opt/falconx/.env`）：
+```
+FX_WALLET_ETH_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
+FX_WALLET_BSC_RPC_URL=https://bsc-testnet-rpc.publicnode.com
+FX_WALLET_TRON_RPC_URL=https://nile.trongrid.io
+FX_WALLET_ERC20_USDT_CONTRACT=0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0
+FX_WALLET_BSC_USDT_CONTRACT=0x337610d27c682E347C9cD60BD4b3b107C9d34dDd
+FX_WALLET_TRC20_USDT_CONTRACT=TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf
+FX_WALLET_ERC20_CHAIN_ID=11155111
+FX_WALLET_BSC_CHAIN_ID=97
+```
+**你自己生成、自己填的**（不要发给我）：`FX_WALLET_ETH_XPUB`、`FX_WALLET_TRON_XPUB`（账户级 xpub，只有公钥）、`FX_WALLET_ETH_HOT_ADDRESS`、`FX_WALLET_ETH_HOT_KEY`（ERC20 和 BSC 共用）、`FX_WALLET_TRON_HOT_ADDRESS`、`FX_WALLET_TRON_HOT_KEY`。填完重启后端，告诉我，我从外部检查充值地址能不能生成。
+
+说明：公共节点免费但有频率限制；测试环境够用。TRON 公共节点如果被限流，要在 https://www.trongrid.io 注册拿 API Key（目前代码还不支持带 Key，需要时我再加）【推断】。
 
 ## 已完成（保留最近的记录）
 | 日期 | 事项 |
