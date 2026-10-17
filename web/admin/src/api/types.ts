@@ -503,6 +503,10 @@ export interface TradingSymbol {
   tradingOpen?: boolean;
   /** 模拟起始价（只在模拟报价源下使用，见 SymbolPage.simulatedQuotes）；没填为空 */
   simStartPrice?: string | null;
+  /** 当前报价源：alltick / itick / simulated；没有报价源为空（技术方案/v2-报价源接入.md 第 5.5 节） */
+  quoteSource?: string | null;
+  /** primary 主源 / backup 正在用备源 / deviation 两家偏差过大、暂停成交；模拟为空 */
+  quoteSourceState?: 'primary' | 'backup' | 'deviation' | null;
 }
 
 /** 品种列表：多一个 simulatedQuotes（当前报价源是不是模拟源，是的话新增和编辑里显示"模拟起始价"） */

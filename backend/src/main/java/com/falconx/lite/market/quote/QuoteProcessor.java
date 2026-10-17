@@ -30,6 +30,11 @@ import org.springframework.stereotype.Component;
  * 按品种分到固定的处理线程（同一品种严格按顺序），不同品种并行。
  * <p>监控（E8、E10）：记下每个品种最后一次收到原始报价的时间（不管质量守卫是否通过、是否休市），给行情断流告警
  * {@link MarketAlert} 和指标 {@code fx_quote_age_seconds}（每个品种最后报价距今的秒数）用；收到的报价数是指标 {@code fx_quotes_received_total}。
+ * <p>报价源接入（技术方案/v2-报价源接入.md）：
+ * <ul>
+ *   <li>两家真实报价源价格偏差过大的品种（{@link #setSourceBlocked}，由 {@code feed.QuoteRouter} 设置），在质量守卫之后一律判为 ABNORMAL（不能成交）；</li>
+ *   <li>官网"示例行情"单独一份（{@link #submitSample}）：真实源接管的品种，模拟价只写这里，不进交易链路。</li>
+ * </ul>
  */
 @Component
 public class QuoteProcessor {
@@ -51,6 +56,10 @@ public class QuoteProcessor {
   private final Map<String, Instant> lastReceived = new ConcurrentHashMap<>();
   private final MeterRegistry metrics;
   private final Counter received;
+  /** 两家报价源偏差过大、暂停成交的品种 */
+  private final Set<String> sourceBlocked = ConcurrentHashMap.newKeySet();
+  /** 官网"示例行情"（模拟价，不经过质量守卫，不进交易链路） */
+  private final QuoteBook samples = new QuoteBook();
 
   QuoteProcessor(SymbolCatalog catalog, KlineService klines, MarketProperties props, Clock clock, MeterRegistry metrics) {
     this.catalog = catalog;
@@ -88,6 +97,8 @@ public class QuoteProcessor {
       return QuoteStatus.MARKET_CLOSED;
     }
     QuoteStatus st = guard.evaluate(q, now);
+    // 守卫照常评估（保留它的上一条价格），偏差暂停的品种再一律判异常
+    if (st == QuoteStatus.FRESH && sourceBlocked.contains(q.symbol())) st = QuoteStatus.ABNORMAL;
     if (st != QuoteStatus.FRESH) {
       book.markStatus(q.symbol(), st);
       changed.add(q.symbol());
@@ -118,6 +129,43 @@ public class QuoteProcessor {
         return t == null ? Double.NaN : (clock.millis() - t.toEpochMilli()) / 1000.0;
       }).description("这个品种最后一次收到报价距今的秒数").baseUnit("seconds").tag("symbol", symbol).register(metrics);
     }
+  }
+
+  /**
+   * 报价源偏差（两家价格对不上）时暂停这个品种的成交：之后的报价都判 ABNORMAL；暂停时立即把最新报价标为不可成交（不等下一条报价）。
+   * 恢复时等下一条正常报价。
+   */
+  public void setSourceBlocked(String symbol, boolean blocked) {
+    if (blocked) {
+      if (sourceBlocked.add(symbol)) {
+        stripes[Math.floorMod(symbol.hashCode(), STRIPES)].execute(() -> {
+          if (!sourceBlocked.contains(symbol)) return;
+          book.markStatus(symbol, QuoteStatus.ABNORMAL);
+          changed.add(symbol);
+        });
+      }
+    } else {
+      sourceBlocked.remove(symbol);
+    }
+  }
+
+  public boolean isSourceBlocked(String symbol) {
+    return sourceBlocked.contains(symbol);
+  }
+
+  /** 官网"示例行情"：模拟价加上品种的加点后直接记下（不经过质量守卫、不推送、不进 K 线和撮合） */
+  public void submitSample(RawQuote q) {
+    catalog.get(q.symbol()).ifPresent(spec -> samples.put(new MarketQuote(q.symbol(), q.bid().subtract(spec.markup()), q.ask().add(spec.markup()),
+        QualityGuard.mid(q.bid(), q.ask()), q.time(), QuoteStatus.FRESH, true)));
+  }
+
+  /** 官网"示例行情"的最新一条（超过 staleAfter 没更新视为不可成交） */
+  public Optional<MarketQuote> latestSample(String symbol) {
+    return samples.latest(symbol, clock.instant(), props.staleAfter().toMillis());
+  }
+
+  public QuoteBook sampleBook() {
+    return samples;
   }
 
   /** 这个品种最后一次收到原始报价的时间；从没收到过时为空 */

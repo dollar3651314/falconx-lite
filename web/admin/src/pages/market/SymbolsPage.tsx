@@ -63,8 +63,38 @@ function SwapCell({ value }: { value: string | null }) {
   return <Num className={value.startsWith('-') ? 'down' : 'up'}>{formatRatePercent(value, 4)}</Num>;
 }
 
-/** 最后报价时间（v2 E6） */
+/** 当前报价源（技术方案/v2-报价源接入.md 第 5.5 节）：AllTick、iTick（备）、模拟；两家偏差过大暂停成交时标红 */
+export function QuoteSourceTag({ s }: { s: TradingSymbol }) {
+  const { t } = useTranslation();
+  if (!s.enabled || !s.quoteSource) return null;
+  const name = t(`symbols.quoteSource.${s.quoteSource}`, { defaultValue: s.quoteSource });
+  if (s.quoteSourceState === 'deviation')
+    return (
+      <span className="quote-source stale" title={t('symbols.quoteSource.deviationHint')}>
+        {' '}
+        · {name} · {t('symbols.quoteSource.deviation')}
+      </span>
+    );
+  return (
+    <span className="quote-source muted" title={s.quoteSourceState === 'backup' ? t('symbols.quoteSource.backupHint') : undefined}>
+      {' '}
+      · {name}
+      {s.quoteSourceState === 'backup' ? t('symbols.quoteSource.backup') : ''}
+    </span>
+  );
+}
+
+/** 最后报价时间（v2 E6），后面跟当前报价源 */
 function QuoteTimeCell({ s }: { s: TradingSymbol }) {
+  return (
+    <>
+      <QuoteTimeOnly s={s} />
+      <QuoteSourceTag s={s} />
+    </>
+  );
+}
+
+function QuoteTimeOnly({ s }: { s: TradingSymbol }) {
   const { t } = useTranslation();
   const f = quoteFreshness(s);
   if (f === 'disabled') return <span className="muted">—</span>;

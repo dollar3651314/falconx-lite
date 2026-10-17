@@ -297,6 +297,8 @@ body { overflow-x: hidden; }
 /* ---------- v2 E6：最后报价时间 ---------- */
 .quote-time { white-space: nowrap; }
 .quote-time.stale { color: var(--stale); font-weight: 600; }
+.quote-source { white-space: nowrap; font-size: 12px; }
+.quote-source.stale { color: var(--stale); font-weight: 600; }
 
 /* ---------- v2 E7：自动刷新 ---------- */
 .auto-refresh { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--subtle); white-space: nowrap; }

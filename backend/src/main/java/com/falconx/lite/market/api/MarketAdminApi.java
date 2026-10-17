@@ -18,8 +18,18 @@ public interface MarketAdminApi {
    * @param lastQuoteAt 最后一条正常报价的时间（v2 E6）；从没收到过为空
    * @param tradingOpen 现在是否在交易时段内（休市时没有报价是正常的）
    * @param simStartPrice 模拟起始价（只在模拟报价源下使用，见 {@link MarketAdminApi#simulatedQuotes()}）；没填为空
+   * @param quoteSource 当前用哪个报价源（技术方案/v2-报价源接入.md 第 5.5 节）；没有报价源时为空
    */
-  record Symbol(SymbolSpec spec, boolean enabled, LocalDateTime updatedAt, Instant lastQuoteAt, boolean tradingOpen, BigDecimal simStartPrice) {}
+  record Symbol(SymbolSpec spec, boolean enabled, LocalDateTime updatedAt, Instant lastQuoteAt, boolean tradingOpen, BigDecimal simStartPrice,
+      QuoteSource quoteSource) {}
+
+  /**
+   * 品种当前的报价源。
+   *
+   * @param feed alltick / itick / simulated
+   * @param state primary（主源）/ backup（正在用备源）/ deviation（两家偏差过大、暂停成交）；模拟源为空
+   */
+  record QuoteSource(String feed, String state) {}
 
   /**
    * 品种可以改的字段；为空的不改。openPaused：品种自己的"暂停开仓"（v2：新增的品种默认暂停，在这里打开）。

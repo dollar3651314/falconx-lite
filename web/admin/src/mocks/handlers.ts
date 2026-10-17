@@ -758,9 +758,11 @@ function checkSimStartPrice(v: string, digits: number): { code: string } | { val
 }
 function withQuoteTime(s: TradingSymbol): TradingSymbol {
   const tradingOpen = s.enabled && s.category !== 'stock';
-  if (!s.enabled || !quotedSymbols.has(s.code)) return { ...s, lastQuoteAt: null, tradingOpen };
+  // 原型里都是模拟报价源（真实报价源见 技术方案/v2-报价源接入.md 第 5.5 节）
+  const quoteSource = s.enabled ? 'simulated' : null;
+  if (!s.enabled || !quotedSymbols.has(s.code)) return { ...s, lastQuoteAt: null, tradingOpen, quoteSource, quoteSourceState: null };
   const ageMs = s.code === STALE_DEMO ? 3 * 60_000 + 12_000 : s.category === 'stock' ? 15 * 3600_000 : (s.code.charCodeAt(0) % 5) * 1000 + 600;
-  return { ...s, lastQuoteAt: new Date(Date.now() - ageMs).toISOString(), tradingOpen };
+  return { ...s, lastQuoteAt: new Date(Date.now() - ageMs).toISOString(), tradingOpen, quoteSource, quoteSourceState: null };
 }
 
 export function listSymbols(q: SymbolQuery): Promise<SymbolPage> {

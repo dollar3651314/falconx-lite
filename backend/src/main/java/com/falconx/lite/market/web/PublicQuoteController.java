@@ -1,11 +1,11 @@
 package com.falconx.lite.market.web;
 
-import com.falconx.lite.market.MarketProperties;
 import com.falconx.lite.market.api.MarketApi;
 import com.falconx.lite.market.api.MarketQuote;
 import com.falconx.lite.market.api.SymbolSpec;
 import com.falconx.lite.market.quote.QuoteBook;
 import com.falconx.lite.market.quote.QuoteProcessor;
+import com.falconx.lite.market.quote.feed.QuoteRouter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -31,7 +31,10 @@ import org.springframework.web.bind.annotation.RestController;
  *       <b>不返回过期价格</b>。</li>
  *   <li>整份结果缓存 {@code cacheTtl}（默认 1 秒）：所有访客共用一份，刷接口不增加计算量；另外受通用限流（{@code IpRateLimitFilter}，按 IP 每分钟 600 次）
  *       和 Nginx 外层限流约束。官网每秒轮询一次，一个页面每分钟 60 次。</li>
- *   <li>{@code sample}：报价来自模拟报价源（测试环境）时为 true，官网据此标"示例行情"。</li>
+ *   <li>{@code sample}：有品种的价格来自模拟报价源时为 true，官网据此标"示例行情"。</li>
+ *   <li><b>默认不展示真实报价源的价格</b>（技术方案/v2-报价源接入.md 第 6 节：两家数据商的条款都禁止未授权的公开展示）：
+ *       {@code FX_PUBLIC_QUOTES_SOURCE=simulated}（默认）时，交易报价来自真实源的品种改取模拟源的"示例行情"
+ *       （{@link QuoteProcessor#latestSample}），{@code sample} 为 true；{@code live} 时才取交易报价。</li>
  * </ul>
  * 选轮询不用 WebSocket 的理由见技术方案：结果本来就按秒缓存，轮询简单、无状态、经过 Nginx 和限流不用特殊处理，断网恢复后自然继续。
  */
@@ -59,16 +62,17 @@ class PublicQuoteController {
   private final MarketApi market;
   private final QuoteProcessor processor;
   private final PublicQuoteProperties props;
-  private final boolean sample;
+  private final QuoteRouter router;
   private final Clock clock;
   private volatile Cached cached;
 
-  PublicQuoteController(MarketApi market, QuoteProcessor processor, PublicQuoteProperties props, MarketProperties marketProps, Clock clock) {
+  PublicQuoteController(MarketApi market, QuoteProcessor processor, PublicQuoteProperties props, QuoteRouter router, Clock clock) {
     this.market = market;
     this.processor = processor;
     this.props = props;
-    this.sample = "simulated".equalsIgnoreCase(marketProps.source());
+    this.router = router;
     this.clock = clock;
+    if (props.live()) log.warn("官网公开行情展示交易报价（FX_PUBLIC_QUOTES_SOURCE=live）：真实报价源必须已有书面的公开展示授权");
     for (String code : props.symbols()) {
       if (market.symbol(code).isEmpty()) log.warn("官网公开行情配置了品种表里没有的代码 {}，忽略", code);
     }
@@ -97,16 +101,22 @@ class PublicQuoteController {
 
   private PublicQuotes build(Instant now) {
     List<Item> items = new ArrayList<>();
+    boolean sample = false;
     for (String code : props.symbols()) {
-      market.symbol(code).ifPresent(s -> items.add(item(s, now)));
+      Optional<SymbolSpec> s = market.symbol(code);
+      if (s.isEmpty()) continue;
+      boolean fromSample = !props.live() && router.liveTrading(code);
+      // 价格来自模拟源：取示例行情，或交易报价本来就是模拟价
+      sample |= fromSample || router.mode() == QuoteRouter.Mode.SIMULATED && !router.liveTrading(code);
+      items.add(item(s.get(), now, fromSample));
     }
     return new PublicQuotes(sample, List.copyOf(items));
   }
 
-  private Item item(SymbolSpec s, Instant now) {
+  private Item item(SymbolSpec s, Instant now, boolean fromSample) {
     if (!market.isTradingOpen(s.code(), now)) return empty(s, CLOSED);
-    Optional<MarketQuote> q = processor.latest(s.code());
-    Optional<QuoteBook.Entry> e = processor.book().get(s.code());
+    Optional<MarketQuote> q = fromSample ? processor.latestSample(s.code()) : processor.latest(s.code());
+    Optional<QuoteBook.Entry> e = (fromSample ? processor.sampleBook() : processor.book()).get(s.code());
     if (q.isEmpty() || !q.get().executable() || e.isEmpty()) return empty(s, NO_QUOTE);
     BigDecimal bid = q.get().bid();
     return new Item(s.code(), s.nameZh(), s.nameEn(), Views.price(bid, s.digits()), changePct(e.get(), bid, now), q.get().time().toString(), OPEN);
