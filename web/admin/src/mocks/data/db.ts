@@ -283,9 +283,9 @@ export const tasks: TaskItem[] = Array.from({ length: 34 }, (_, i) => {
 export const symbols: TradingSymbol[] = buildSymbols();
 
 const priceOf: Record<string, string> = {
-  XAUUSD: '4026.35', XAGUSD: '48.912', BTCUSD: '112430.50', ETHUSD: '4182.27', EURUSD: '1.16342', USDJPY: '151.284',
-  GBPUSD: '1.33718', NAS100: '24518.6', US30: '46302.1', XTIUSD: '61.84', USDCNH: '7.13420', NVDA: '188.42', AAPL: '247.65',
-  TSLA: '432.10', SOLUSD: '196.338', GER40: '24210.4',
+  XAUUSD: '4095.97', XAGUSD: '57.915', BTCUSD: '81531.24', ETHUSD: '2496.80', EURUSD: '1.12425', USDJPY: '157.335',
+  GBPUSD: '1.33954', NAS100: '29167.2', US30: '52229.9', XTIUSD: '95.63', USDCNH: '6.68579', NVDA: '223.38', AAPL: '344.91',
+  TSLA: '356.40', SOLUSD: '104.364', GER40: '25545.2',
 };
 const tradeSymbols = Object.keys(priceOf);
 
@@ -434,15 +434,15 @@ export const holidays: Holiday[] = [
 ];
 
 export const fxRates: FxRate[] = [
-  { pair: 'USDJPY', rate: '151.284', source: 'LP', updatedAt: '2026-10-14 16:20:33', ageSeconds: 2, status: 'ok', affectedSymbols: ['USDJPY', 'EURJPY', 'GBPJPY', 'AUDJPY', 'CADJPY', 'CHFJPY', 'JPN225'] },
-  { pair: 'EURUSD', rate: '1.16342', source: 'LP', updatedAt: '2026-10-14 16:20:34', ageSeconds: 1, status: 'ok', affectedSymbols: ['EURGBP', 'EURCHF', 'GER40', 'FRA40'] },
-  { pair: 'GBPUSD', rate: '1.33718', source: 'LP', updatedAt: '2026-10-14 16:20:34', ageSeconds: 1, status: 'ok', affectedSymbols: ['UK100', 'EURGBP'] },
-  { pair: 'USDCHF', rate: '0.79812', source: 'LP', updatedAt: '2026-10-14 16:20:31', ageSeconds: 4, status: 'ok', affectedSymbols: ['USDCHF', 'EURCHF', 'GBPCHF'] },
-  { pair: 'USDCAD', rate: '1.40115', source: 'LP', updatedAt: '2026-10-14 16:20:30', ageSeconds: 5, status: 'ok', affectedSymbols: ['USDCAD', 'EURCAD', 'AUDCAD'] },
-  { pair: 'AUDUSD', rate: '0.65307', source: 'LP', updatedAt: '2026-10-14 16:20:33', ageSeconds: 2, status: 'ok', affectedSymbols: ['EURAUD', 'GBPAUD', 'AUS200'] },
-  { pair: 'NZDUSD', rate: '0.57214', source: 'LP', updatedAt: '2026-10-14 16:20:29', ageSeconds: 6, status: 'ok', affectedSymbols: ['AUDNZD'] },
-  { pair: 'USDCNH', rate: '7.13420', source: 'LP', updatedAt: '2026-10-14 16:20:32', ageSeconds: 3, status: 'ok', affectedSymbols: ['USDCNH'] },
-  { pair: 'USDHKD', rate: '7.77650', source: 'LP', updatedAt: '2026-10-14 16:12:05', ageSeconds: 510, status: 'stale', affectedSymbols: ['HK50'] },
+  { pair: 'USDJPY', rate: '157.335', source: 'LP', updatedAt: '2026-10-14 16:20:33', ageSeconds: 2, status: 'ok', affectedSymbols: ['USDJPY', 'EURJPY', 'GBPJPY', 'AUDJPY', 'CADJPY', 'CHFJPY', 'JPN225'] },
+  { pair: 'EURUSD', rate: '1.12425', source: 'LP', updatedAt: '2026-10-14 16:20:34', ageSeconds: 1, status: 'ok', affectedSymbols: ['EURGBP', 'EURCHF', 'GER40', 'FRA40'] },
+  { pair: 'GBPUSD', rate: '1.33954', source: 'LP', updatedAt: '2026-10-14 16:20:34', ageSeconds: 1, status: 'ok', affectedSymbols: ['UK100', 'EURGBP'] },
+  { pair: 'USDCHF', rate: '0.82361', source: 'LP', updatedAt: '2026-10-14 16:20:31', ageSeconds: 4, status: 'ok', affectedSymbols: ['USDCHF', 'EURCHF', 'GBPCHF'] },
+  { pair: 'USDCAD', rate: '1.41850', source: 'LP', updatedAt: '2026-10-14 16:20:30', ageSeconds: 5, status: 'ok', affectedSymbols: ['USDCAD', 'EURCAD', 'AUDCAD'] },
+  { pair: 'AUDUSD', rate: '0.69488', source: 'LP', updatedAt: '2026-10-14 16:20:33', ageSeconds: 2, status: 'ok', affectedSymbols: ['EURAUD', 'GBPAUD', 'AUS200'] },
+  { pair: 'NZDUSD', rate: '0.56211', source: 'LP', updatedAt: '2026-10-14 16:20:29', ageSeconds: 6, status: 'ok', affectedSymbols: ['AUDNZD'] },
+  { pair: 'USDCNH', rate: '6.68579', source: 'LP', updatedAt: '2026-10-14 16:20:32', ageSeconds: 3, status: 'ok', affectedSymbols: ['USDCNH'] },
+  { pair: 'USDHKD', rate: '7.84740', source: 'LP', updatedAt: '2026-10-14 16:12:05', ageSeconds: 510, status: 'stale', affectedSymbols: ['HK50'] },
 ];
 
 // ---------------- 交易参数 ----------------

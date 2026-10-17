@@ -20,7 +20,8 @@
 .page-markets-d { max-width: 1440px; }
 .mt-bar { display: flex; align-items: center; gap: 16px; margin: 4px 0 14px; }
 .mt-bar h1 { font-size: 21px; flex: none; }
-.mt-bar .cats { flex: 1; min-width: 0; }
+/* 分类标签放不下时换行，不在看不见的横向滚动里藏起最后几个（英文界面 1024 宽时"US stocks"曾被搜索框挡住一半） */
+.mt-bar .cats { flex: 1; min-width: 0; flex-wrap: wrap; row-gap: 6px; }
 .mt-bar .search { margin: 0; width: 300px; flex: none; }
 .panel.mt-panel { display: flex; flex-direction: column; overflow: visible; }
 .mt-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -32,9 +33,17 @@
 .mt-row { cursor: pointer; }
 .mt-row:hover td { background: var(--s2); }
 .mt-fav { width: 40px; padding-left: 8px !important; }
-.mt-name > div { display: flex; align-items: center; gap: 8px; }
-.mt-name a { color: var(--text); }
+/* 品种列允许中文名、英文名换行：1024 宽时长名字（例如"美国原油（WTI 西德克萨斯中质原油）"）不再把表格撑出面板（AC-31），
+   宽度够时仍是一行；品种代码和状态标签不换行 */
+.mt-table td.mt-name { white-space: normal; }
+.mt-name > div { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; }
+.mt-name a { color: var(--text); white-space: nowrap; }
 .mt-name span { color: var(--subtle); font-size: 12.5px; }
+/* 1024～1279 宽：单元格左右内边距收窄一点，给品种名多留位置 */
+@media (max-width: 1279.98px) {
+  .mt-table th, .mt-table td { padding-left: 9px; padding-right: 9px; }
+  .mt-bar .search { width: 240px; }
+}
 .mt-act > div { display: flex; justify-content: flex-end; gap: 6px; }
 .spark { display: inline-block; vertical-align: middle; }
 .spark.up { color: var(--long); } .spark.down { color: var(--short-text); }
