@@ -36,16 +36,22 @@ export function strToTicks(v: string, digits: number): number {
 const rnd = seeded(20261014);
 const live = new Map<string, LiveQuote>();
 
+/**
+ * 加点（和后端一致，迁移 V24，Amos 2026-10-17"买卖一共 20 点"）：1 点 = 最小价格单位 10^(-digits)，
+ * 卖价（bid）减 10 点、买价（ask）加 10 点，客户看到的点差比原始点差宽 20 点。起始价和原始点差是后端模拟源的值（不含加点）。
+ */
+export const MARKUP_POINTS = 10;
+
 for (const s of SYMBOL_SEEDS) {
   const d = s.info.digits;
-  const bid = strToTicks(s.price, d);
+  const bid = strToTicks(s.price, d) - MARKUP_POINTS;
   // 今日开盘价：在当前价附近 ±0.8% 内取值，用于显示涨跌
   const open = Math.round(bid * (1 + (rnd() - 0.55) * 0.016));
   live.set(s.info.code, {
     info: s.info,
     digits: d,
     bid,
-    spread: strToTicks(s.spread, d),
+    spread: strToTicks(s.spread, d) + 2 * MARKUP_POINTS,
     open,
     high: Math.max(bid, open) + Math.round(bid * 0.002 * rnd()),
     low: Math.min(bid, open) - Math.round(bid * 0.002 * rnd()),

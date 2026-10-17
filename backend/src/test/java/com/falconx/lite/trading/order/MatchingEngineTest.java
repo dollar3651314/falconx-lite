@@ -69,7 +69,7 @@ class MatchingEngineTest extends TradingTestSupport {
   void 买入限价单_ask跌到限价时成交_按更优的市价_带上止盈止损_1秒内() throws Exception {
     long uid = newUser("1000");
     long id = limit(uid, "buy", "4120.00", "4200.00", "4050.00");
-    quote("XAUUSD", "4118.00", "4118.40");
+    quote("XAUUSD", "4117.90", "4118.30"); // 客户价 4117.80 / 4118.40（每边加点 0.10）
     long ms = await(() -> "FILLED".equals(orderStatus(id)));
     assertThat(ms).as("AC-13：从收到价格到写入成交").isLessThan(1000);
     Pos p = positionOfOrder(id);
@@ -90,7 +90,7 @@ class MatchingEngineTest extends TradingTestSupport {
     long uid = newUser("2000");
     long sell = limit(uid, "sell", "4140.00", null, null);
     long far = limit(uid, "buy", "4050.00", null, null);
-    quote("XAUUSD", "4141.00", "4141.40");
+    quote("XAUUSD", "4141.10", "4141.50"); // 客户价 4141.00 / 4141.60
     await(() -> "FILLED".equals(orderStatus(sell)));
     assertThat(positionOfOrder(sell).openPrice()).isEqualByComparingTo("4141.00");
     Thread.sleep(200);
@@ -100,14 +100,14 @@ class MatchingEngineTest extends TradingTestSupport {
   @Test
   void 止盈_多单bid到止盈价按市价平仓() throws Exception {
     long uid = newUser("1000");
-    long id = marketWith(uid, "buy", 100, "4135.00", null);
-    quote("XAUUSD", "4135.50", "4135.90");
+    long id = marketWith(uid, "buy", 100, "4135.00", null); // 按客户买价 4126.85 开仓
+    quote("XAUUSD", "4135.60", "4136.00"); // 客户价 4135.50 / 4136.10
     await(() -> "CLOSED".equals(positionOfOrder(id).status()));
     Pos p = positionOfOrder(id);
     assertThat(p.reason()).isEqualTo("TP");
     assertThat(p.closePrice()).isEqualByComparingTo("4135.50");
-    // (4135.50 − 4126.75) × 10 = 87.5
-    assertThat(p.pnl()).isEqualByComparingTo("87.5");
+    // (4135.50 − 4126.85) × 10 = 86.5
+    assertThat(p.pnl()).isEqualByComparingTo("86.5");
     assertThat(ledgerSum(uid, "BALANCE")).isEqualByComparingTo(bucket(uid, "balance"));
     // 市价单是客户自己下的，不通知；止盈触发通知
     assertThat(notices(uid)).singleElement().asString().startsWith("TP_SL_TRIGGERED").contains("\"trigger\":\"TP\"").contains("\"price\":\"4135.50\"");
@@ -116,32 +116,32 @@ class MatchingEngineTest extends TradingTestSupport {
   @Test
   void 止损_空单ask到止损价按市价平仓() throws Exception {
     long uid = newUser("1000");
-    long id = marketWith(uid, "sell", 100, null, "4135.00");
-    quote("XAUUSD", "4135.50", "4135.90");
+    long id = marketWith(uid, "sell", 100, null, "4135.00"); // 按客户卖价 4126.25 开仓
+    quote("XAUUSD", "4135.40", "4135.80"); // 客户价 4135.30 / 4135.90
     await(() -> "CLOSED".equals(positionOfOrder(id).status()));
     Pos p = positionOfOrder(id);
     assertThat(p.reason()).isEqualTo("SL");
     assertThat(p.closePrice()).isEqualByComparingTo("4135.90");
-    // (4126.35 − 4135.90) × 10 = −95.5
-    assertThat(p.pnl()).isEqualByComparingTo("-95.5");
+    // (4126.25 − 4135.90) × 10 = −96.5
+    assertThat(p.pnl()).isEqualByComparingTo("-96.5");
     assertThat(notices(uid)).singleElement().asString().startsWith("TP_SL_TRIGGERED").contains("\"trigger\":\"SL\"");
   }
 
   @Test
   void 强平优先于止损_跳空越过强平价时亏损封顶_余额不为负_AC14() throws Exception {
     long uid = newUser("300");
-    // 200 倍：保证金 206.3375，强平价 4116.43
+    // 200 倍，按客户买价 4126.85 开仓：保证金 206.3425，强平价约 4116.53
     long id = marketWith(uid, "buy", 200, null, "4110.00");
-    quote("XAUUSD", "4100.00", "4100.40");
+    quote("XAUUSD", "4100.10", "4100.50"); // 客户价 4100.00 / 4100.60
     await(() -> "CLOSED".equals(positionOfOrder(id).status()));
     Pos p = positionOfOrder(id);
     assertThat(p.reason()).isEqualTo("LIQUIDATED");
     assertThat(p.closePrice()).isEqualByComparingTo("4100.00");
-    // 实际亏损 (4100 − 4126.75) × 10 = −267.5，封顶为保证金
-    assertThat(p.pnl()).isEqualByComparingTo("-206.3375");
+    // 实际亏损 (4100 − 4126.85) × 10 = −268.5，封顶为保证金
+    assertThat(p.pnl()).isEqualByComparingTo("-206.3425");
     // 强平通知，不再另发止损通知
     assertThat(notices(uid)).singleElement().asString().startsWith("LIQUIDATED").contains("\"price\":\"4100.00\"");
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo(new BigDecimal("300").subtract(new BigDecimal("2.063375")).subtract(new BigDecimal("206.3375")));
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo(new BigDecimal("300").subtract(new BigDecimal("2.063425")).subtract(new BigDecimal("206.3425")));
   }
 
   @Test
@@ -156,7 +156,7 @@ class MatchingEngineTest extends TradingTestSupport {
     } finally {
       jdbc.update("UPDATE risk_switch SET global_open_paused = 0 WHERE id = 1");
     }
-    quote("XAUUSD", "4118.10", "4118.50");
+    quote("XAUUSD", "4118.00", "4118.40"); // 客户买价 4118.50
     await(() -> "FILLED".equals(orderStatus(id)));
     assertThat(positionOfOrder(id).openPrice()).isEqualByComparingTo("4118.50");
   }

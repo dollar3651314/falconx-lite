@@ -114,8 +114,9 @@ class PublicQuoteControllerTest {
     processor.process(q("ETHUSD", "4040.004", "4041.00"));
     JsonNode eth = item(fetch(), "ETHUSD");
     assertThat(eth.get("status").asString()).isEqualTo("OPEN");
-    assertThat(eth.get("bid").asString()).as("按品种小数位（2 位）").isEqualTo("4040.00");
-    assertThat(eth.get("changePct").asString()).as("(4040.004 − 4000) ÷ 4000 = 1.0001%").isEqualTo("1.00");
+    // 卖价含加点（V24：ETHUSD 每边 0.10）：4040.004 − 0.10 = 4039.904
+    assertThat(eth.get("bid").asString()).as("按品种小数位（2 位）").isEqualTo("4039.90");
+    assertThat(eth.get("changePct").asString()).as("(4039.904 − 3999.90) ÷ 3999.90 = 1.0001%").isEqualTo("1.00");
     assertThat(eth.get("time").asString()).isEqualTo(NOW.toString());
   }
 
@@ -140,12 +141,13 @@ class PublicQuoteControllerTest {
 
   @Test
   void 结果缓存_缓存期内新报价不重新计算() throws Exception {
+    // 卖价含加点（V24：BTCUSD 1 位小数，每边 10 点 = 1.0）
     processor.process(q("BTCUSD", "100000.0", "100010.0"));
-    assertThat(item(fetch(), "BTCUSD").get("bid").asString()).isEqualTo("100000.0");
+    assertThat(item(fetch(), "BTCUSD").get("bid").asString()).isEqualTo("99999.0");
     processor.process(q("BTCUSD", "100100.0", "100110.0"));
     // 时钟固定，缓存（1 秒）一直有效：仍然是上一份结果
-    assertThat(item(fetch(), "BTCUSD").get("bid").asString()).isEqualTo("100000.0");
+    assertThat(item(fetch(), "BTCUSD").get("bid").asString()).isEqualTo("99999.0");
     controller.clearCache();
-    assertThat(item(fetch(), "BTCUSD").get("bid").asString()).isEqualTo("100100.0");
+    assertThat(item(fetch(), "BTCUSD").get("bid").asString()).isEqualTo("100099.0");
   }
 }

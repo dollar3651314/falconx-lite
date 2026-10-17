@@ -20,7 +20,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 
-/** 持仓操作（S8）：平仓、止盈止损、追加保证金、改单、历史。公共设置见 {@link TradingTestSupport}。 */
+/**
+ * 持仓操作（S8）：平仓、止盈止损、追加保证金、改单、历史。公共设置见 {@link TradingTestSupport}。
+ * 报价是原始价，客户价含加点（V24：买卖合计 20 点 = 每边 10 点，XAUUSD 每边 0.10）：原始 4126.35 / 4126.75 → 客户 4126.25 / 4126.85，多单按 4126.85 开仓。
+ */
 class PositionFlowTest extends TradingTestSupport {
 
   @Autowired PositionService positions;
@@ -43,14 +46,15 @@ class PositionFlowTest extends TradingTestSupport {
     long id = openGold(uid, "0.10", 100);
     quote("XAUUSD", "4136.35", "4136.75");
     var c = positions.close(uid, id);
-    // (4136.35 − 4126.75) × 0.1 × 100 = 96
-    assertThat(c.pnl()).isEqualByComparingTo("96");
-    assertThat(c.price()).isEqualByComparingTo("4136.35");
+    // 客户卖价 4136.35 − 0.10 = 4136.25；(4136.25 − 4126.85) × 0.1 × 100 = 94
+    assertThat(c.pnl()).isEqualByComparingTo("94");
+    assertThat(c.price()).isEqualByComparingTo("4136.25");
     P p = position(id);
     assertThat(p.status()).isEqualTo("CLOSED");
-    assertThat(p.realizedPnl()).isEqualByComparingTo("96");
+    assertThat(p.realizedPnl()).isEqualByComparingTo("94");
     assertThat(p.closeReason()).isEqualTo("CLOSED");
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo("1093.936625");
+    // 1000 − 手续费 2.063425 + 94
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo("1091.936575");
     assertThat(ledgerSum(uid, "BALANCE")).isEqualByComparingTo(bucket(uid, "balance"));
     assertThat(code(() -> positions.close(uid, id))).as("不能重复平仓").isEqualTo("NOT_FOUND");
   }
@@ -61,9 +65,9 @@ class PositionFlowTest extends TradingTestSupport {
     long id = openGold(uid, "0.10", 200);
     quote("XAUUSD", "3999.60", "4000.00");
     var c = positions.close(uid, id);
-    // 实际亏损 (3999.60 − 4126.75) × 10 = −1271.5，封顶为保证金 −206.3375
-    assertThat(c.pnl()).isEqualByComparingTo("-206.3375");
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo(new BigDecimal("300").subtract(new BigDecimal("2.063375")).subtract(new BigDecimal("206.3375")));
+    // 实际亏损 (3999.50 − 4126.85) × 10 = −1273.5，封顶为保证金 −206.3425
+    assertThat(c.pnl()).isEqualByComparingTo("-206.3425");
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo(new BigDecimal("300").subtract(new BigDecimal("2.063425")).subtract(new BigDecimal("206.3425")));
     assertThat(bucket(uid, "balance").signum()).isPositive();
   }
 
@@ -73,13 +77,14 @@ class PositionFlowTest extends TradingTestSupport {
     long id = openGold(uid, "0.10", 100);
     // 时钟固定时所有报价在同一个 60 秒波动窗口里，各测试的价格合计波动要小于 5%，否则质量守卫判为异常
     quote("XAUUSD", "4186.35", "4186.75");
-    // 浮盈 596，但可用 = 500 − 2.063375 − 412.675 = 85.261625
+    // 浮盈 (4186.25 − 4126.85) × 10 = 594，但可用 = 500 − 2.063425 − 412.685 = 85.251575
     assertThat(code(() -> orders.place(uid, market("XAUUSD", "buy", "0.10", 100)))).isEqualTo("INSUFFICIENT_BALANCE");
     assertThat(code(() -> positions.addMargin(uid, id, "100"))).isEqualTo("MARGIN_INSUFFICIENT");
-    assertThat(code(() -> positions.addMargin(uid, id, "85.26"))).isEqualTo("OK");
+    assertThat(code(() -> positions.addMargin(uid, id, "85.26"))).as("比可用多 0.008425").isEqualTo("MARGIN_INSUFFICIENT");
+    assertThat(code(() -> positions.addMargin(uid, id, "85.25"))).isEqualTo("OK");
     var c = positions.close(uid, id);
-    assertThat(c.pnl()).isEqualByComparingTo("596");
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo("1093.936625");
+    assertThat(c.pnl()).isEqualByComparingTo("594");
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo("1091.936575");
   }
 
   @Test
@@ -104,7 +109,7 @@ class PositionFlowTest extends TradingTestSupport {
     positions.updateTpSl(uid, id, "4200.00", "4050.00");
     assertThat(position(id).takeProfit()).isEqualByComparingTo("4200");
     assertThat(position(id).stopLoss()).isEqualByComparingTo("4050");
-    // 当前 bid 4126.35：止盈 4120 低于平仓价、止损 4130 高于平仓价，两个错误一次返回
+    // 当前客户 bid 4126.25：止盈 4120 低于平仓价、止损 4130 高于平仓价，两个错误一次返回
     assertThatThrownBy(() -> positions.updateTpSl(uid, id, "4120.00", "4130.00"))
         .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fields())
             .containsExactlyInAnyOrder(new ValidationException.Field("takeProfit", "tpBuy"), new ValidationException.Field("stopLoss", "slBuy")));
@@ -124,18 +129,18 @@ class PositionFlowTest extends TradingTestSupport {
     catalog.reload();
     try {
       PositionRow p = positions.addMargin(uid, id, "100");
-      // 保证金 512.675；可亏 512.675 − 103.16875 = 409.50625；强平价 4126.75 − 40.950625 = 4085.80
-      assertThat(p.margin).isEqualByComparingTo("512.675");
-      assertThat(p.liquidationPrice).isEqualByComparingTo("4085.80");
-      assertThat(position(id).liquidationPrice()).isEqualByComparingTo("4085.80");
+      // 保证金 412.685 + 100 = 512.685；可亏 512.685 − 41,268.5 × 0.25% = 512.685 − 103.17125 = 409.51375；强平价 4126.85 − 40.951375 = 4085.898625 → 4085.90
+      assertThat(p.margin).isEqualByComparingTo("512.685");
+      assertThat(p.liquidationPrice).isEqualByComparingTo("4085.90");
+      assertThat(position(id).liquidationPrice()).isEqualByComparingTo("4085.90");
     } finally {
       jdbc.update("UPDATE market_symbol SET maintenance_margin_rate = 0.0025 WHERE code = 'XAUUSD'");
       catalog.reload();
     }
-    assertThat(bucket(uid, "balance")).as("追加保证金不改变余额").isEqualByComparingTo("997.936625");
+    assertThat(bucket(uid, "balance")).as("追加保证金不改变余额").isEqualByComparingTo("997.936575");
     assertThatThrownBy(() -> positions.addMargin(uid, id, "1.234"))
         .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fields()).containsExactly(new ValidationException.Field("amount", "amountDigits")));
-    // 可用 = 1000 − 2.063375 − 512.675 − 浮亏 4 = 481.261625
+    // 可用 = 1000 − 2.063425 − 512.685 − 浮亏 6 = 479.251575
     assertThat(code(() -> positions.addMargin(uid, id, "500"))).isEqualTo("MARGIN_INSUFFICIENT");
   }
 
@@ -178,7 +183,7 @@ class PositionFlowTest extends TradingTestSupport {
     pool.shutdown();
     assertThat(codes).containsOnlyOnce("OK");
     assertThat(codes.stream().filter("NOT_FOUND"::equals).count()).isEqualTo(4);
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo("1093.936625");
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo("1091.936575");
   }
 
   @Test
@@ -192,7 +197,7 @@ class PositionFlowTest extends TradingTestSupport {
         .content("{\"takeProfit\":\"4200.00\"}")).andReturn().getResponse().getStatus()).isEqualTo(200);
     String m = mvc.perform(post("/api/trading/positions/" + pid + "/margin").cookie(c).contentType(MediaType.APPLICATION_JSON)
         .content("{\"amount\":\"100\"}")).andReturn().getResponse().getContentAsString();
-    assertThat(m).contains("\"margin\":\"512.675\"").contains("\"liquidationPrice\":\"4085.80\"").contains("\"takeProfit\":\"4200.00\"");
+    assertThat(m).contains("\"margin\":\"512.685\"").contains("\"liquidationPrice\":\"4085.90\"").contains("\"takeProfit\":\"4200.00\"");
     String pending = mvc.perform(post("/api/trading/orders").cookie(c).contentType(MediaType.APPLICATION_JSON)
         .content("{\"symbol\":\"XAUUSD\",\"type\":\"limit\",\"side\":\"buy\",\"lots\":\"0.10\",\"leverage\":100,\"limitPrice\":\"4100.00\",\"clientOrderId\":\"h-2\"}"))
         .andReturn().getResponse().getContentAsString();
@@ -203,10 +208,10 @@ class PositionFlowTest extends TradingTestSupport {
     mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/trading/orders/" + oid).cookie(c));
     quote("XAUUSD", "4136.35", "4136.75");
     String closed = mvc.perform(post("/api/trading/positions/" + pid + "/close").cookie(c)).andReturn().getResponse().getContentAsString();
-    assertThat(closed).contains("\"pnl\":\"96\"").contains("\"price\":\"4136.35\"");
+    assertThat(closed).contains("\"pnl\":\"94\"").contains("\"price\":\"4136.25\"");
     String h = mvc.perform(get("/api/trading/history").param("page", "1").param("pageSize", "10").cookie(c)).andReturn().getResponse().getContentAsString();
-    assertThat(h).contains("\"total\":2").contains("\"kind\":\"closed\"").contains("\"kind\":\"cancelled\"").contains("\"pnl\":\"96\"")
-        .contains("\"closePrice\":\"4136.35\"").contains("\"fee\":\"2.063375\"").contains("\"id\":\"P" + pid + "\"").contains("\"id\":\"O" + oid + "\"");
+    assertThat(h).contains("\"total\":2").contains("\"kind\":\"closed\"").contains("\"kind\":\"cancelled\"").contains("\"pnl\":\"94\"")
+        .contains("\"closePrice\":\"4136.25\"").contains("\"fee\":\"2.063425\"").contains("\"id\":\"P" + pid + "\"").contains("\"id\":\"O" + oid + "\"");
     assertThat(h.indexOf("\"kind\":\"closed\"")).as("最近的在前").isLessThan(h.indexOf("\"kind\":\"cancelled\""));
     assertThat(mvc.perform(post("/api/trading/positions/" + pid + "/close").cookie(c)).andReturn().getResponse().getStatus()).isEqualTo(404);
   }

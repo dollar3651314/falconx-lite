@@ -32,10 +32,11 @@ final class Views {
     return v.setScale(digits, RoundingMode.HALF_UP).toPlainString();
   }
 
-  static SymbolView symbol(SymbolSpec s, boolean open) {
+  /** openPaused：品种自己的暂停开仓，或两家报价源偏差过大暂停开仓（客户端都显示"暂停开仓"，不区分原因） */
+  static SymbolView symbol(SymbolSpec s, boolean open, boolean deviationPaused) {
     return new SymbolView(s.code(), s.nameZh(), s.nameEn(), s.category(), s.digits(), plain(s.contractSize()), s.unit(), s.baseCcy(), s.quoteCcy(),
         s.maxLeverage(), plain(s.minLots()), plain(s.maxLots()), plain(s.lotStep()), plain(s.feeRate()), plain(s.maintenanceMarginRate()), s.hot(),
-        s.openPaused(), open);
+        s.openPaused() || deviationPaused, open);
   }
 
   static QuoteView quote(QuoteBook.Entry e, SymbolSpec s, MarketApi market) {

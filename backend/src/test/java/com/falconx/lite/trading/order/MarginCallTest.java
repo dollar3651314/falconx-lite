@@ -12,7 +12,7 @@ class MarginCallTest extends TradingTestSupport {
   @Autowired MarginCallMonitor monitor;
 
   long open(long uid) {
-    // 200 倍：保证金 206.3375，手续费 2.063375，强平价 4116.43（测试里撮合引擎关闭，不会强平）
+    // 200 倍，按客户买价 4126.85（原始 4126.75 + 加点 0.10）开仓：保证金 206.3425，手续费 2.063425，强平价约 4116.53（测试里撮合引擎关闭，不会强平）
     return orderId(orders.place(uid, new PlaceOrder("XAUUSD", "market", "buy", "0.10", 200, null, null, null, UUID.randomUUID().toString())).id());
   }
 
@@ -25,15 +25,15 @@ class MarginCallTest extends TradingTestSupport {
     long uid = newUser("300");
     open(uid);
     monitor.check();
-    // bid 4126.35：浮亏 (4126.35 − 4126.75) × 10 = −4，净值 300 − 2.063375 − 4 = 293.936625，÷ 保证金 206.3375 = 142.45%
-    assertThat(monitor.level(uid)).get().satisfies(l -> assertThat(l).isEqualByComparingTo("1.424542"));
+    // 客户 bid 4126.25：浮亏 (4126.25 − 4126.85) × 10 = −6，净值 300 − 2.063425 − 6 = 291.936575，÷ 保证金 206.3425 = 141.48%
+    assertThat(monitor.level(uid)).get().satisfies(l -> assertThat(l).isEqualByComparingTo("1.414815"));
     assertThat(marginCalls(uid)).isZero();
 
-    // bid 4117：浮亏 (4117 − 4126.75) × 10 = −97.5，净值 200.436625，水平 97.14%
+    // 客户 bid 4116.90：浮亏 (4116.90 − 4126.85) × 10 = −99.5，净值 198.436575，水平 96.16%
     quote("XAUUSD", "4117.00", "4117.40");
     monitor.check();
     assertThat(marginCalls(uid)).isEqualTo(1);
-    assertThat(notices(uid).getLast()).contains("\"level\":\"97.14\"").contains("\"line\":\"100\"");
+    assertThat(notices(uid).getLast()).contains("\"level\":\"96.16\"").contains("\"line\":\"100\"");
     monitor.check();
     monitor.check();
     assertThat(marginCalls(uid)).as("一直在线下不重复").isEqualTo(1);

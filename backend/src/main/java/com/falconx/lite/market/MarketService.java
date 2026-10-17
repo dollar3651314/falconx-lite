@@ -80,6 +80,11 @@ class MarketService implements MarketApi {
   }
 
   @Override
+  public boolean quoteDeviationPaused(String code) {
+    return processor.isDeviationPaused(code);
+  }
+
+  @Override
   public void subscribe(QuoteListener listener) {
     processor.subscribe(listener);
   }

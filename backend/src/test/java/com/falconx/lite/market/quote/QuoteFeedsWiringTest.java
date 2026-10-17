@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import com.falconx.lite.common.health.AlertCheck;
 import com.falconx.lite.market.api.MarketAdminApi;
+import com.falconx.lite.market.api.MarketApi;
 import com.falconx.lite.market.api.MarketQuote;
 import com.falconx.lite.market.api.QuoteStatus;
 import com.falconx.lite.market.quote.feed.FakeWsServerAccess;
@@ -40,7 +41,7 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * 报价源接入的整条链路（技术方案/v2-报价源接入.md 第 9 节），用真实的 MySQL 和 Redis（C37），<b>不连真实服务</b>：
  * 两家都配上假 token、地址指向测试进程里的本地假服务器（按两家文档的消息格式回应）。时钟固定在 2026-10-14（周三）10:00 UTC，外汇开市。
- * 检查：真实报价进入交易链路、后台显示报价源、交叉校验暂停成交、告警项出现、<b>官网接口默认仍是模拟价</b>。
+ * 检查：真实报价进入交易链路、后台显示报价源、交叉校验暂停开仓（报价照常用主源）、告警项出现、<b>官网接口默认仍是模拟价</b>。
  * 模拟源（每小时才走一步）只在测试里手动推（{@link SimulatedQuoteSource#moveTo}）。
  */
 @SpringBootTest(properties = {"falconx.market.source=simulated", "falconx.market.simulated-interval=1h",
@@ -76,6 +77,7 @@ class QuoteFeedsWiringTest {
   @Autowired QuoteFeeds feeds;
   @Autowired SimulatedQuoteSource simulated;
   @Autowired MarketAdminApi admin;
+  @Autowired MarketApi market;
   @Autowired List<AlertCheck> alerts;
   @MockitoBean MailApi mail;
 
@@ -120,8 +122,9 @@ class QuoteFeedsWiringTest {
     server.allTickDepth("USDJPY", "157.9151", "157.9302");
     await("USDJPY 有可成交的报价", () -> latest("USDJPY").filter(MarketQuote::executable).isPresent());
     MarketQuote q = latest("USDJPY").orElseThrow();
-    assertThat(q.bid()).as("按品种 3 位小数，买价向下").isEqualByComparingTo("157.915");
-    assertThat(q.ask()).as("卖价向上").isEqualByComparingTo("157.931");
+    // 按品种 3 位小数取整（买价向下 157.915、卖价向上 157.931），再加点每边 10 点 = 0.010（V24）
+    assertThat(q.bid()).as("按品种 3 位小数，买价向下，再减加点").isEqualByComparingTo("157.905");
+    assertThat(q.ask()).as("卖价向上，再加加点").isEqualByComparingTo("157.941");
     MarketAdminApi.Symbol s = admin.symbols().stream().filter(x -> x.spec().code().equals("USDJPY")).findFirst().orElseThrow();
     assertThat(s.quoteSource()).isEqualTo(new MarketAdminApi.QuoteSource("alltick", "primary"));
     assertThat(s.lastQuoteAt()).isNotNull();
@@ -131,19 +134,25 @@ class QuoteFeedsWiringTest {
   }
 
   @Test
-  void 两家偏差过大时品种不能成交并告警_回落后恢复() throws Exception {
+  void 两家偏差过大时只暂停开仓并告警_报价照常可成交用主源价格_回落后恢复() throws Exception {
     server.allTickDepth("GBPUSD", "1.33420", "1.33435");
     await("GBPUSD 可成交", () -> latest("GBPUSD").filter(MarketQuote::executable).isPresent());
     server.iTickDepth("GBPUSD", "GB", "1.34420", "1.34435"); // 约 0.75%
-    await("GBPUSD 暂停成交", () -> latest("GBPUSD").map(q -> !q.executable() && q.status() == QuoteStatus.ABNORMAL).orElse(false));
-    assertThat(processor.isSourceBlocked("GBPUSD")).isTrue();
+    await("GBPUSD 暂停开仓", () -> market.quoteDeviationPaused("GBPUSD"));
     assertThat(alertItems()).containsEntry("quote.deviation", false);
-    server.allTickDepth("GBPUSD", "1.33420", "1.33436");
-    assertThat(processor.isSourceBlocked("GBPUSD")).as("主源这条仍然偏差").isTrue();
+    server.allTickDepth("GBPUSD", "1.33424", "1.33439");
+    await("主源的新价进主链路", () -> latest("GBPUSD").map(q -> q.bid().compareTo(new BigDecimal("1.33414")) == 0).orElse(false));
+    MarketQuote q = latest("GBPUSD").orElseThrow();
+    assertThat(q.executable()).as("报价照常可以成交（平仓、止盈止损、强平用它）").isTrue();
+    assertThat(q.status()).isEqualTo(QuoteStatus.FRESH);
+    // 主源 1.33424 / 1.33439，加点每边 10 点（0.00010），买卖合计 20 点
+    assertThat(q.ask()).isEqualByComparingTo("1.33449");
+    assertThat(market.quoteDeviationPaused("GBPUSD")).as("主源这条仍然偏差").isTrue();
+    assertThat(admin.symbols().stream().filter(x -> x.spec().code().equals("GBPUSD")).findFirst().orElseThrow().quoteSource())
+        .isEqualTo(new MarketAdminApi.QuoteSource("alltick", "deviation"));
     server.iTickDepth("GBPUSD", "GB", "1.33421", "1.33436");
-    await("偏差恢复", () -> !processor.isSourceBlocked("GBPUSD"));
-    server.allTickDepth("GBPUSD", "1.33422", "1.33437");
-    await("GBPUSD 恢复可成交", () -> latest("GBPUSD").filter(MarketQuote::executable).isPresent());
+    await("偏差恢复", () -> !market.quoteDeviationPaused("GBPUSD"));
+    assertThat(latest("GBPUSD").orElseThrow().bid()).as("备源的价格从来没进主链路").isEqualByComparingTo("1.33414");
     assertThat(alertItems()).containsEntry("quote.deviation", true);
   }
 
@@ -174,14 +183,14 @@ class QuoteFeedsWiringTest {
     server.allTickDepth("GOLD", "4126.50", "4126.90");
     await("XAUUSD 交易报价来自 AllTick", () -> latest("XAUUSD").filter(MarketQuote::executable).isPresent());
     assertThat(simulated.moveTo("XAUUSD", new BigDecimal("4197.70"))).isPresent();
-    assertThat(latest("XAUUSD").orElseThrow().bid()).as("模拟价不进交易链路").isEqualByComparingTo("4126.50");
+    assertThat(latest("XAUUSD").orElseThrow().bid()).as("模拟价不进交易链路（AllTick 4126.50 − 加点 0.10）").isEqualByComparingTo("4126.40");
     JsonNode body = json.readTree(mvc.perform(get("/api/public/quotes")).andReturn().getResponse().getContentAsString());
     assertThat(body.get("sample").asBoolean()).isTrue();
     JsonNode xau = null;
     for (JsonNode n : body.get("items")) if (n.get("symbol").asString().equals("XAUUSD")) xau = n;
     assertThat(xau).isNotNull();
     assertThat(xau.get("status").asString()).isEqualTo("OPEN");
-    assertThat(xau.get("bid").asString()).as("官网是模拟价，不是 AllTick 的 4126.50").isEqualTo("4197.70");
-    assertThat(json.writeValueAsString(body)).doesNotContain("4126.5");
+    assertThat(xau.get("bid").asString()).as("官网是模拟价（4197.70 − 加点 0.10），不是 AllTick 的价格").isEqualTo("4197.60");
+    assertThat(json.writeValueAsString(body)).doesNotContain("4126.5").doesNotContain("4126.4");
   }
 }

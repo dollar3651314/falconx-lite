@@ -174,7 +174,7 @@ class MatchingEngine {
 
   /**
    * 挂单成交：买单在 ask ≤ 限价时、卖单在 bid ≥ 限价时成交，成交价取限价和市价里对客户更好的那个。
-   * 品种暂停或全局暂停时不成交（继续挂着）；汇率失效时等下一次报价。
+   * 品种暂停、风控暂停、全局暂停、两家报价源偏差过大暂停开仓时不成交（挂单成交算开仓，继续挂着，恢复后按当时的价格再判断）；汇率失效时等下一次报价。
    * 先释放冻结，再按成交价开仓；可用余额不够（例如期间别的持仓亏损）时撤销这张挂单。
    */
   void fill(long userId, long orderId, MarketQuote q, long receivedNanos) {
@@ -187,7 +187,7 @@ class MatchingEngine {
       boolean hit = side == Side.BUY ? q.ask().compareTo(o.limitPrice) <= 0 : q.bid().compareTo(o.limitPrice) >= 0;
       if (!hit) return null;
       Optional<SymbolSpec> spec = market.symbol(o.symbol);
-      if (spec.isEmpty() || spec.get().openPaused() || risk.symbolOpenPaused(o.symbol) || risk.globalOpenPaused()) return null;
+      if (spec.isEmpty() || spec.get().openPaused() || risk.symbolOpenPaused(o.symbol) || risk.globalOpenPaused() || market.quoteDeviationPaused(o.symbol)) return null;
       Optional<BigDecimal> rate = market.liveUsdRate(spec.get().quoteCcy());
       if (rate.isEmpty()) return null;
       BigDecimal price = side == Side.BUY ? q.ask().min(o.limitPrice) : q.bid().max(o.limitPrice);

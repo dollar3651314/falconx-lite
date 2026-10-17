@@ -10,7 +10,7 @@ import { Alert, Button, Drawer, Form, Input, InputNumber, Radio, Select, Space, 
 import { useTranslation } from 'react-i18next';
 import { createSymbol, listSessions } from '../../api';
 import type { SessionTemplate, SymbolCategory, SymbolCreateInput } from '../../api/types';
-import { BACKEND_CATEGORIES, SESSION_TEMPLATES } from '../../config/constants';
+import { BACKEND_CATEGORIES, SESSION_TEMPLATES, defaultMarkup, followDigits } from '../../config/constants';
 import { useHighRisk } from '../../hooks/useConfirmDialogs';
 import { compareAmounts } from '../../utils/money';
 import { CURRENCY_RE, SYMBOL_CODE_RE, simStartPriceProblems } from '../../utils/validators';
@@ -53,7 +53,8 @@ const INITIAL: Partial<CreateValues> = {
   minLots: '0.01',
   maxLots: '20',
   lotStep: '0.01',
-  markup: '0',
+  // 默认每边 10 点（买卖合计 20 点），随小数位变化（见 followDigits）
+  markup: defaultMarkup(2),
   hot: false,
   sessionSource: 'template',
   sessionTemplate: 'crypto',
@@ -149,7 +150,12 @@ export function SymbolCreateDrawer({
         }
       >
         <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('symbols.createPausedHint')} description={t(simulatedQuotes ? 'symbols.createQuoteHintSim' : 'symbols.createQuoteHint')} />
-        <Form form={form} layout="vertical" name="symbol-create" requiredMark initialValues={INITIAL} className="symbol-form">
+        <Form form={form} layout="vertical" name="symbol-create" requiredMark initialValues={INITIAL}
+          onValuesChange={(changed: Partial<CreateValues>) => {
+            if ('digits' in changed) form.setFieldValue('markup', followDigits(form.getFieldValue('markup') as string | undefined, changed.digits));
+          }}
+          className="symbol-form"
+        >
           <div className="grid2">
             <Form.Item
               name="code"

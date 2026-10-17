@@ -1059,8 +1059,8 @@
       "simulated": "Simulated",
       "backup": " (backup)",
       "backupHint": "The primary quote source has no quote for this symbol right now; using the backup",
-      "deviation": "Paused: sources disagree",
-      "deviationHint": "The two quote sources differ by more than the threshold; trading in this symbol is paused until they agree again"
+      "deviation": "Opening paused: sources disagree",
+      "deviationHint": "The two quote sources differ by more than the threshold: new positions are paused (closing, TP/SL and liquidation continue at the primary source price) until they agree again; the symbol's own opening-pause switch is not affected"
     },
     "markupHint": "In price units: added to ask, subtracted from bid, applied once at the quote entry",
     "maxLeverage": "Max leverage",

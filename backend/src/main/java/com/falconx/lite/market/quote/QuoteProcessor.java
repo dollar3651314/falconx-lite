@@ -32,7 +32,9 @@ import org.springframework.stereotype.Component;
  * {@link MarketAlert} 和指标 {@code fx_quote_age_seconds}（每个品种最后报价距今的秒数）用；收到的报价数是指标 {@code fx_quotes_received_total}。
  * <p>报价源接入（技术方案/v2-报价源接入.md）：
  * <ul>
- *   <li>两家真实报价源价格偏差过大的品种（{@link #setSourceBlocked}，由 {@code feed.QuoteRouter} 设置），在质量守卫之后一律判为 ABNORMAL（不能成交）；</li>
+ *   <li>两家真实报价源价格偏差过大的品种（{@link #setDeviationPaused}，由 {@code feed.QuoteRouter} 设置）<b>只暂停开仓</b>（Amos 2026-10-17 选 B）：
+ *       报价照常（用主源的价格）、照常可以成交，所以平仓、止盈止损、强平照常执行；开仓（市价单、挂单成交）由交易模块通过
+ *       {@code MarketApi#quoteDeviationPaused} 拒绝。这里不改报价状态；</li>
  *   <li>官网"示例行情"单独一份（{@link #submitSample}）：真实源接管的品种，模拟价只写这里，不进交易链路。</li>
  * </ul>
  */
@@ -56,8 +58,8 @@ public class QuoteProcessor {
   private final Map<String, Instant> lastReceived = new ConcurrentHashMap<>();
   private final MeterRegistry metrics;
   private final Counter received;
-  /** 两家报价源偏差过大、暂停成交的品种 */
-  private final Set<String> sourceBlocked = ConcurrentHashMap.newKeySet();
+  /** 两家报价源偏差过大、暂停开仓的品种（只在内存里，和品种自己的"暂停开仓"、风控的暂停是三个互不覆盖的开关） */
+  private final Set<String> deviationPaused = ConcurrentHashMap.newKeySet();
   /** 官网"示例行情"（模拟价，不经过质量守卫，不进交易链路） */
   private final QuoteBook samples = new QuoteBook();
 
@@ -97,8 +99,6 @@ public class QuoteProcessor {
       return QuoteStatus.MARKET_CLOSED;
     }
     QuoteStatus st = guard.evaluate(q, now);
-    // 守卫照常评估（保留它的上一条价格），偏差暂停的品种再一律判异常
-    if (st == QuoteStatus.FRESH && sourceBlocked.contains(q.symbol())) st = QuoteStatus.ABNORMAL;
     if (st != QuoteStatus.FRESH) {
       book.markStatus(q.symbol(), st);
       changed.add(q.symbol());
@@ -132,25 +132,18 @@ public class QuoteProcessor {
   }
 
   /**
-   * 报价源偏差（两家价格对不上）时暂停这个品种的成交：之后的报价都判 ABNORMAL；暂停时立即把最新报价标为不可成交（不等下一条报价）。
-   * 恢复时等下一条正常报价。
+   * 报价源偏差（两家价格对不上）时暂停这个品种<b>开仓</b>；偏差回落后恢复。只动这一个开关，
+   * 不碰品种自己的 {@code open_paused} 和风控的暂停（恢复时不会把运营手动设的暂停打开）。
+   * 报价不受影响（继续可以成交），平仓、止盈止损、强平照常。
    */
-  public void setSourceBlocked(String symbol, boolean blocked) {
-    if (blocked) {
-      if (sourceBlocked.add(symbol)) {
-        stripes[Math.floorMod(symbol.hashCode(), STRIPES)].execute(() -> {
-          if (!sourceBlocked.contains(symbol)) return;
-          book.markStatus(symbol, QuoteStatus.ABNORMAL);
-          changed.add(symbol);
-        });
-      }
-    } else {
-      sourceBlocked.remove(symbol);
-    }
+  public void setDeviationPaused(String symbol, boolean paused) {
+    if (paused) deviationPaused.add(symbol);
+    else deviationPaused.remove(symbol);
   }
 
-  public boolean isSourceBlocked(String symbol) {
-    return sourceBlocked.contains(symbol);
+  /** 这个品种是否因为两家报价源偏差过大暂停开仓 */
+  public boolean isDeviationPaused(String symbol) {
+    return deviationPaused.contains(symbol);
   }
 
   /** 官网"示例行情"：模拟价加上品种的加点后直接记下（不经过质量守卫、不推送、不进 K 线和撮合） */

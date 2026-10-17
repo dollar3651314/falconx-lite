@@ -35,7 +35,8 @@ import org.springframework.stereotype.Component;
  *   <li>主备：主源这个品种超过 {@code failover-after} 没报价、备源有新报价 → 切备源；主源重新连续报价满 {@code failback-after} → 切回；
  *       切换在每条报价进来时判断，不用定时器；</li>
  *   <li>交叉校验：两家的报价都在 {@code cross-check-max-age} 以内时比较中间价，偏差超过 {@code max-deviation} →
- *       {@link QuoteProcessor#setSourceBlocked}（这个品种不能成交），回到阈值以内或一边没有新价时恢复；</li>
+ *       {@link QuoteProcessor#setDeviationPaused}（这个品种<b>只暂停开仓</b>，Amos 2026-10-17 选 B），并且这段时间<b>只用主源的价格</b>
+ *       （正在用备源时立即切回主源），平仓、止盈止损、强平照常按主源价格执行；回到阈值以内或一边没有新价时恢复开仓；</li>
  *   <li>进主链路前：USDT 计价的映射乘 {@code usdt-usd-rate}；按品种小数位取整，买价向下、卖价向上（点差只会变宽）。</li>
  * </ul>
  * 只有"当前使用的源"的报价交给 {@link QuoteProcessor}，之后的交易时段、质量守卫、加点都不变。时间都用注入的时钟。
@@ -119,7 +120,7 @@ public class QuoteRouter implements QuoteSink {
       }
     }
     Gauge.builder("fx.quote.route.backup", this, x -> x.onBackup().size()).description("正在用备源的品种数").register(metrics);
-    Gauge.builder("fx.quote.route.deviation", this, x -> x.deviations().size()).description("两家报价偏差过大、暂停成交的品种数").register(metrics);
+    Gauge.builder("fx.quote.route.deviation", this, x -> x.deviations().size()).description("两家报价偏差过大、暂停开仓的品种数").register(metrics);
     if (!routes.isEmpty()) log.info("真实报价源接管 {} 个品种（报价模式 {}，报价源 {}）", routes.size(), mode, subscriptions.keySet());
   }
 
@@ -182,7 +183,7 @@ public class QuoteRouter implements QuoteSink {
     return out;
   }
 
-  /** 偏差过大、暂停成交的品种和偏差（百分比） */
+  /** 偏差过大、暂停开仓的品种和偏差（百分比） */
   public List<String> deviations() {
     List<String> out = new ArrayList<>();
     for (Route r : routes.values()) {
@@ -247,7 +248,7 @@ public class QuoteRouter implements QuoteSink {
     }
   }
 
-  /** 交叉校验 */
+  /** 交叉校验：偏差超过阈值 → 暂停开仓，并固定用主源（主源这时一定有 5 秒内的新价） */
   private void crossCheck(Route r, Instant now) {
     if (r.feeds.size() < 2) return;
     Last p = r.last.get(r.feeds.get(0).feed());
@@ -261,12 +262,16 @@ public class QuoteRouter implements QuoteSink {
     if (block != r.blocked) {
       r.blocked = block;
       if (block) {
-        log.warn("品种 {} 两家报价偏差 {}（{} {} / {} {}），超过阈值 {}，暂停成交", r.symbol, dev.toPlainString(), r.feeds.get(0).feed(), p.mid(),
+        log.warn("品种 {} 两家报价偏差 {}（{} {} / {} {}），超过阈值 {}，暂停开仓，用主源价格", r.symbol, dev.toPlainString(), r.feeds.get(0).feed(), p.mid(),
             r.feeds.get(1).feed(), b.mid(), props.maxDeviation());
       } else {
-        log.info("品种 {} 两家报价偏差恢复正常，恢复成交", r.symbol);
+        log.info("品种 {} 两家报价偏差恢复正常，恢复开仓", r.symbol);
       }
-      processor.setSourceBlocked(r.symbol, block);
+      processor.setDeviationPaused(r.symbol, block);
+    }
+    if (block && r.active != 0) {
+      r.active = 0;
+      log.info("品种 {} 两家报价偏差期间切回主源 {}", r.symbol, r.feeds.get(0).feed());
     }
     if (block) r.deviation = dev;
   }

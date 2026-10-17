@@ -83,16 +83,17 @@ class AdminMonitorTest extends AdminTestSupport {
     assertThat(orders.get("total").asLong()).isEqualTo(2);
     JsonNode filled = orders.get("items").get(1);
     assertThat(filled.get("status").asString()).isEqualTo("filled");
-    assertThat(filled.get("price").asString()).isEqualTo("4126.75");
+    // 原始 4126.35 / 4126.75，客户价含加点（V24 每边 0.10）：4126.25 / 4126.85
+    assertThat(filled.get("price").asString()).isEqualTo("4126.85");
     assertThat(filled.get("customerName").asString()).isEqualTo(c.name() + " T");
     assertThat(filled.get("fee").asString()).isNotNull();
     assertThat(body(call(get("/api/admin/orders?keyword=" + c.name() + "&status=pending&side=buy"), view.cookie(), null)).get("total").asLong()).isEqualTo(1);
     JsonNode pend = body(call(get("/api/admin/pending?keyword=" + c.name()), view.cookie(), null)).get("items").get(0);
     assertThat(pend.get("limitPrice").asString()).isEqualTo("4000");
-    assertThat(pend.get("currentPrice").asString()).as("买单看 ask").isEqualTo("4126.75");
+    assertThat(pend.get("currentPrice").asString()).as("买单看 ask").isEqualTo("4126.85");
     JsonNode pos = body(call(get("/api/admin/positions?keyword=" + c.name()), view.cookie(), null)).get("items").get(0);
     assertThat(pos.get("side").asString()).isEqualTo("buy");
-    assertThat(pos.get("currentPrice").asString()).as("多单平仓看 bid").isEqualTo("4126.35");
+    assertThat(pos.get("currentPrice").asString()).as("多单平仓看 bid").isEqualTo("4126.25");
     assertThat(call(post("/api/admin/positions/" + pos.get("id").asString() + "/liquidate"), view.cookie(), "{\"reason\":\"x\"}").getStatus()).isEqualTo(403);
 
     BigDecimal frozenBefore = jdbc.queryForObject("SELECT order_frozen FROM trading_account WHERE user_id = ?", BigDecimal.class, c.id());
@@ -103,7 +104,7 @@ class AdminMonitorTest extends AdminTestSupport {
     assertThat(call(post("/api/admin/pending/" + pendingId + "/cancel"), ops.cookie(), "{\"reason\":\"再撤\"}").getContentAsString()).contains("NOT_FOUND");
 
     JsonNode liq = body(call(post("/api/admin/positions/" + pos.get("id").asString() + "/liquidate"), ops.cookie(), "{\"reason\":\"风险过高\"}"));
-    assertThat(liq.get("price").asString()).isEqualTo("4126.35");
+    assertThat(liq.get("price").asString()).isEqualTo("4126.25");
     assertThat(jdbc.queryForObject("SELECT CONCAT(status, ' ', close_reason) FROM trading_position WHERE public_no = ?", String.class,
         Long.parseLong(pos.get("id").asString()))).isEqualTo("CLOSED LIQUIDATED");
     assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message WHERE user_id = ? AND template_code = 'LIQUIDATED'", Long.class, c.id())).isEqualTo(1);

@@ -79,6 +79,7 @@ class MarketFlowTest {
 
   @Test
   void 加点只加一次_卖价减买价加_订阅者收到报价() {
+    BigDecimal before = jdbc.queryForObject("SELECT markup FROM market_symbol WHERE code = 'US500'", BigDecimal.class);
     jdbc.update("UPDATE market_symbol SET markup = 0.5 WHERE code = 'US500'");
     catalog.reload();
     List<MarketQuote> got = new CopyOnWriteArrayList<>();
@@ -90,8 +91,23 @@ class MarketFlowTest {
     assertThat(mq.mid()).as("中间价不含加点").isEqualByComparingTo("6712.2");
     assertThat(mq.executable()).isTrue();
     assertThat(got).hasSize(1);
-    jdbc.update("UPDATE market_symbol SET markup = 0 WHERE code = 'US500'");
+    jdbc.update("UPDATE market_symbol SET markup = ? WHERE code = 'US500'", before);
     catalog.reload();
+  }
+
+  @Test
+  void 迁移V24_买卖合计20点_每边10点_按小数位换算() {
+    // Amos 2026-10-17"买卖一共 20 点"：加点是卖价减、买价加各一次，所以每边 10 点；1 点 = 10^(-digits)
+    assertThat(market.symbol("EURUSD").orElseThrow().markup()).as("5 位小数").isEqualByComparingTo("0.00010");
+    assertThat(market.symbol("USDJPY").orElseThrow().markup()).as("3 位小数").isEqualByComparingTo("0.010");
+    assertThat(market.symbol("XAUUSD").orElseThrow().markup()).as("2 位小数").isEqualByComparingTo("0.10");
+    assertThat(market.symbol("ETHUSD").orElseThrow().markup()).as("2 位小数").isEqualByComparingTo("0.10");
+    assertThat(market.symbol("BTCUSD").orElseThrow().markup()).as("1 位小数").isEqualByComparingTo("1.0");
+    assertThat(market.symbol("JPN225").orElseThrow().markup()).as("0 位小数").isEqualByComparingTo("10");
+    assertThat(market.symbol("XRPUSD").orElseThrow().markup()).as("4 位小数").isEqualByComparingTo("0.0010");
+    for (var s : market.symbols()) {
+      assertThat(s.markup()).as(s.code()).isEqualByComparingTo(BigDecimal.TEN.movePointLeft(s.digits()));
+    }
   }
 
   @Test
@@ -99,7 +115,7 @@ class MarketFlowTest {
     processor.process(q("ETHUSD", "4086.20", "4087.80", NOW));
     assertThat(processor.process(q("ETHUSD", "4087.00", "4086.00", NOW))).isEqualTo(QuoteStatus.ABNORMAL);
     MarketQuote mq = market.quote("ETHUSD").orElseThrow();
-    assertThat(mq.bid()).isEqualByComparingTo("4086.20");
+    assertThat(mq.bid()).as("仍是上一条正常报价 4086.20 − 加点 0.10").isEqualByComparingTo("4086.10");
     assertThat(mq.executable()).isFalse();
   }
 
@@ -166,7 +182,8 @@ class MarketFlowTest {
     String symbols = mvc.perform(get("/api/market/symbols").cookie(c)).andReturn().getResponse().getContentAsString();
     assertThat(symbols).contains("\"code\":\"XAUUSD\"").contains("\"contractSize\":\"100\"").contains("\"unit\":\"ounce\"").contains("\"tradingOpen\":");
     String quotes = mvc.perform(get("/api/market/quotes").cookie(c)).andReturn().getResponse().getContentAsString();
-    assertThat(quotes).contains("\"symbol\":\"XAUUSD\"").contains("\"bid\":\"4126.35\"").contains("\"ask\":\"4126.75\"").contains("\"quoteToUsd\":\"1\"");
+    // 对客报价含加点（每边 0.10）；K 线用不含加点的中间价 4126.55
+    assertThat(quotes).contains("\"symbol\":\"XAUUSD\"").contains("\"bid\":\"4126.25\"").contains("\"ask\":\"4126.85\"").contains("\"quoteToUsd\":\"1\"");
     String k = mvc.perform(get("/api/market/klines").param("symbol", "XAUUSD").param("tf", "15m").cookie(c)).andReturn().getResponse().getContentAsString();
     assertThat(k).contains("\"open\":\"4126.55\"");
     assertThat(mvc.perform(get("/api/market/klines").param("symbol", "XAUUSD").param("tf", "2m").cookie(c)).andReturn().getResponse().getContentAsString()).contains("TIMEFRAME_INVALID");
@@ -182,7 +199,8 @@ class MarketFlowTest {
     assertThat(processor.process(q("XAGUSD", "48.20", "48.10", NOW))).as("买卖倒挂").isEqualTo(QuoteStatus.ABNORMAL);
     String body = mvc.perform(get("/api/market/ticks").param("symbol", "XAGUSD").param("limit", "2").cookie(c)).andReturn().getResponse().getContentAsString();
     long ms = NOW.toEpochMilli();
-    assertThat(body).isEqualTo("[{\"time\":" + ms + ",\"bid\":\"48.120\",\"ask\":\"48.150\"},{\"time\":" + ms + ",\"bid\":\"48.130\",\"ask\":\"48.160\"}]");
+    // 逐笔报价含加点（XAGUSD 3 位小数，每边 10 点 = 0.010）
+    assertThat(body).isEqualTo("[{\"time\":" + ms + ",\"bid\":\"48.110\",\"ask\":\"48.160\"},{\"time\":" + ms + ",\"bid\":\"48.120\",\"ask\":\"48.170\"}]");
     assertThat(mvc.perform(get("/api/market/ticks").param("symbol", "NOPE").cookie(c)).andReturn().getResponse().getContentAsString()).contains("SYMBOL_NOT_FOUND");
   }
 }

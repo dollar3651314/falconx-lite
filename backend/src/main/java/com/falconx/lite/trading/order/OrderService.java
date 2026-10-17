@@ -83,8 +83,9 @@ class OrderService {
     SymbolSpec spec = c.spec();
 
     if (!market.isTradingOpen(spec.code(), clock.instant())) throw reject("TRADING_CLOSED", "不在交易时段");
-    // 品种配置的暂停和风控的暂停（手动、净敞口自动禁开）对客户都是同一个原因，不暴露风控信息（T5）
-    if (spec.openPaused() || risk.symbolOpenPaused(spec.code())) throw reject("SYMBOL_PAUSED", "品种暂停开仓");
+    // 品种配置的暂停、风控的暂停（手动、净敞口自动禁开）、两家报价源偏差过大的暂停（Amos 2026-10-17 选 B），
+    // 对客户都是同一个原因"品种暂停开仓"，不暴露风控和报价源信息（T5）
+    if (spec.openPaused() || risk.symbolOpenPaused(spec.code()) || market.quoteDeviationPaused(spec.code())) throw reject("SYMBOL_PAUSED", "品种暂停开仓");
     if (risk.globalOpenPaused()) throw reject("GLOBAL_PAUSED", "全局暂停开仓");
     MarketQuote q = market.quote(spec.code()).filter(MarketQuote::executable)
         .orElseThrow(() -> reject("QUOTE_UNAVAILABLE", "报价暂不可用"));

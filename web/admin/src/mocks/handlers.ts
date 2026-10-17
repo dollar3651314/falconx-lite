@@ -50,6 +50,7 @@ import {
   type WithdrawalSummary,
   type Withdrawal,
 } from '../api/types';
+import { defaultMarkup } from '../config/constants';
 import { MENU, type MenuItemDef } from '../config/menu';
 import { PERMISSIONS, SUPER_ADMIN_ROLE } from '../config/permissions';
 import { sanitizeAuditPayload } from '../utils/audit';
@@ -873,7 +874,8 @@ export function createSymbol(input: SymbolCreateInput, reason: string): Promise<
       openFeeRate: fee,
       swapLong: null,
       swapShort: null,
-      markup: (input.markup ?? '0').trim() || '0',
+      // 不填加点时按后端口径用默认的每边 10 点（买卖合计 20 点，V24）
+      markup: input.markup == null ? (defaultMarkup(input.digits) ?? '0') : input.markup.trim() || '0',
       digits: input.digits,
       hot: !!input.hot,
       enabled: true,

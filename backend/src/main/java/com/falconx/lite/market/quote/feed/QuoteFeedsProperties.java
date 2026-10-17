@@ -15,7 +15,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param primary 主源的名字（alltick / itick）：每个品种的映射里，这家排第一，另一家排第二（备源）
  * @param failoverAfter 主源这个品种多久没报价就切到备源
  * @param failbackAfter 主源重新连续报价多久后切回主源
- * @param maxDeviation 两家中间价的最大偏差（比例，0.005 = 0.5%），超过时这个品种暂停成交
+ * @param maxDeviation 两家中间价的最大偏差（比例，0.005 = 0.5%），超过时这个品种暂停开仓（平仓、止盈止损、强平照常，用主源价格）
  * @param crossCheckMaxAge 两家的报价都在这个时间以内才做交叉校验
  * @param usdtUsdRate USDT 计价的映射（代码以 USDT 结尾）乘的系数；Amos 2026-10-17 确认 USDT 按 1:1 当 USD
  * @param silenceAlert 开市时一家报价源多久没给任何报价算告警（quote.alltick / quote.itick）

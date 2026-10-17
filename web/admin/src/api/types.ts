@@ -505,7 +505,7 @@ export interface TradingSymbol {
   simStartPrice?: string | null;
   /** 当前报价源：alltick / itick / simulated；没有报价源为空（技术方案/v2-报价源接入.md 第 5.5 节） */
   quoteSource?: string | null;
-  /** primary 主源 / backup 正在用备源 / deviation 两家偏差过大、暂停成交；模拟为空 */
+  /** primary 主源 / backup 正在用备源 / deviation 两家偏差过大、暂停开仓（平仓照常，用主源价格）；模拟为空 */
   quoteSourceState?: 'primary' | 'backup' | 'deviation' | null;
 }
 

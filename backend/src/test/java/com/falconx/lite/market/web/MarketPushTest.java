@@ -116,7 +116,8 @@ class MarketPushTest {
     assertThat(c.next("\"type\":\"quotes\"")).as("连上后先推一次全部报价").isNotNull();
 
     processor.process(new RawQuote("NZDUSD", new BigDecimal("0.57010"), new BigDecimal("0.57030"), NOW));
-    assertThat(c.next("\"symbol\":\"NZDUSD\"")).contains("\"bid\":\"0.57010\"").contains("\"ask\":\"0.57030\"");
+    // 推送的是对客报价，含加点（V24：5 位小数，每边 10 点 = 0.00010）
+    assertThat(c.next("\"symbol\":\"NZDUSD\"")).contains("\"bid\":\"0.57000\"").contains("\"ask\":\"0.57040\"");
 
     ws.sendText("{\"op\":\"subKline\",\"symbol\":\"NZDUSD\",\"tf\":\"1m\"}", true).get(5, TimeUnit.SECONDS);
     Thread.sleep(300);
