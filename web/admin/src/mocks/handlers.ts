@@ -654,6 +654,19 @@ export function listRecon(q: ReconQuery) {
   );
 }
 
+/** 热钱包余额：下限读系统配置（和后端一样，0 = 不告警） */
+export function listHotWallets() {
+  return respond(
+    () =>
+      db.hotWallets.map((h) => {
+        const threshold = db.systemConfigs.find((c) => c.key === db.hotWalletMinKey(h.chain, h.gas))?.value ?? '0';
+        const status = compareAmounts(threshold, '0') <= 0 ? 'off' : h.balance === null ? 'unknown' : compareAmounts(h.balance, threshold) < 0 ? 'low' : 'ok';
+        return { ...h, threshold, status } as const;
+      }),
+    { empty: () => [] },
+  );
+}
+
 export function resolveRecon(id: string, note: string): Promise<void> {
   return mutate(() => {
     requirePerm('recon:resolve');

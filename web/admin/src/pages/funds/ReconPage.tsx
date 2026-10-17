@@ -1,5 +1,6 @@
 /**
  * 对账：列出钱包记录、账本、链上三方不一致的问题，标记已处理（必填说明）。修复 fxsystem F5。
+ * 页面上方是热钱包余额（HotWalletCard，2026-10-17 热钱包余额告警）。
  * 问题类型和字段按后端（后台方案第 8 节）：7 种类型，字段 type、ref、expected、actual、diff、detail；后端只支持按状态筛选。
  */
 import { useState } from 'react';
@@ -16,6 +17,7 @@ import { PermButton } from '../../components/PermButton';
 import { Pill } from '../../components/Pill';
 import { Amount, Num } from '../../components/Num';
 import { reconTone } from '../../utils/status';
+import { HotWalletCard } from './HotWalletCard';
 import { shortTime } from '../../utils/display';
 
 type Filters = Omit<ReconQuery, 'page' | 'pageSize'>;
@@ -31,6 +33,7 @@ export function ReconPage() {
   return (
     <>
       <PageHeader title={t('recon.title')} sub={t('recon.sub')} />
+      <HotWalletCard />
       <Alert type="info" showIcon message={t('recon.hint')} />
       <FilterBar onSearch={() => list.setFilters(draft)} onReset={() => { setDraft(INITIAL); list.setFilters(INITIAL); }}>
         <FilterItem label={t('recon.status')}>

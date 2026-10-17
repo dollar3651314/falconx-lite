@@ -183,6 +183,13 @@ class OpsController {
     return funds.recon(status, page, pageSize);
   }
 
+  /** 热钱包当前余额和告警下限（对账页上方）；下限在系统配置页改 */
+  @RequiresPermission(Permission.RECON_VIEW)
+  @GetMapping("/api/admin/hot-wallets")
+  List<FundsOps.HotWalletView> hotWallets() {
+    return funds.hotWallets();
+  }
+
   @RequiresPermission(Permission.RECON_RESOLVE)
   @PostMapping("/api/admin/recon/{id}/resolve")
   void resolveRecon(@PathVariable long id, @RequestBody NoteBody body) {

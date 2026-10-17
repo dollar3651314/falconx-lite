@@ -405,6 +405,22 @@ export interface ReconItem {
   resolvedAt: string | null;
 }
 
+/**
+ * 热钱包余额（对账页上方，GET /api/admin/hot-wallets）。status：ok 正常、low 低于告警下限、off 下限为 0 不告警、unknown 还没查到余额。
+ * threshold 是系统配置页的下限（hotWallet.*）；error 是最近一次查询失败的原因
+ */
+export interface HotWalletBalance {
+  chain: 'ERC20' | 'BSC' | 'TRC20';
+  asset: 'USDT' | 'ETH' | 'BNB' | 'TRX';
+  gas: boolean;
+  address: string;
+  balance: string | null;
+  threshold: string;
+  status: 'ok' | 'low' | 'off' | 'unknown';
+  checkedAt: string | null;
+  error: string | null;
+}
+
 export interface ReconQuery extends PageQuery {
   status?: ReconItem['status'];
 }
@@ -821,8 +837,10 @@ export interface AuditQuery extends PageQuery {
 export interface SystemConfig {
   key: string;
   value: string;
-  unit: 'usdt' | 'hours' | 'minutes' | 'count' | 'percent' | 'text';
-  group: 'withdraw' | 'deposit' | 'security' | 'adjust' | 'notify';
+  /** eth / bnb / trx：热钱包手续费币的告警下限 */
+  unit: 'usdt' | 'hours' | 'minutes' | 'count' | 'percent' | 'text' | 'eth' | 'bnb' | 'trx';
+  /** hotWallet：热钱包余额告警下限（0 = 不告警） */
+  group: 'withdraw' | 'deposit' | 'security' | 'adjust' | 'notify' | 'hotWallet';
   /** 从没改过时为空 */
   updatedAt: string | null;
 }

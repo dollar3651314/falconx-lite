@@ -8,8 +8,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -26,7 +28,7 @@ import org.springframework.stereotype.Component;
  *   <li>每次变化都写日志（异常 ERROR、恢复 WARN），没有邮箱也能在日志里查到。</li>
  *   <li>健康检查里的 {@code alerts} 不经过这里（直接调用各项检查），这里只管发邮件；{@code falconx.alert.enabled=false}（后端测试）时不定时运行。</li>
  * </ul>
- * 状态只在内存里：应用重启后，还在异常的项会重新发一封告警邮件。
+ * 状态只在内存里：应用重启后，还在异常的项会重新发一封告警邮件。某一项不再出现（不再检查，例如热钱包余额告警的下限改回 0）时只清掉状态，不发恢复邮件。
  */
 @Component
 class AlertMonitor {
@@ -71,15 +73,33 @@ class AlertMonitor {
   /** 查一遍，按变化发邮件。测试里直接调用 */
   synchronized void check() {
     Instant now = clock.instant();
+    Set<String> seen = new HashSet<>();
+    boolean allEvaluated = true;
     for (AlertCheck c : checks) {
       List<AlertCheck.Item> items;
       try {
         items = c.evaluate();
       } catch (RuntimeException e) {
         log.error("告警检查出错 {}", c.getClass().getSimpleName(), e);
+        allEvaluated = false;
         continue;
       }
-      for (AlertCheck.Item i : items) update(i, now);
+      for (AlertCheck.Item i : items) {
+        seen.add(i.name());
+        update(i, now);
+      }
+    }
+    // 不再检查的项（例如热钱包余额告警的下限改回 0）：不发恢复邮件，只清掉状态，以后重新启用时按新的一次异常处理。
+    // 有检查出错时这一轮不清（出错的检查的项本轮没有出现，不代表不再检查）
+    if (allEvaluated) {
+      for (Map.Entry<String, State> e : states.entrySet()) {
+        State s = e.getValue();
+        if (s.down && !seen.contains(e.getKey())) {
+          log.warn("监控告警项不再检查（配置改了），清除异常状态：{}，异常开始于 {}", e.getKey(), time(s.since));
+          s.down = false;
+          s.mailed = false;
+        }
+      }
     }
   }
 
