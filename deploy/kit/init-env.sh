@@ -5,7 +5,7 @@
 # - 只填**空着的**变量，已经有值的不动，可以重复运行。
 # - 生成的值直接写进 /opt/falconx/.env（权限 600），**屏幕上不显示**；超管初始密码要看时由 Amos 自己运行：
 #     sudo grep ^FX_ADMIN_INIT_PASSWORD= /opt/falconx/.env
-# - 邮件（FX_MAIL_*）、区块链（FX_WALLET_*）由 Amos 自己填。
+# - 邮件（FX_MAIL_*）、区块链（FX_WALLET_*）、报价源 token（FX_QUOTE_ALLTICK_TOKEN、FX_QUOTE_ITICK_TOKEN）由 Amos 自己填。
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "请用 root 运行（sudo）" >&2; exit 1; }
 cd /opt/falconx

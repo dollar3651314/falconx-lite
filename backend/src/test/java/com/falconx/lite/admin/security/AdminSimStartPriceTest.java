@@ -8,7 +8,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import com.falconx.lite.market.api.MarketQuote;
 import com.falconx.lite.market.config.SymbolCatalog;
 import com.falconx.lite.market.quote.QuoteProcessor;
+import com.falconx.lite.common.health.AlertCheck;
+import com.falconx.lite.market.api.MarketAdminApi;
 import com.falconx.lite.market.quote.SimulatedQuoteSource;
+import com.falconx.lite.market.quote.feed.QuoteFeeds;
+import com.falconx.lite.market.quote.feed.QuoteRouter;
 import com.falconx.lite.trading.api.Bucket;
 import com.falconx.lite.trading.api.LedgerApi;
 import com.falconx.lite.trading.api.LedgerCommand;
@@ -18,6 +22,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,6 +50,10 @@ class AdminSimStartPriceTest extends AdminTestSupport {
   @Autowired QuoteProcessor processor;
   @Autowired SymbolCatalog catalog;
   @Autowired SimulatedQuoteSource source;
+  @Autowired QuoteFeeds feeds;
+  @Autowired QuoteRouter router;
+  @Autowired MarketAdminApi marketAdmin;
+  @Autowired List<AlertCheck> alerts;
   final ObjectMapper json = new ObjectMapper();
 
   JsonNode body(MockHttpServletResponse r) throws Exception {
@@ -224,5 +233,18 @@ class AdminSimStartPriceTest extends AdminTestSupport {
       jdbc.update("UPDATE market_symbol SET sim_start_price = NULL WHERE code = 'EURUSD'");
       dropSymbol(code);
     }
+  }
+
+  /** 报价源接入（技术方案/v2-报价源接入.md 第 5.1 节）：测试环境现在的样子——模拟模式、两家都没有 token */
+  @Test
+  void 没有配置报价源token时和接入以前一样_全部模拟_没有任何真实连接和告警项() throws Exception {
+    assertThat(feeds.feeds()).isEmpty();
+    assertThat(router.subscriptions()).isEmpty();
+    assertThat(router.liveTrading("EURUSD")).isFalse();
+    MarketAdminApi.Symbol eur = marketAdmin.symbols().stream().filter(x -> x.spec().code().equals("EURUSD")).findFirst().orElseThrow();
+    assertThat(eur.quoteSource()).isEqualTo(new MarketAdminApi.QuoteSource("simulated", null));
+    for (AlertCheck a : alerts) for (AlertCheck.Item i : a.evaluate()) assertThat(i.name()).doesNotStartWith("quote.");
+    JsonNode pub = body(mvc.perform(get("/api/public/quotes")).andReturn().getResponse());
+    assertThat(pub.get("sample").asBoolean()).as("官网仍标示例行情").isTrue();
   }
 }

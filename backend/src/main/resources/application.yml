@@ -56,7 +56,8 @@ falconx:
     redis-down-skip: 30s
   # 行情（技术方案/v1-数据库设计.md 第 8 节）。质量守卫阈值沿用现有系统（功能地图 M-05、M-06）
   market:
-    # 默认不启动报价源；开发和测试环境设 FX_MARKET_SOURCE=simulated，正式环境接 LP（S20）。防止生产忘了配置时用上模拟价格
+    # 报价模式（技术方案/v2-报价源接入.md 第 3.2 节）：none（默认，不启动报价源，防止生产忘了配置时用上模拟价格）；
+    # simulated（开发、测试环境：配了 token 的真实报价源接管它覆盖的品种，其余模拟）；live（生产：只用真实报价源，绝不用模拟价成交）
     source: ${FX_MARKET_SOURCE:none}
     simulated-interval: 500ms
     stale-after: 5s
@@ -66,6 +67,88 @@ falconx:
     max-volatility-rate: 0.05
     volatility-window: 60s
     push-interval: 250ms
+    # 真实报价源（技术方案/v2-报价源接入.md）：AllTick 主、iTick 备。token 只由 Amos 填进服务器 .env；空 = 不用这家。
+    # 两家都没配 token 时和接入以前完全一样（simulated 模式下全部模拟）。只要报价，不抛单
+    feeds:
+      # 主源：alltick 或 itick（填 itick 时所有品种主备对调）
+      primary: ${FX_QUOTE_PRIMARY:alltick}
+      # 主源一个品种多久没报价切备源；主源恢复多久后切回
+      failover-after: ${FX_QUOTE_FAILOVER_AFTER:10s}
+      failback-after: ${FX_QUOTE_FAILBACK_AFTER:30s}
+      # 两家中间价偏差超过这个比例（0.005 = 0.5%）→ 这个品种暂停成交并告警；两家的报价都在 cross-check-max-age 以内才比较
+      max-deviation: ${FX_QUOTE_MAX_DEVIATION:0.005}
+      cross-check-max-age: 5s
+      # USDT 计价的映射（代码以 USDT 结尾）乘的系数：Amos 2026-10-17 确认 USDT 按 1:1 当 USD
+      usdt-usd-rate: ${FX_QUOTE_USDT_USD_RATE:1}
+      # 开市时一家报价源多久没给任何报价算告警（quote.alltick / quote.itick）
+      silence-alert: 60s
+      # 断线重连：1 秒起每次翻倍，最长 60 秒；一条连接 60 秒没有任何消息就断开重连
+      reconnect-initial: 1s
+      reconnect-max: 60s
+      idle-timeout: 60s
+      alltick:
+        token: ${FX_QUOTE_ALLTICK_TOKEN:}
+        fx-url: ${FX_QUOTE_ALLTICK_FX_URL:wss://quote.alltick.co/quote-b-ws-api}
+        stock-url: ${FX_QUOTE_ALLTICK_STOCK_URL:wss://quote.alltick.co/quote-stock-b-ws-api}
+        heartbeat: 10s
+        channel-gap: 3s
+      itick:
+        token: ${FX_QUOTE_ITICK_TOKEN:}
+        url: ${FX_QUOTE_ITICK_URL:wss://api.itick.org}
+        heartbeat: 20s
+      # 品种 → [主源, 备源]，每项 "报价源:连接:代码"。AllTick 连接 fx / stock；iTick 连接 forex / indices / crypto / stock（代码写成 代码$地区）。
+      # 代码依据和标【推断】的项见技术方案第 2 节，拿到 token 后要核对。没写的品种（例如后台新增的）只走模拟源
+      routes:
+        EURUSD: ["alltick:fx:EURUSD", "itick:forex:EURUSD$GB"]
+        GBPUSD: ["alltick:fx:GBPUSD", "itick:forex:GBPUSD$GB"]
+        USDJPY: ["alltick:fx:USDJPY", "itick:forex:USDJPY$GB"]
+        USDCHF: ["alltick:fx:USDCHF", "itick:forex:USDCHF$GB"]
+        USDCAD: ["alltick:fx:USDCAD", "itick:forex:USDCAD$GB"]
+        AUDUSD: ["alltick:fx:AUDUSD", "itick:forex:AUDUSD$GB"]
+        NZDUSD: ["alltick:fx:NZDUSD", "itick:forex:NZDUSD$GB"]
+        EURGBP: ["alltick:fx:EURGBP", "itick:forex:EURGBP$GB"]
+        EURJPY: ["alltick:fx:EURJPY", "itick:forex:EURJPY$GB"]
+        GBPJPY: ["alltick:fx:GBPJPY", "itick:forex:GBPJPY$GB"]
+        EURCHF: ["alltick:fx:EURCHF", "itick:forex:EURCHF$GB"]
+        EURAUD: ["alltick:fx:EURAUD", "itick:forex:EURAUD$GB"]
+        EURCAD: ["alltick:fx:EURCAD", "itick:forex:EURCAD$GB"]
+        AUDJPY: ["alltick:fx:AUDJPY", "itick:forex:AUDJPY$GB"]
+        CADJPY: ["alltick:fx:CADJPY", "itick:forex:CADJPY$GB"]
+        CHFJPY: ["alltick:fx:CHFJPY", "itick:forex:CHFJPY$GB"]
+        AUDCAD: ["alltick:fx:AUDCAD", "itick:forex:AUDCAD$GB"]
+        AUDNZD: ["alltick:fx:AUDNZD", "itick:forex:AUDNZD$GB"]
+        GBPAUD: ["alltick:fx:GBPAUD", "itick:forex:GBPAUD$GB"]
+        GBPCHF: ["alltick:fx:GBPCHF", "itick:forex:GBPCHF$GB"]
+        USDCNH: ["alltick:fx:USDCNH", "itick:forex:USDCNH$GB"]
+        XAUUSD: ["alltick:fx:GOLD", "itick:forex:XAUUSD$GB"]
+        XAGUSD: ["alltick:fx:Silver", "itick:forex:XAGUSD$GB"]
+        XTIUSD: ["alltick:fx:USOIL", "itick:forex:XTIUSD$GB"]
+        XBRUSD: ["alltick:fx:UKOIL", "itick:forex:XBRUSD$GB"]
+        US30: ["alltick:fx:US30", "itick:indices:US30USD$GB"]
+        US500: ["alltick:fx:US500", "itick:indices:SPX500USD$GB"]
+        NAS100: ["alltick:fx:NAS100", "itick:indices:NAS100$GB"]
+        US2000: ["alltick:fx:US2000"]
+        GER40: ["alltick:fx:GER30", "itick:indices:GER40$GB"]
+        UK100: ["alltick:fx:UK100", "itick:indices:UK100$GB"]
+        FRA40: ["alltick:fx:FRA40", "itick:indices:FR40EUR$GB"]
+        JPN225: ["alltick:fx:JPN225", "itick:indices:JPN225$GB"]
+        HK50: ["alltick:fx:HK50", "itick:indices:HKG33$GB"]
+        AUS200: ["alltick:fx:AUS200", "itick:indices:AUS200$GB"]
+        BTCUSD: ["alltick:fx:BTCUSDT", "itick:crypto:BTCUSDT$BA"]
+        ETHUSD: ["alltick:fx:ETHUSDT", "itick:crypto:ETHUSDT$BA"]
+        SOLUSD: ["alltick:fx:SOLUSDT", "itick:crypto:SOLUSDT$BA"]
+        XRPUSD: ["alltick:fx:XRPUSDT", "itick:crypto:XRPUSDT$BA"]
+        BNBUSD: ["alltick:fx:BNBUSDT", "itick:crypto:BNBUSDT$BA"]
+        DOGEUSD: ["alltick:fx:DOGEUSDT", "itick:crypto:DOGEUSDT$BA"]
+        ADAUSD: ["alltick:fx:ADAUSDT", "itick:crypto:ADAUSDT$BA"]
+        LTCUSD: ["alltick:fx:LTCUSDT", "itick:crypto:LTCUSDT$BA"]
+        DOTUSD: ["alltick:fx:DOTUSDT", "itick:crypto:DOTUSDT$BA"]
+        BCHUSD: ["alltick:fx:BCHUSDT", "itick:crypto:BCHUSDT$BA"]
+        AAPL: ["alltick:stock:AAPL.US", "itick:stock:AAPL$US"]
+        MSFT: ["alltick:stock:MSFT.US", "itick:stock:MSFT$US"]
+        NVDA: ["alltick:stock:NVDA.US", "itick:stock:NVDA$US"]
+        TSLA: ["alltick:stock:TSLA.US", "itick:stock:TSLA$US"]
+        AMZN: ["alltick:stock:AMZN.US", "itick:stock:AMZN$US"]
     # 没有对应外汇品种的币种：港币按联系汇率（1 USD = 7.78 HKD）
     fixed-usd-rates:
       HKD: 0.12853470
@@ -82,8 +165,11 @@ falconx:
         4h: 4380
         1d: 3650
     # 官网公开行情 GET /api/public/quotes（v2 需求 4.2，不需要登录）：只返回这些品种的卖价和当日涨跌幅，按这个顺序；
-    # 整份结果缓存 cache-ttl，所有访客共用。改品种只改这里（需求要求 8–12 个）
+    # 整份结果缓存 cache-ttl，所有访客共用。改品种只改这里（需求要求 8–12 个）。
+    # source：官网用哪种价格。simulated（默认）一律模拟价、显示"示例行情"；live 用交易报价（真实报价源的价格），
+    # 两家数据商的条款都禁止未授权的公开展示，拿到书面展示授权以后才能改成 live（技术方案/v2-报价源接入.md 第 6 节）
     public-quotes:
+      source: ${FX_PUBLIC_QUOTES_SOURCE:simulated}
       symbols: [XAUUSD, XAGUSD, EURUSD, GBPUSD, USDJPY, USDCNH, NAS100, XTIUSD, BTCUSD, ETHUSD]
       cache-ttl: 1s
   trading:

@@ -45,6 +45,19 @@ services:
       FX_COOKIE_SECURE: "true"
       FX_ENV_LABEL: test
       FX_MARKET_SOURCE: ${FX_MARKET_SOURCE:-simulated}
+      # 真实报价源（v2，部署方案第 16 节）：token 空着 = 不用这家；都空着时全部模拟（和以前一样）。其余空着时用代码里的默认值
+      FX_QUOTE_ALLTICK_TOKEN: ${FX_QUOTE_ALLTICK_TOKEN:-}
+      FX_QUOTE_ITICK_TOKEN: ${FX_QUOTE_ITICK_TOKEN:-}
+      FX_QUOTE_ALLTICK_FX_URL: ${FX_QUOTE_ALLTICK_FX_URL:-wss://quote.alltick.co/quote-b-ws-api}
+      FX_QUOTE_ALLTICK_STOCK_URL: ${FX_QUOTE_ALLTICK_STOCK_URL:-wss://quote.alltick.co/quote-stock-b-ws-api}
+      FX_QUOTE_ITICK_URL: ${FX_QUOTE_ITICK_URL:-wss://api.itick.org}
+      FX_QUOTE_PRIMARY: ${FX_QUOTE_PRIMARY:-alltick}
+      FX_QUOTE_FAILOVER_AFTER: ${FX_QUOTE_FAILOVER_AFTER:-10s}
+      FX_QUOTE_FAILBACK_AFTER: ${FX_QUOTE_FAILBACK_AFTER:-30s}
+      FX_QUOTE_MAX_DEVIATION: ${FX_QUOTE_MAX_DEVIATION:-0.005}
+      FX_QUOTE_USDT_USD_RATE: ${FX_QUOTE_USDT_USD_RATE:-1}
+      # 官网默认只显示示例行情（模拟价）；拿到书面展示授权后才改 live
+      FX_PUBLIC_QUOTES_SOURCE: ${FX_PUBLIC_QUOTES_SOURCE:-simulated}
       FX_ADMIN_INIT_USERNAME: ${FX_ADMIN_INIT_USERNAME:-}
       FX_ADMIN_INIT_PASSWORD: ${FX_ADMIN_INIT_PASSWORD:-}
       FX_MAIL_HOST: ${FX_MAIL_HOST:-}

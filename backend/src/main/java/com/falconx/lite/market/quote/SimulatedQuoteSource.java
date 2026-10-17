@@ -18,7 +18,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.falconx.lite.market.quote.feed.QuoteRouter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.io.ClassPathResource;
@@ -29,9 +30,11 @@ import org.springframework.stereotype.Component;
  * 起始价格取自原型数据（resources/simulated-prices.csv）。正式环境接 LP（S20），不使用这个类。
  * v2：csv 里没有的品种（后台新增的）用后台填的"模拟起始价"（market_symbol.sim_start_price）：启动时从库里读，
  * 后台新增或补填后由行情模块调用 {@link #seed} 立即加入。csv 里有的品种始终以 csv 为准。
+ * <p>报价源接入（技术方案/v2-报价源接入.md 第 3.2、6 节）：交易报价来自真实源的品种（{@link QuoteRouter#liveTrading}），模拟价只写进
+ * 官网"示例行情"（{@link QuoteProcessor#submitSample}），<b>不进交易链路</b>；{@code live} 模式下也运行，只给官网用。
  */
 @Component
-@ConditionalOnProperty(name = "falconx.market.source", havingValue = "simulated")
+@ConditionalOnExpression("'${falconx.market.source:none}' == 'simulated' or '${falconx.market.source:none}' == 'live'")
 public class SimulatedQuoteSource {
 
   private record Walk(String symbol, int scale, BigDecimal spread, double[] price) {}
@@ -40,6 +43,7 @@ public class SimulatedQuoteSource {
   static final BigDecimal SEED_SPREAD_RATE = new BigDecimal("0.0001");
 
   private final QuoteProcessor processor;
+  private final QuoteRouter router;
   private final MarketProperties props;
   private final SimStartPrices startPrices;
   private final Clock clock;
@@ -55,8 +59,9 @@ public class SimulatedQuoteSource {
     List<Entry> simStartPrices();
   }
 
-  SimulatedQuoteSource(QuoteProcessor processor, MarketProperties props, SimStartPrices startPrices, Clock clock) {
+  SimulatedQuoteSource(QuoteProcessor processor, QuoteRouter router, MarketProperties props, SimStartPrices startPrices, Clock clock) {
     this.processor = processor;
+    this.router = router;
     this.props = props;
     this.startPrices = startPrices;
     this.clock = clock;
@@ -100,7 +105,7 @@ public class SimulatedQuoteSource {
     Walk w = new Walk(symbol, digits, seedSpread(startPrice, digits), new double[] {startPrice.doubleValue()});
     walks.add(w);
     synchronized (w) {
-      processor.submit(quote(w, clock.instant()));
+      emit(quote(w, clock.instant()));
     }
     return true;
   }
@@ -115,9 +120,15 @@ public class SimulatedQuoteSource {
     for (Walk w : walks) {
       synchronized (w) {
         w.price()[0] *= 1 + random.nextGaussian() * 0.0002;
-        processor.submit(quote(w, now));
+        emit(quote(w, now));
       }
     }
+  }
+
+  /** 交易报价来自真实源的品种只写官网示例行情，其余进交易链路 */
+  private void emit(RawQuote q) {
+    if (router.liveTrading(q.symbol())) processor.submitSample(q);
+    else processor.submit(q);
   }
 
   private static RawQuote quote(Walk w, Instant now) {
@@ -137,7 +148,7 @@ public class SimulatedQuoteSource {
       synchronized (w) {
         w.price()[0] = bid.doubleValue();
         RawQuote q = quote(w, clock.instant());
-        processor.submit(q);
+        emit(q);
         return Optional.of(q);
       }
     }

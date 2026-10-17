@@ -10,6 +10,7 @@ import com.falconx.lite.market.api.SymbolSpec;
 import com.falconx.lite.market.config.SymbolCatalog;
 import com.falconx.lite.market.quote.QuoteProcessor;
 import com.falconx.lite.market.quote.SimulatedQuoteSource;
+import com.falconx.lite.market.quote.feed.QuoteRouter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -47,9 +48,12 @@ class MarketAdmin implements MarketAdminApi, SimulatedQuoteSource.SimStartPrices
   private final Clock clock;
   /** 只在 falconx.market.source=simulated 时有；用 ObjectProvider 取（报价源启动时又要读本类的起始价，避免循环依赖） */
   private final ObjectProvider<SimulatedQuoteSource> simulated;
+  /** 品种当前用哪个报价源（技术方案/v2-报价源接入.md 第 5.5 节） */
+  private final QuoteRouter router;
 
   MarketAdmin(MarketAdminMapper mapper, SymbolCatalog catalog, QuoteProcessor processor, MarketApi market, MarketProperties props, Clock clock,
-      ObjectProvider<SimulatedQuoteSource> simulated) {
+      ObjectProvider<SimulatedQuoteSource> simulated, QuoteRouter router) {
+    this.router = router;
     this.mapper = mapper;
     this.catalog = catalog;
     this.processor = processor;
@@ -61,7 +65,8 @@ class MarketAdmin implements MarketAdminApi, SimulatedQuoteSource.SimStartPrices
 
   @Override
   public boolean simulatedQuotes() {
-    return simulated.getIfAvailable() != null;
+    // live 模式下模拟源也在运行（只给官网示例行情），但交易不用模拟价，不显示模拟起始价
+    return simulated.getIfAvailable() != null && router.mode() == QuoteRouter.Mode.SIMULATED;
   }
 
   /** 库里填了模拟起始价的品种（含停用的：重新启用后行情入口才认它的报价） */
@@ -113,7 +118,7 @@ class MarketAdmin implements MarketAdminApi, SimulatedQuoteSource.SimStartPrices
     Instant last = processor.book().get(r.code).map(e -> e.quote().time()).orElse(null);
     return new Symbol(new SymbolSpec(r.code, r.nameZh, r.nameEn, r.category, r.digits, r.contractSize, r.unit, r.baseCcy, r.quoteCcy, r.maxLeverage,
         r.minLots, r.maxLots, r.lotStep, r.feeRate, r.maintenanceMarginRate, r.markup, r.swapLong, r.swapShort, r.hot, r.openPaused, r.sortOrder),
-        r.enabled, r.updatedAt, last, r.enabled && catalog.isOpen(r.code, clock.instant()), r.simStartPrice);
+        r.enabled, r.updatedAt, last, r.enabled && catalog.isOpen(r.code, clock.instant()), r.simStartPrice, router.current(r.code).orElse(null));
   }
 
   private void reloadAfterCommit() {

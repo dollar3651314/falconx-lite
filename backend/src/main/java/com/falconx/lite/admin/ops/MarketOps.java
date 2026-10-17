@@ -29,10 +29,13 @@ class MarketOps {
   /**
    * 品种。v2 E6：lastQuoteAt 最后一条正常报价的时间（从没收到过为空，页面显示"暂无报价"）、tradingOpen 现在是否在交易时段内
    * （休市时没有报价是正常的，页面不标红）。simStartPrice：模拟起始价（只在模拟报价源下使用），没填为空。
+   * quoteSource / quoteSourceState：当前报价源（alltick / itick / simulated，没有报价源为空）和状态（primary / backup / deviation，模拟为空），
+   * 见 技术方案/v2-报价源接入.md 第 5.5 节。
    */
   record SymbolView(String code, String nameZh, String nameEn, String category, String quoteCurrency, String contractSize, String minLots, String maxLots,
       String lotStep, int maxLeverage, String maintenanceMarginRate, String openFeeRate, String swapLong, String swapShort, String markup, int digits, boolean hot,
-      boolean enabled, boolean openPaused, int sortOrder, String updatedAt, String lastQuoteAt, boolean tradingOpen, String simStartPrice) {}
+      boolean enabled, boolean openPaused, int sortOrder, String updatedAt, String lastQuoteAt, boolean tradingOpen, String simStartPrice, String quoteSource,
+      String quoteSourceState) {}
 
   /** 品种列表：分页字段同 {@link Ops.Page}，多一个 simulatedQuotes（当前报价源是不是模拟源，是的话页面显示"模拟起始价"输入框） */
   record SymbolPage(List<SymbolView> items, long total, int page, int pageSize, boolean simulatedQuotes) {}
@@ -79,7 +82,8 @@ class MarketOps {
     return new SymbolView(x.code(), x.nameZh(), x.nameEn(), x.category(), x.quoteCcy(), Ops.money(x.contractSize()), Ops.money(x.minLots()),
         Ops.money(x.maxLots()), Ops.money(x.lotStep()), x.maxLeverage(), Ops.money(x.maintenanceMarginRate()), Ops.money(x.feeRate()), Ops.money(x.swapLong()),
         Ops.money(x.swapShort()), Ops.money(x.markup()), x.digits(), x.hot(), s.enabled(), x.openPaused(), x.sortOrder(), Ops.time(s.updatedAt()),
-        s.lastQuoteAt() == null ? null : s.lastQuoteAt().toString(), s.tradingOpen(), Ops.money(s.simStartPrice()));
+        s.lastQuoteAt() == null ? null : s.lastQuoteAt().toString(), s.tradingOpen(), Ops.money(s.simStartPrice()),
+        s.quoteSource() == null ? null : s.quoteSource().feed(), s.quoteSource() == null ? null : s.quoteSource().state());
   }
 
   /** missingSwap：多空隔夜费率都是 0（没配置，不收隔夜费，后台标红） */
@@ -127,7 +131,7 @@ class MarketOps {
   }
 
   /** 不是配置的字段（随时间变化），审计不记 */
-  private static final java.util.Set<String> IGNORED_IN_DIFF = java.util.Set.of("updatedAt", "lastQuoteAt", "tradingOpen");
+  private static final java.util.Set<String> IGNORED_IN_DIFF = java.util.Set.of("updatedAt", "lastQuoteAt", "tradingOpen", "quoteSource", "quoteSourceState");
 
   /**
    * 新增品种（v2 E3，高危，必须填原因）：默认暂停开仓；审计记新品种的全部参数（含模拟起始价，没用上时为空）和交易时段来源。
