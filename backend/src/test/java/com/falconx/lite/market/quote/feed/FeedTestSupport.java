@@ -49,7 +49,13 @@ final class FeedTestSupport {
     return new QuoteFeedsProperties("alltick", Duration.ofSeconds(10), Duration.ofSeconds(30), new BigDecimal("0.005"), Duration.ofSeconds(5), BigDecimal.ONE,
         Duration.ofSeconds(60), Duration.ofMillis(50), Duration.ofMillis(400), idle,
         new QuoteFeedsProperties.AllTick(FAKE_TOKEN, alltickFx, alltickStock, Duration.ofMillis(200), Duration.ofMillis(300)),
-        new QuoteFeedsProperties.ITick(FAKE_TOKEN, itickUrl, Duration.ofMillis(200)), routes);
+        new QuoteFeedsProperties.ITick(FAKE_TOKEN, itickUrl, Duration.ofMillis(200)), QuoteFeedsProperties.Binance.off(), routes);
+  }
+
+  /** 币安测试用配置：只开币安（AllTick、iTick 没有 token），心跳 200 毫秒、重连 50 毫秒起 */
+  static QuoteFeedsProperties binanceProps(QuoteFeedsProperties.Binance binance, Duration idle, Map<String, List<String>> routes) {
+    return new QuoteFeedsProperties("alltick", Duration.ofSeconds(10), Duration.ofSeconds(30), new BigDecimal("0.005"), Duration.ofSeconds(5), BigDecimal.ONE,
+        Duration.ofSeconds(60), Duration.ofMillis(50), Duration.ofMillis(400), idle, null, null, binance, routes);
   }
 
   static void await(String what, BooleanSupplier ok) throws InterruptedException {

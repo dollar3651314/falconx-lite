@@ -1056,6 +1056,7 @@
     "quoteSource": {
       "alltick": "AllTick",
       "itick": "iTick",
+      "binance": "Binance",
       "simulated": "Simulated",
       "backup": " (backup)",
       "backupHint": "The primary quote source has no quote for this symbol right now; using the backup",

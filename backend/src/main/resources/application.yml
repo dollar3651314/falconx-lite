@@ -67,10 +67,11 @@ falconx:
     max-volatility-rate: 0.05
     volatility-window: 60s
     push-interval: 250ms
-    # 真实报价源（技术方案/v2-报价源接入.md）：AllTick 主、iTick 备。token 只由 Amos 填进服务器 .env；空 = 不用这家。
-    # 两家都没配 token 时和接入以前完全一样（simulated 模式下全部模拟）。只要报价，不抛单
+    # 真实报价源（技术方案/v2-报价源接入.md）：外汇、指数、贵金属、原油、美股 AllTick 主、iTick 备；10 个加密货币币安现货主、AllTick 备（第 12 节）。
+    # AllTick、iTick 的 token 只由 Amos 填进服务器 .env，空 = 不用这家；币安不要 token，用开关 FX_QUOTE_BINANCE_ENABLED（默认关闭）。
+    # 都没配时和接入以前完全一样（simulated 模式下全部模拟）。只要报价，不抛单
     feeds:
-      # 主源：alltick 或 itick（填 itick 时所有品种主备对调）
+      # AllTick、iTick 谁在前：alltick 或 itick（填 itick 时这两家在所有品种里对调；币安的位置不受影响）
       primary: ${FX_QUOTE_PRIMARY:alltick}
       # 主源一个品种多久没报价切备源；主源恢复多久后切回
       failover-after: ${FX_QUOTE_FAILOVER_AFTER:10s}
@@ -80,7 +81,7 @@ falconx:
       cross-check-max-age: 5s
       # USDT 计价的映射（代码以 USDT 结尾）乘的系数：Amos 2026-10-17 确认 USDT 按 1:1 当 USD
       usdt-usd-rate: ${FX_QUOTE_USDT_USD_RATE:1}
-      # 开市时一家报价源多久没给任何报价算告警（quote.alltick / quote.itick）
+      # 开市时一家报价源多久没给任何报价算告警（quote.alltick / quote.itick / quote.binance）
       silence-alert: 60s
       # 断线重连：1 秒起每次翻倍，最长 60 秒；一条连接 60 秒没有任何消息就断开重连
       reconnect-initial: 1s
@@ -96,7 +97,23 @@ falconx:
         token: ${FX_QUOTE_ITICK_TOKEN:}
         url: ${FX_QUOTE_ITICK_URL:wss://api.itick.org}
         heartbeat: 20s
-      # 品种 → [主源, 备源]，每项 "报价源:连接:代码"。AllTick 连接 fx / stock；iTick 连接 forex / indices / crypto / stock（代码写成 代码$地区）。
+      # 币安公开行情（第 12 节）：不需要 API Key。默认关闭（不改变现有行为，也避开条款风险：币安公开数据是非商业许可），Amos 决定后在 .env 打开。
+      # 现货地址是只读行情专用域名（美国服务器也能连）。永续（futures）代码保留但默认关闭：Amos 2026-10-17 决定不用币安永续给贵金属、原油、美股报价，
+      # 映射里没有任何品种用它
+      binance:
+        enabled: ${FX_QUOTE_BINANCE_ENABLED:false}
+        spot-url: ${FX_QUOTE_BINANCE_SPOT_WS_URL:wss://data-stream.binance.vision}
+        futures-enabled: ${FX_QUOTE_BINANCE_FUTURES_ENABLED:false}
+        futures-url: ${FX_QUOTE_BINANCE_FUTURES_WS_URL:wss://fstream.binance.com/public}
+        # 每 30 秒发一次 LIST_SUBSCRIPTIONS 确认连接活着（现货每条连接每秒最多 5 条客户端消息）
+        heartbeat: 30s
+        # 一条连接最多几个流（官方上限 1024），超过分多条连接
+        max-streams-per-connection: 200
+        # 官方：一条连接只保持 24 小时。23 小时主动换新连接
+        max-connection-age: 23h
+      # 品种 → [主源, 备源, 第三候补]，每项 "报价源:连接:代码"。AllTick 连接 fx / stock；iTick 连接 forex / indices / crypto / stock（代码写成 代码$地区）。
+      # 币安连接 spot / futures（代码大写，例如 BTCUSDT）。只用最前面两个能用的源：加密货币在币安开关关闭时就是以前的"AllTick 主、iTick 备"，
+      # 打开后是"币安主、AllTick 备"（iTick 不订阅，AllTick 没 token 时 iTick 补上当备源）。
       # 代码依据和标【推断】的项见技术方案第 2 节，拿到 token 后要核对。没写的品种（例如后台新增的）只走模拟源
       routes:
         EURUSD: ["alltick:fx:EURUSD", "itick:forex:EURUSD$GB"]
@@ -134,16 +151,16 @@ falconx:
         JPN225: ["alltick:fx:JPN225", "itick:indices:JPN225$GB"]
         HK50: ["alltick:fx:HK50", "itick:indices:HKG33$GB"]
         AUS200: ["alltick:fx:AUS200", "itick:indices:AUS200$GB"]
-        BTCUSD: ["alltick:fx:BTCUSDT", "itick:crypto:BTCUSDT$BA"]
-        ETHUSD: ["alltick:fx:ETHUSDT", "itick:crypto:ETHUSDT$BA"]
-        SOLUSD: ["alltick:fx:SOLUSDT", "itick:crypto:SOLUSDT$BA"]
-        XRPUSD: ["alltick:fx:XRPUSDT", "itick:crypto:XRPUSDT$BA"]
-        BNBUSD: ["alltick:fx:BNBUSDT", "itick:crypto:BNBUSDT$BA"]
-        DOGEUSD: ["alltick:fx:DOGEUSDT", "itick:crypto:DOGEUSDT$BA"]
-        ADAUSD: ["alltick:fx:ADAUSDT", "itick:crypto:ADAUSDT$BA"]
-        LTCUSD: ["alltick:fx:LTCUSDT", "itick:crypto:LTCUSDT$BA"]
-        DOTUSD: ["alltick:fx:DOTUSDT", "itick:crypto:DOTUSDT$BA"]
-        BCHUSD: ["alltick:fx:BCHUSDT", "itick:crypto:BCHUSDT$BA"]
+        BTCUSD: ["binance:spot:BTCUSDT", "alltick:fx:BTCUSDT", "itick:crypto:BTCUSDT$BA"]
+        ETHUSD: ["binance:spot:ETHUSDT", "alltick:fx:ETHUSDT", "itick:crypto:ETHUSDT$BA"]
+        SOLUSD: ["binance:spot:SOLUSDT", "alltick:fx:SOLUSDT", "itick:crypto:SOLUSDT$BA"]
+        XRPUSD: ["binance:spot:XRPUSDT", "alltick:fx:XRPUSDT", "itick:crypto:XRPUSDT$BA"]
+        BNBUSD: ["binance:spot:BNBUSDT", "alltick:fx:BNBUSDT", "itick:crypto:BNBUSDT$BA"]
+        DOGEUSD: ["binance:spot:DOGEUSDT", "alltick:fx:DOGEUSDT", "itick:crypto:DOGEUSDT$BA"]
+        ADAUSD: ["binance:spot:ADAUSDT", "alltick:fx:ADAUSDT", "itick:crypto:ADAUSDT$BA"]
+        LTCUSD: ["binance:spot:LTCUSDT", "alltick:fx:LTCUSDT", "itick:crypto:LTCUSDT$BA"]
+        DOTUSD: ["binance:spot:DOTUSDT", "alltick:fx:DOTUSDT", "itick:crypto:DOTUSDT$BA"]
+        BCHUSD: ["binance:spot:BCHUSDT", "alltick:fx:BCHUSDT", "itick:crypto:BCHUSDT$BA"]
         AAPL: ["alltick:stock:AAPL.US", "itick:stock:AAPL$US"]
         MSFT: ["alltick:stock:MSFT.US", "itick:stock:MSFT$US"]
         NVDA: ["alltick:stock:NVDA.US", "itick:stock:NVDA$US"]

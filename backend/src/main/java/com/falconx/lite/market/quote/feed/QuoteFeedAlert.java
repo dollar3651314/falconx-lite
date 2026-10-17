@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 /**
  * 真实报价源的业务告警（E8，技术方案/v2-报价源接入.md 第 5.2 节）。只进健康检查的 {@code alerts} 和告警邮件，<b>不影响 status</b>（约定 24）。
  * <ul>
- *   <li>{@code quote.alltick} / {@code quote.itick}（配了 token 才有）：有连接没连上，或者这家负责的品种有开市的、但超过 {@code silence-alert} 没给任何报价；</li>
+ *   <li>{@code quote.alltick} / {@code quote.itick} / {@code quote.binance}（配了 token、打开了开关才有）：有连接没连上，或者这家负责的品种有开市的、但超过 {@code silence-alert} 没给任何报价；</li>
  *   <li>{@code quote.failover}（配了两家才有）：有品种正在用备源；</li>
  *   <li>{@code quote.deviation}（配了两家才有）：有品种因为两家价格偏差暂停开仓（平仓照常，用主源价格）。</li>
  * </ul>

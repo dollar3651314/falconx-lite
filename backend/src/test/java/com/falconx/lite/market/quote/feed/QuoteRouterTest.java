@@ -65,7 +65,23 @@ class QuoteRouterTest {
   static QuoteFeedsProperties props(String alltickToken, String itickToken, String primary, String usdtRate) {
     return new QuoteFeedsProperties(primary, Duration.ofSeconds(10), Duration.ofSeconds(30), new BigDecimal("0.005"), Duration.ofSeconds(5),
         new BigDecimal(usdtRate), Duration.ofSeconds(60), null, null, null, new QuoteFeedsProperties.AllTick(alltickToken, null, null, null, null),
-        new QuoteFeedsProperties.ITick(itickToken, null, null), ROUTES);
+        new QuoteFeedsProperties.ITick(itickToken, null, null), null, ROUTES);
+  }
+
+  /** 加密货币"币安、AllTick、iTick"的映射（和 application.yml 一样），另加一个只有币安永续的品种测开关 */
+  static final Map<String, List<String>> ROUTES_WITH_BINANCE = Map.of(
+      "EURUSD", List.of("alltick:fx:EURUSD", "itick:forex:EURUSD$GB"),
+      "BTCUSD", List.of("binance:spot:BTCUSDT", "alltick:fx:BTCUSDT", "itick:crypto:BTCUSDT$BA"),
+      "XAUUSD", List.of("alltick:fx:GOLD", "itick:forex:XAUUSD$GB", "binance:futures:XAUUSDT"));
+
+  static QuoteFeedsProperties props(String alltickToken, String itickToken, String primary, QuoteFeedsProperties.Binance binance) {
+    return new QuoteFeedsProperties(primary, Duration.ofSeconds(10), Duration.ofSeconds(30), new BigDecimal("0.005"), Duration.ofSeconds(5), BigDecimal.ONE,
+        Duration.ofSeconds(60), null, null, null, new QuoteFeedsProperties.AllTick(alltickToken, null, null, null, null),
+        new QuoteFeedsProperties.ITick(itickToken, null, null), binance, ROUTES_WITH_BINANCE);
+  }
+
+  static QuoteFeedsProperties.Binance binanceOn(boolean futures) {
+    return new QuoteFeedsProperties.Binance(true, null, futures, null, null, 0, null);
   }
 
   QuoteRouter router(String source, QuoteFeedsProperties p) {
@@ -266,14 +282,102 @@ class QuoteRouterTest {
   }
 
   @Test
+  void 币安开关关闭时和以前一样_加密货币AllTick主iTick备_不订阅币安() {
+    QuoteRouter r = router("simulated", props("ci_only_fake_token", "ci_only_fake_token", "alltick", QuoteFeedsProperties.Binance.off()));
+    assertThat(r.subscriptions()).containsOnlyKeys("alltick", "itick");
+    r.onQuote("binance", "BTCUSDT", d("81588.6"), d("81588.7"), null);
+    verify(processor, never()).submit(any());
+    r.onQuote("alltick", "BTCUSDT", d("81500.0"), d("81510.0"), null);
+    assertThat(r.current("BTCUSD")).contains(new QuoteSource("alltick", "primary"));
+    assertThat(r.subscriptions().get("itick").get("crypto")).containsExactly("BTCUSDT$BA");
+  }
+
+  @Test
+  void 币安打开后加密货币币安主AllTick备_iTick不订阅加密货币_其他品种不变() {
+    QuoteRouter r = router("simulated", props("ci_only_fake_token", "ci_only_fake_token", "alltick", binanceOn(false)));
+    assertThat(r.subscriptions().get("binance")).containsOnlyKeys("spot");
+    assertThat(r.subscriptions().get("binance").get("spot")).containsExactly("BTCUSDT");
+    assertThat(r.subscriptions().get("itick")).as("iTick 排第三，不订阅加密货币").doesNotContainKey("crypto");
+    assertThat(r.subscriptions().get("alltick").get("fx")).contains("BTCUSDT", "EURUSD", "GOLD");
+    r.onQuote("binance", "BTCUSDT", d("81588.60000000"), d("81588.61000000"), null);
+    r.onQuote("alltick", "BTCUSDT", d("81580.0"), d("81590.0"), null);
+    List<RawQuote> s = submitted();
+    assertThat(s).hasSize(1);
+    assertThat(s.getFirst().bid()).as("BTCUSD 1 位小数，买价向下").isEqualByComparingTo("81588.6");
+    assertThat(s.getFirst().ask()).as("卖价向上").isEqualByComparingTo("81588.7");
+    assertThat(s.getFirst().time()).as("币安现货没有时间，用收到的时间").isEqualTo(clock.instant());
+    assertThat(r.current("BTCUSD")).contains(new QuoteSource("binance", "primary"));
+    assertThat(r.current("EURUSD")).contains(new QuoteSource("alltick", "primary"));
+    assertThat(r.symbolsOf("binance")).containsExactly("BTCUSD");
+  }
+
+  @Test
+  void 币安断了10秒切到AllTick_恢复30秒后切回币安() {
+    QuoteRouter r = router("simulated", props("ci_only_fake_token", "ci_only_fake_token", "alltick", binanceOn(false)));
+    r.onQuote("binance", "BTCUSDT", d("81588.6"), d("81588.7"), null);
+    clock.advance(Duration.ofSeconds(11));
+    clearInvocations(processor);
+    r.onQuote("alltick", "BTCUSDT", d("81590.0"), d("81600.0"), null);
+    assertThat(r.current("BTCUSD")).contains(new QuoteSource("alltick", "backup"));
+    assertThat(submitted()).extracting(RawQuote::bid).containsExactly(d("81590.0"));
+    for (int i = 0; i < 6; i++) {
+      r.onQuote("binance", "BTCUSDT", d("81595.0"), d("81595.1"), null);
+      r.onQuote("alltick", "BTCUSDT", d("81590.0"), d("81600.0"), null);
+      clock.advance(Duration.ofSeconds(5));
+    }
+    r.onQuote("binance", "BTCUSDT", d("81595.0"), d("81595.1"), null);
+    assertThat(r.current("BTCUSD")).contains(new QuoteSource("binance", "primary"));
+  }
+
+  @Test
+  void 币安和AllTick偏差超过千分之五同样只暂停开仓() {
+    QuoteRouter r = router("simulated", props("ci_only_fake_token", "", "alltick", binanceOn(false)));
+    r.onQuote("binance", "BTCUSDT", d("81500.0"), d("81510.0"), null);
+    r.onQuote("alltick", "BTCUSDT", d("82000.0"), d("82010.0"), null);
+    verify(processor).setDeviationPaused("BTCUSD", true);
+    assertThat(r.current("BTCUSD")).contains(new QuoteSource("binance", "deviation"));
+  }
+
+  @Test
+  void AllTick没有token时币安主iTick备_对调主源不影响币安的位置() {
+    QuoteRouter r = router("simulated", props("", "ci_only_fake_token", "alltick", binanceOn(false)));
+    assertThat(r.subscriptions().get("itick").get("crypto")).containsExactly("BTCUSDT$BA");
+    r.onQuote("itick", "BTCUSDT$BA", d("81580.0"), d("81590.0"), null);
+    assertThat(r.current("BTCUSD")).as("币安还没报价，先用备源").contains(new QuoteSource("itick", "backup"));
+    QuoteRouter swapped = router("simulated", props("ci_only_fake_token", "ci_only_fake_token", "itick", binanceOn(false)));
+    assertThat(swapped.subscriptions().get("binance").get("spot")).containsExactly("BTCUSDT");
+    assertThat(swapped.subscriptions().get("itick").get("crypto")).as("iTick 和 AllTick 对调，币安仍排第一").containsExactly("BTCUSDT$BA");
+    assertThat(swapped.subscriptions().get("alltick").get("fx")).doesNotContain("BTCUSDT");
+    assertThat(swapped.current("EURUSD").orElseThrow().feed()).isEqualTo("itick");
+  }
+
+  @Test
+  void 币安永续的映射只有打开futures开关才用() {
+    QuoteRouter off = router("simulated", props("", "", "alltick", binanceOn(false)));
+    assertThat(off.subscriptions().get("binance")).containsOnlyKeys("spot");
+    assertThat(off.liveTrading("XAUUSD")).isFalse();
+    QuoteRouter on = router("simulated", props("", "", "alltick", binanceOn(true)));
+    assertThat(on.subscriptions().get("binance").get("futures")).containsExactly("XAUUSDT");
+    QuoteRouter withTokens = router("simulated", props("ci_only_fake_token", "ci_only_fake_token", "alltick", binanceOn(true)));
+    assertThat(withTokens.subscriptions().get("binance")).as("排在第三，AllTick、iTick 都能用时不用").doesNotContainKey("futures");
+  }
+
+  @Test
+  void 同一家的同一个代码用在两个品种时启动失败() {
+    QuoteFeedsProperties dup = new QuoteFeedsProperties(null, null, null, null, null, null, null, null, null, null, null, null, binanceOn(false),
+        Map.of("BTCUSD", List.of("binance:spot:BTCUSDT"), "BTCUSD2", List.of("binance:spot:btcusdt")));
+    assertThatThrownBy(() -> router("simulated", dup)).hasMessageContaining("同时用在");
+  }
+
+  @Test
   void 映射写错时启动失败() {
-    QuoteFeedsProperties bad = new QuoteFeedsProperties(null, null, null, null, null, null, null, null, null, null, null, null,
+    QuoteFeedsProperties bad = new QuoteFeedsProperties(null, null, null, null, null, null, null, null, null, null, null, null, null,
         Map.of("EURUSD", List.of("alltick:EURUSD")));
     assertThatThrownBy(() -> router("simulated", bad)).hasMessageContaining("格式不对");
-    QuoteFeedsProperties badChannel = new QuoteFeedsProperties(null, null, null, null, null, null, null, null, null, null, null, null,
+    QuoteFeedsProperties badChannel = new QuoteFeedsProperties(null, null, null, null, null, null, null, null, null, null, null, null, null,
         Map.of("EURUSD", List.of("alltick:forex:EURUSD")));
     assertThatThrownBy(() -> router("simulated", badChannel)).hasMessageContaining("连接 forex 不对");
-    QuoteFeedsProperties badFeed = new QuoteFeedsProperties(null, null, null, null, null, null, null, null, null, null, null, null,
+    QuoteFeedsProperties badFeed = new QuoteFeedsProperties(null, null, null, null, null, null, null, null, null, null, null, null, null,
         Map.of("EURUSD", List.of("okx:spot:EUR-USDT")));
     assertThatThrownBy(() -> router("simulated", badFeed)).hasMessageContaining("不认识的报价源 okx");
   }
@@ -287,6 +391,18 @@ class QuoteRouterTest {
         .get();
     Map<String, List<QuoteFeedsProperties.Route>> routes = p.parsedRoutes();
     assertThat(routes).hasSize(50);
+    assertThat(p.binance().enabled()).as("币安默认关闭").isFalse();
+    assertThat(p.binance().futuresEnabled()).as("币安永续默认关闭").isFalse();
+    assertThat(p.binance().spotUrl()).isEqualTo("wss://data-stream.binance.vision");
+    assertThat(p.binance().maxConnectionAge()).isEqualTo(Duration.ofHours(23));
+    List<String> binance = routes.entrySet().stream().filter(e -> e.getValue().stream().anyMatch(x -> x.feed().equals("binance"))).map(Map.Entry::getKey)
+        .sorted().toList();
+    assertThat(binance).as("币安只给 10 个加密货币").containsExactly("ADAUSD", "BCHUSD", "BNBUSD", "BTCUSD", "DOGEUSD", "DOTUSD", "ETHUSD", "LTCUSD",
+        "SOLUSD", "XRPUSD");
+    assertThat(routes.values().stream().flatMap(List::stream).filter(x -> x.feed().equals("binance")).allMatch(x -> x.channel().equals("spot")))
+        .as("Amos 2026-10-17：不用币安永续，映射里没有 futures").isTrue();
+    assertThat(routes.get("BTCUSD")).extracting(QuoteFeedsProperties.Route::feed).containsExactly("binance", "alltick", "itick");
+    assertThat(routes.get("BTCUSD").getFirst().code()).isEqualTo("BTCUSDT");
     assertThat(routes.values().stream().filter(l -> l.stream().anyMatch(x -> x.feed().equals("alltick"))).count()).isEqualTo(50);
     assertThat(routes.values().stream().filter(l -> l.stream().anyMatch(x -> x.feed().equals("itick"))).count()).isEqualTo(49);
     assertThat(routes.get("US2000")).hasSize(1);

@@ -63,7 +63,7 @@ function SwapCell({ value }: { value: string | null }) {
   return <Num className={value.startsWith('-') ? 'down' : 'up'}>{formatRatePercent(value, 4)}</Num>;
 }
 
-/** 当前报价源（技术方案/v2-报价源接入.md 第 5.5 节）：AllTick、iTick（备）、模拟；两家偏差过大暂停成交时标红 */
+/** 当前报价源（技术方案/v2-报价源接入.md 第 5.5、12 节）：AllTick、iTick（备）、币安、模拟；两家偏差过大暂停成交时标红 */
 export function QuoteSourceTag({ s }: { s: TradingSymbol }) {
   const { t } = useTranslation();
   if (!s.enabled || !s.quoteSource) return null;

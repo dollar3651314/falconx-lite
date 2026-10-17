@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 /**
  * 测试用的本地 WebSocket 服务器（只在 127.0.0.1，JDK 的 ServerSocket 自己实现握手和帧，不加依赖）：模拟 AllTick、iTick 的服务器，
  * 记下每条连接的请求路径、参数、请求头和收到的消息，可以主动推消息、拒绝握手（返回 HTTP 状态码）、突然断开。
- * 只实现测试用到的部分：文本帧、关闭帧、ping；客户端发来的帧都带掩码（RFC 6455）。
+ * 只实现测试用到的部分：文本帧、关闭帧、ping、pong；客户端发来的帧都带掩码（RFC 6455）。
  */
 final class FakeWsServer implements AutoCloseable {
 
@@ -37,6 +37,8 @@ final class FakeWsServer implements AutoCloseable {
     final String query;
     final Map<String, String> headers;
     final BlockingQueue<String> received = new LinkedBlockingQueue<>();
+    /** 收到的 pong 帧的内容 */
+    final BlockingQueue<String> pongs = new LinkedBlockingQueue<>();
     private final Socket socket;
     private final OutputStream out;
     volatile boolean closed;
@@ -89,6 +91,35 @@ final class FakeWsServer implements AutoCloseable {
         if (m != null && m.contains(needle)) return m;
       }
       return null;
+    }
+
+    /** 服务器发 ping 帧（币安每 20 秒一次） */
+    void ping(String payload) {
+      try {
+        frame(9, payload.getBytes(StandardCharsets.UTF_8));
+      } catch (IOException e) {
+        closed = true;
+      }
+    }
+
+    /** 服务器正常关闭连接（发关闭帧，例如币安 24 小时到点断开），随后断开 TCP */
+    void closeNormally(int code, String reason) {
+      byte[] r = reason.getBytes(StandardCharsets.UTF_8);
+      byte[] p = new byte[2 + r.length];
+      p[0] = (byte) (code >> 8);
+      p[1] = (byte) (code & 0xff);
+      System.arraycopy(r, 0, p, 2, r.length);
+      try {
+        frame(8, p);
+      } catch (IOException e) {
+        // 忽略
+      }
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      kill();
     }
 
     /** 突然断开（不发关闭帧，模拟网络中断） */
@@ -242,8 +273,9 @@ final class FakeWsServer implements AutoCloseable {
           return;
         }
         case 9 -> c.frame(10, payload);
+        case 10 -> c.pongs.add(new String(payload, StandardCharsets.UTF_8));
         default -> {
-          // pong 等忽略
+          // 其他忽略
         }
       }
     }
