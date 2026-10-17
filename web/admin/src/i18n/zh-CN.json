@@ -1056,6 +1056,7 @@
     "quoteSource": {
       "alltick": "AllTick",
       "itick": "iTick",
+      "binance": "币安",
       "simulated": "模拟",
       "backup": "（备）",
       "backupHint": "主报价源这个品种暂时没有报价，正在用备源",

@@ -30,8 +30,9 @@ import org.springframework.stereotype.Component;
 /**
  * 按品种选报价源（技术方案/v2-报价源接入.md 第 3、4 节）：
  * <ul>
- *   <li>每个品种的映射来自 {@link QuoteFeedsProperties#parsedRoutes()}，<b>只保留配了 token 的报价源</b>。一个都没有的品种：
- *       {@code simulated} 模式下继续走模拟源，{@code live} 模式下没有报价；</li>
+ *   <li>每个品种的映射来自 {@link QuoteFeedsProperties#parsedRoutes()}，<b>只保留能用的报价源</b>（配了 token；币安看启用开关），
+ *       再取<b>最前面的两个</b>作为主源、备源（第三个只在前两个有一个不能用时补上，例如加密货币"币安、AllTick、iTick"：
+ *       币安开关关闭时就是以前的"AllTick 主、iTick 备"）。一个都没有的品种：{@code simulated} 模式下继续走模拟源，{@code live} 模式下没有报价；</li>
  *   <li>主备：主源这个品种超过 {@code failover-after} 没报价、备源有新报价 → 切备源；主源重新连续报价满 {@code failback-after} → 切回；
  *       切换在每条报价进来时判断，不用定时器；</li>
  *   <li>交叉校验：两家的报价都在 {@code cross-check-max-age} 以内时比较中间价，偏差超过 {@code max-deviation} →
@@ -67,7 +68,7 @@ public class QuoteRouter implements QuoteSink {
   /** 一个品种的状态（按品种加锁） */
   private static final class Route {
     final String symbol;
-    /** 配了 token 的报价源，主源在前 */
+    /** 能用的报价源里最前面的两个，主源在前 */
     final List<QuoteFeedsProperties.Route> feeds;
     final Map<String, Last> last = new HashMap<>();
     /** 当前用 feeds 里的第几个 */
@@ -109,12 +110,15 @@ public class QuoteRouter implements QuoteSink {
     }
     if (mode != Mode.NONE) {
       for (var e : parsed.entrySet()) {
-        List<QuoteFeedsProperties.Route> usable = e.getValue().stream().filter(r -> props.configured(r.feed())).toList();
+        List<QuoteFeedsProperties.Route> usable = e.getValue().stream().filter(props::usable).limit(2).toList();
         if (usable.isEmpty()) continue;
         Route route = new Route(e.getKey(), usable);
         routes.put(e.getKey(), route);
         for (QuoteFeedsProperties.Route r : usable) {
-          byCode.put(key(r.feed(), r.code()), route);
+          Route dup = byCode.put(key(r.feed(), r.code()), route);
+          if (dup != null) {
+            throw new IllegalArgumentException("falconx.market.feeds.routes：" + r.feed() + " 的代码 " + r.code() + " 同时用在 " + dup.symbol + " 和 " + e.getKey());
+          }
           subscriptions.computeIfAbsent(r.feed(), k -> new LinkedHashMap<>()).computeIfAbsent(r.channel(), k -> new ArrayList<>()).add(r.code());
         }
       }
@@ -137,6 +141,7 @@ public class QuoteRouter implements QuoteSink {
     Set<String> channels = switch (r.feed()) {
       case AllTickFeed.NAME -> AllTickFeed.CHANNELS;
       case ITickFeed.NAME -> ITickFeed.CHANNELS;
+      case BinanceFeed.NAME -> BinanceFeed.CHANNELS;
       default -> throw new IllegalArgumentException("falconx.market.feeds.routes." + symbol + " 用了不认识的报价源 " + r.feed());
     };
     if (!channels.contains(r.channel())) {
@@ -157,7 +162,7 @@ public class QuoteRouter implements QuoteSink {
     return mode == Mode.LIVE || (mode == Mode.SIMULATED && routes.containsKey(symbol));
   }
 
-  /** 每家报价源要订阅的代码（按连接分）；没有配 token 的报价源不在里面 */
+  /** 每家报价源要订阅的代码（按连接分）；没有配 token、没打开开关、或者没排进前两个的报价源不在里面 */
   public Map<String, Map<String, List<String>>> subscriptions() {
     return subscriptions;
   }

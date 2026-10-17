@@ -7,7 +7,7 @@ import java.time.Instant;
 public interface QuoteSink {
 
   /**
-   * @param feed 报价源名字（alltick / itick）
+   * @param feed 报价源名字（alltick / itick / binance）
    * @param code 数据商的品种代码（iTick 是 "代码$地区"）
    * @param time 数据商给的报价时间；没有时为空（用收到的时间）
    */

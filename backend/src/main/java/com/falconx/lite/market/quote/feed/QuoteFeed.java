@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 一家真实报价源（可插拔，技术方案/v2-报价源接入.md 第 3.3 节）：现在有 {@link AllTickFeed}、{@link ITickFeed}；
+ * 一家真实报价源（可插拔，技术方案/v2-报价源接入.md 第 3.3 节）：现在有 {@link AllTickFeed}、{@link ITickFeed}、{@link BinanceFeed}；
  * 以后加 OKX 等，写一个新的实现（WebSocket 的继承 {@link WsFeed}），在 {@link QuoteFeeds} 里按名字创建，映射里写上它的名字即可。
  */
 public interface QuoteFeed extends AutoCloseable {

@@ -1,5 +1,5 @@
 /**
- * 品种页的当前报价源（技术方案/v2-报价源接入.md 第 5.5 节）：AllTick 主源、iTick 备源、模拟、两家偏差暂停开仓（标红）。
+ * 品种页的当前报价源（技术方案/v2-报价源接入.md 第 5.5 节）：AllTick 主源、iTick 备源、币安（加密货币主源）、模拟、两家偏差暂停开仓（标红）。
  */
 import { screen } from '@testing-library/react';
 import { listSymbols } from './api';
@@ -37,6 +37,12 @@ describe('报价源', () => {
         <span data-testid="f">
           <QuoteSourceTag s={sym({ quoteSource: null })} />
         </span>
+        <span data-testid="g">
+          <QuoteSourceTag s={sym({ code: 'BTCUSD', quoteSource: 'binance', quoteSourceState: 'primary' })} />
+        </span>
+        <span data-testid="h">
+          <QuoteSourceTag s={sym({ code: 'BTCUSD', quoteSource: 'alltick', quoteSourceState: 'backup' })} />
+        </span>
       </div>,
     );
     expect(screen.getByTestId('a').textContent).toBe(' · AllTick');
@@ -46,6 +52,9 @@ describe('报价源', () => {
     expect(screen.getByTestId('d').querySelector('.quote-source.stale')).not.toBeNull();
     expect(screen.getByTestId('e').textContent).toBe('');
     expect(screen.getByTestId('f').textContent).toBe('');
+    // 加密货币：币安主（技术方案第 12 节），币安断了用 AllTick 备
+    expect(screen.getByTestId('g').textContent).toBe(' · 币安');
+    expect(screen.getByTestId('h').textContent).toBe(' · AllTick（备）');
     expect(container).toBeTruthy();
     unmount();
   });

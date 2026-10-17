@@ -18,9 +18,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
@@ -33,7 +33,9 @@ import org.slf4j.LoggerFactory;
  *   <li>重连按指数退避：{@code reconnect-initial} 起每次翻倍，最长 {@code reconnect-max}，加 0–20% 随机抖动；连上并收到第一条正常回应
  *       （子类调用 {@link #markHealthy}）后清零；</li>
  *   <li>重连后由子类重新订阅（{@link #opened}）；</li>
- *   <li>超过 {@code idle-timeout} 没有收到任何消息（含心跳回应）就断开重连，防止"连接还在但不推数据"。</li>
+ *   <li>超过 {@code idle-timeout} 没有收到任何消息（含心跳回应、服务器的 ping 帧）就断开重连，防止"连接还在但不推数据"；</li>
+ *   <li>服务器发来的 ping 帧由 JDK 自动回 pong（{@link WebSocket} 的约定），这里只记作"收到了消息"；</li>
+ *   <li>子类给了 {@link #maxConnectionAge()}（例如币安：一条连接只保持 24 小时）时，连接用满这个时间就主动换一条新连接，不按失败退避。</li>
  * </ul>
  * 线程：所有连接、发送、重连都在这家报价源自己的一个调度线程上做（JDK 的 WebSocket 不允许并发发送）；收到的消息在 HttpClient 的线程上解析。
  * <b>token 不进日志</b>：所有错误信息经过 {@link #redact}。连接活着没有用注入的时钟（测试时钟是固定的），用系统时间。
@@ -63,6 +65,8 @@ public abstract class WsFeed implements QuoteFeed {
     volatile String lastError;
     volatile long reconnects;
     ScheduledFuture<?> heartbeatTask;
+    /** 到点换新连接的任务（{@link #maxConnectionAge()}） */
+    ScheduledFuture<?> renewTask;
     /** 子类自己的状态（例如 iTick 是否已订阅） */
     volatile boolean subscribed;
 
@@ -99,11 +103,15 @@ public abstract class WsFeed implements QuoteFeed {
     this.props = props;
     this.sink = sink;
     this.http = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
-    this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+    ScheduledThreadPoolExecutor ex = new ScheduledThreadPoolExecutor(1, r -> {
       Thread t = new Thread(r, "quote-feed-" + name);
       t.setDaemon(true);
       return t;
     });
+    // 停机时不再执行还没到点的延时任务（重连、换新连接），否则 close() 要等到超时
+    ex.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+    ex.setRemoveOnCancelPolicy(true);
+    this.scheduler = ex;
     for (ChannelSpec s : channels) {
       if (s.codes().isEmpty()) continue;
       Conn c = new Conn(s);
@@ -136,8 +144,13 @@ public abstract class WsFeed implements QuoteFeed {
   /** 收到一条完整的文本消息（HttpClient 线程上）；需要发消息时用 {@link #sendLater} */
   protected abstract void received(Conn c, String text);
 
-  /** 心跳消息 */
+  /** 心跳消息；为空时这次不发（只做空闲检测） */
   protected abstract String heartbeat(Conn c);
+
+  /** 一条连接最长用多久，到点主动换新连接；为空 = 不限（默认） */
+  protected Duration maxConnectionAge() {
+    return null;
+  }
 
   // ---- 对外 ----
 
@@ -158,6 +171,7 @@ public abstract class WsFeed implements QuoteFeed {
       for (Conn c : conns) {
         c.gen++;
         if (c.heartbeatTask != null) c.heartbeatTask.cancel(false);
+        if (c.renewTask != null) c.renewTask.cancel(false);
         WebSocket ws = c.ws;
         if (ws != null) ws.abort();
         c.ws = null;
@@ -280,6 +294,10 @@ public abstract class WsFeed implements QuoteFeed {
     log.info("报价源 {} 的 {} 连接已建立（{}，{} 个品种）", name, c.channel, safeUri(c.uri), c.codes.size());
     long hb = heartbeatInterval().toMillis();
     c.heartbeatTask = scheduler.scheduleAtFixedRate(() -> beat(c, gen), hb, hb, TimeUnit.MILLISECONDS);
+    Duration maxAge = maxConnectionAge();
+    if (maxAge != null && !maxAge.isZero() && !maxAge.isNegative()) {
+      c.renewTask = scheduler.schedule(() -> renew(c, gen), maxAge.toMillis(), TimeUnit.MILLISECONDS);
+    }
     opened(c);
   }
 
@@ -290,7 +308,25 @@ public abstract class WsFeed implements QuoteFeed {
       failed(c, gen, "超过 " + props.idleTimeout().toSeconds() + " 秒没有收到任何消息");
       return;
     }
-    send(c, heartbeat(c));
+    String m = heartbeat(c);
+    if (m != null) send(c, m);
+  }
+
+  /** 连接用满 {@link #maxConnectionAge()}：关掉旧连接，马上建新连接（不算失败、不退避；新连接上由子类重新订阅） */
+  private void renew(Conn c, int gen) {
+    if (gen != c.gen || stopped) return;
+    c.gen++;
+    if (c.heartbeatTask != null) c.heartbeatTask.cancel(false);
+    if (c.renewTask != null) c.renewTask.cancel(false);
+    WebSocket ws = c.ws;
+    c.ws = null;
+    if (ws != null) ws.abort();
+    c.state = State.DISCONNECTED;
+    c.connectedSince = null;
+    c.reconnects++;
+    reconnectCount.increment();
+    log.info("报价源 {} 的 {} 连接已用满 {} 分钟，主动换新连接", name, c.channel, maxConnectionAge().toMinutes());
+    connect(c);
   }
 
   /** 断开并安排重连（调度线程上） */
@@ -298,6 +334,7 @@ public abstract class WsFeed implements QuoteFeed {
     if (gen != c.gen) return;
     c.gen++;
     if (c.heartbeatTask != null) c.heartbeatTask.cancel(false);
+    if (c.renewTask != null) c.renewTask.cancel(false);
     WebSocket ws = c.ws;
     c.ws = null;
     if (ws != null) ws.abort();
@@ -379,6 +416,14 @@ public abstract class WsFeed implements QuoteFeed {
           }
         }
       }
+      ws.request(1);
+      return null;
+    }
+
+    @Override
+    public CompletionStage<?> onPing(WebSocket ws, ByteBuffer message) {
+      // JDK 自动回 pong；这里只记下"连接还活着"
+      if (gen == c.gen) c.lastMessageAt = Instant.now();
       ws.request(1);
       return null;
     }

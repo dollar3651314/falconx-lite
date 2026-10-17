@@ -29,7 +29,7 @@ class MarketOps {
   /**
    * 品种。v2 E6：lastQuoteAt 最后一条正常报价的时间（从没收到过为空，页面显示"暂无报价"）、tradingOpen 现在是否在交易时段内
    * （休市时没有报价是正常的，页面不标红）。simStartPrice：模拟起始价（只在模拟报价源下使用），没填为空。
-   * quoteSource / quoteSourceState：当前报价源（alltick / itick / simulated，没有报价源为空）和状态（primary / backup / deviation，模拟为空），
+   * quoteSource / quoteSourceState：当前报价源（alltick / itick / binance / simulated，没有报价源为空）和状态（primary / backup / deviation，模拟为空），
    * 见 技术方案/v2-报价源接入.md 第 5.5 节。
    */
   record SymbolView(String code, String nameZh, String nameEn, String category, String quoteCurrency, String contractSize, String minLots, String maxLots,
