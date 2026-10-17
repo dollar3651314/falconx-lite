@@ -11,6 +11,7 @@ import * as mock from '../mocks/handlers';
 import * as runtime from '../mocks/runtime';
 import { IS_MOCK } from './mode';
 import * as real from './real';
+import { ApiError } from './types';
 
 export type { CurrentAdmin } from './types';
 export type { ProtoIdentity } from '../mocks/handlers';
@@ -78,6 +79,14 @@ export const approveWithdrawal: typeof real.approveWithdrawal = IS_MOCK ? mock.a
 export const rejectWithdrawal: typeof real.rejectWithdrawal = IS_MOCK ? mock.rejectWithdrawal : real.rejectWithdrawal;
 /** POST /api/admin/withdrawals/{id}/emergency-cancel（高危） */
 export const emergencyCancelWithdrawal: typeof real.emergencyCancelWithdrawal = IS_MOCK ? mock.emergencyCancelWithdrawal : real.emergencyCancelWithdrawal;
+// ---- v2 提现自动审批（只有原型：后端没实现前，真实接口模式下直接失败，页面也不显示入口，见 config/autoApprove.ts） ----
+const notLive = () => Promise.reject(new ApiError('errors.notLive'));
+/** GET /api/admin/withdraw-auto-approve（计划） */
+export const getAutoApproveSettings: typeof mock.getAutoApproveSettings = IS_MOCK ? mock.getAutoApproveSettings : notLive;
+/** GET /api/admin/withdraw-auto-approve/changes（计划） */
+export const listAutoApproveChanges: typeof mock.listAutoApproveChanges = IS_MOCK ? mock.listAutoApproveChanges : notLive;
+/** PUT /api/admin/withdraw-auto-approve（计划，高危） */
+export const updateAutoApproveSettings: typeof mock.updateAutoApproveSettings = IS_MOCK ? mock.updateAutoApproveSettings : notLive;
 /** GET /api/admin/recon */
 export const listRecon: typeof real.listRecon = IS_MOCK ? mock.listRecon : real.listRecon;
 /** POST /api/admin/recon/{id}/resolve */

@@ -223,6 +223,52 @@ export const withdrawals: Withdrawal[] = wdSeeds.map((s, i) => {
   };
 });
 
+// v2 自动审批原型（技术方案/v2-提现自动审批.md）补的 6 笔小额出金：自动通过的、冷静期预判通过的（含金额正好等于上限的）、
+// 总开关关闭时本可以自动通过的、第 1 版时自动通过后上链失败的。客户挑 KYC 已通过、注册满 14 天、有入金、还没有出金的，规则判定才前后一致。
+// 用单独的随机数，不影响上面和后面数据的生成顺序。判定记录在 ./autoApprove.ts
+const autoRng = createRng(20261017);
+/** 注册天数：和模拟层出金详情的"注册时长"同一算法 */
+export function registeredDaysOf(c: CustomerSummary): number {
+  if (c.id === 100482) return 30;
+  return Math.max(1, Math.round((Date.UTC(2026, 9, 14) - Date.parse(c.registeredAt.replace(' ', 'T') + 'Z')) / 86_400_000));
+}
+const autoCustomers = customers
+  .filter((c) => c.kycStatus === 'approved' && registeredDaysOf(c) >= 14 && deposits.some((d) => d.customerId === c.id && d.status === 'credited'))
+  .filter((c) => !withdrawals.some((w) => w.customerId === c.id));
+const autoSeeds: Omit<WdSeed, 'ci'>[] = [
+  { amount: '320.00', chain: 'TRC20', status: 'completed', ago: 260 },
+  { amount: '180.00', chain: 'BSC', status: 'broadcasting', ago: 140 },
+  { amount: '450.00', chain: 'TRC20', status: 'cooling', ago: 25 },
+  { amount: '260.00', chain: 'TRC20', status: 'pending', ago: 560 },
+  { amount: '500.00', chain: 'TRC20', status: 'cooling', ago: 52 },
+  { amount: '260.00', chain: 'BSC', status: 'failed', ago: 1880 },
+];
+/** 这几笔出金的客户 ID（顺序同 autoSeeds） */
+export const autoSeedCustomerIds: number[] = [];
+autoSeeds.forEach((s, i) => {
+  const c = autoCustomers[i];
+  if (!c) return;
+  autoSeedCustomerIds.push(c.id);
+  withdrawals.push({
+    id: mockNo(s.ago + 3, 3000 + i),
+    customerId: c.id,
+    customerName: c.name,
+    email: c.email,
+    amount: s.amount,
+    fee: s.chain === 'BSC' ? '0.50' : '1.00',
+    chain: s.chain,
+    address: s.chain === 'TRC20' ? tronAddress(autoRng) : evmAddress(autoRng),
+    firstUse: false,
+    whitelistAddedAt: minutesAgo(60 * 24 * autoRng.int(20, 60)),
+    status: s.status,
+    delayRemainingMinutes: null,
+    submittedAt: minutesAgo(s.ago),
+    reviewer: null,
+    reason: s.status === 'failed' ? '广播失败：节点明确拒绝 3 次，已自动退款' : null,
+    txHash: s.status === 'completed' ? autoRng.hex(64) : null,
+  });
+});
+
 // ---------------- 对账（字段和问题类型按后端，后台方案第 8 节） ----------------
 export const reconItems: ReconItem[] = [
   { type: 'deposit_ledger_mismatch', ref: 'DEPOSIT:41207', expected: '2000', actual: '1999.99', detail: '充值记录的金额和账本入账不一致', status: 'open' },

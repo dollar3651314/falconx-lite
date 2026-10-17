@@ -221,7 +221,8 @@
     "withdrawal": {
       "approve": "Approved withdrawal",
       "emergency_cancel": "Emergency-cancelled withdrawal",
-      "reject": "Rejected withdrawal"
+      "reject": "Rejected withdrawal",
+      "auto_rule_update": "Change withdrawal auto-approval rules"
     }
   },
   "auth": {
@@ -521,7 +522,10 @@
     "validationFailed": "Please check: ",
     "whitelistExcludesSelf": "The new whitelist does not include your current IP and would lock you out, so it was not saved.",
     "withdrawNotCancellable": "Only large withdrawals in the delay period can be cancelled. Refresh to see the latest status.",
-    "withdrawNotReviewable": "This withdrawal is no longer pending review. Refresh and try again."
+    "withdrawNotReviewable": "This withdrawal is no longer pending review. Refresh and try again.",
+    "notLive": "This feature is not live yet",
+    "autoApproveInvalid": "Some rule values are invalid; check and save again",
+    "autoApproveNoChange": "Nothing changed"
   },
   "exposureStatus": {
     "auto_blocked": "Auto-blocked",
@@ -1302,5 +1306,238 @@
     "userLine": "{{email}} · User ID {{id}}",
     "userPh": "Name / email / user ID",
     "whitelistAt": "Whitelisted {{time}}, past the 24-hour waiting period"
+  },
+  "autoRule": {
+    "event": {
+      "password_change": "password changed",
+      "password_reset": "password reset",
+      "email_change": "email changed",
+      "freeze": "account frozen",
+      "unfreeze": "account unfrozen"
+    },
+    "R1": {
+      "name": "Single amount",
+      "desc": "This withdrawal (fee included) is at most the cap; equal to the cap passes",
+      "param": {
+        "maxAmount": "Cap per withdrawal"
+      },
+      "pass": "Amount {{amount}} ≤ cap {{limit}}",
+      "fail": "Amount {{amount}} > cap {{limit}}"
+    },
+    "R2": {
+      "name": "Customer 24h auto-approved total",
+      "desc": "Auto-approved amount for this customer in the last 24 hours (rolling) plus this one stays within the cap; manual approvals don't count",
+      "param": {
+        "maxUser24h": "24h cap"
+      },
+      "pass": "24h auto-approved {{used}} + this {{amount}} = {{total}} ≤ {{limit}}",
+      "fail": "24h auto-approved {{used}} + this {{amount}} = {{total}} > cap {{limit}}"
+    },
+    "R3": {
+      "name": "Platform 24h auto-approved total",
+      "desc": "Auto-approved amount across the platform in the last 24 hours (rolling) plus this one stays within the cap",
+      "param": {
+        "maxPlatform24h": "24h cap"
+      },
+      "pass": "Platform 24h auto-approved {{used}} + this = {{total}} ≤ {{limit}}",
+      "fail": "Platform 24h auto-approved {{used}} + this = {{total}} > cap {{limit}}"
+    },
+    "R4": {
+      "name": "Not the first withdrawal",
+      "desc": "The customer has at least one completed withdrawal; the first one is always reviewed by a person",
+      "fixed": "No value: first withdrawal always manual",
+      "pass": "{{count}} completed withdrawals before",
+      "fail": "First withdrawal of this customer"
+    },
+    "R5": {
+      "name": "Address used successfully",
+      "desc": "This whitelisted address has received a successful withdrawal before (being whitelisted is not enough)",
+      "fixed": "No value: first payout to a new address is manual",
+      "pass": "{{count}} successful withdrawals to this address",
+      "fail": "No successful withdrawal to this address yet (new address)"
+    },
+    "R6": {
+      "name": "No recent security changes",
+      "desc": "No password change or reset, email change, freeze or unfreeze in the last N hours",
+      "param": {
+        "hours": "Window"
+      },
+      "pass": "No password, email or freeze changes in {{hours}} h",
+      "fail": "{{event}} {{ago}} h ago (window {{hours}} h)"
+    },
+    "R7": {
+      "name": "Account age and KYC",
+      "desc": "Registered for at least N days and KYC approved",
+      "param": {
+        "days": "Registered at least"
+      },
+      "pass": "Registered {{days}} days ≥ {{limit}} · KYC {{kyc}}",
+      "fail": "Registered {{days}} days (needs ≥ {{limit}}) · KYC {{kyc}}"
+    },
+    "R8": {
+      "name": "Trading after deposit",
+      "desc": "Opening notional since the earliest deposit credited in the last 30 days ≥ those deposits × N",
+      "param": {
+        "multiple": "Multiple"
+      },
+      "pass": "Volume {{volume}} / deposits {{deposit}} = {{ratio}}× ≥ {{limit}}×",
+      "fail": "Volume {{volume}} / deposits {{deposit}} = {{ratio}}× < {{limit}}×"
+    },
+    "R9": {
+      "name": "Withdrawals within deposits + P&L",
+      "desc": "Total withdrawals (this and in-progress included) ≤ total deposits + realized P&L; otherwise manual (e.g. withdrawing an admin credit)",
+      "fixed": "No value: manual when exceeded",
+      "pass": "Withdrawn {{withdrawn}} ≤ deposits {{deposit}} + P&L {{pnl}} = {{cap}}",
+      "fail": "Withdrawn {{withdrawn}} > deposits {{deposit}} + P&L {{pnl}} = {{cap}}"
+    },
+    "R10": {
+      "name": "7-day profit",
+      "desc": "Realized profit in the last 7 days (rolling) is within the amount cap, or within N% of principal (either one passes)",
+      "param": {
+        "maxProfit7d": "Amount cap",
+        "maxProfitPct": "Or % of principal"
+      },
+      "pass": "7-day profit {{profit}} (cap {{limitAbs}} or {{limitPct}}% of principal {{principal}})",
+      "fail": "7-day profit {{profit}} > {{limitAbs}} and {{pct}}% of principal {{principal}} > {{limitPct}}%"
+    },
+    "R11": {
+      "name": "Withdrawals today",
+      "desc": "Withdrawals submitted today (UTC, same as the daily limit), this one included, customer cancellations excluded",
+      "param": {
+        "maxCount": "Max per day"
+      },
+      "pass": "No. {{count}} today ≤ {{limit}}",
+      "fail": "No. {{count}} today > {{limit}}"
+    },
+    "R12": {
+      "name": "System healthy",
+      "desc": "No quote deviation alert, no global pause, and the hot wallet on this chain can pay this and earlier queued withdrawals",
+      "fixed": "No value: all three must be normal",
+      "pass": "Quotes normal · no global pause · hot wallet {{balance}} ≥ needed {{need}}",
+      "fail": "System not healthy",
+      "issue": {
+        "quoteDeviation": "Quote deviation alert",
+        "globalPause": "Global pause on",
+        "hotWallet": "Hot wallet {{balance}} < needed {{need}}"
+      }
+    }
+  },
+  "autoReview": {
+    "title": "Rule check",
+    "column": "Rule check",
+    "filter": "Rule check",
+    "filterOutcome": "Result",
+    "filterRule": "Triggered rule",
+    "filterOpt": {
+      "auto_approved": "Auto-approved",
+      "manual": "Manual (rules triggered)",
+      "master_off": "Master switch off",
+      "none": "No check record"
+    },
+    "outcome": {
+      "auto_approved": "Auto-approved",
+      "manual": "Manual review",
+      "master_off": "Master switch off",
+      "error": "Check error"
+    },
+    "status": {
+      "passed": "passed",
+      "failed": "failed",
+      "disabled": "disabled",
+      "unknown": "unknown"
+    },
+    "trigger": "{{count}} triggered",
+    "preTrigger": "Pre-check · {{count}} triggered",
+    "prePass": "Pre-check · would auto-approve",
+    "prePassShort": "would auto-approve",
+    "masterOffShort": "Master off",
+    "ifOnTrigger": "If on: {{count}} triggered",
+    "ifOnPass": "If on: auto-approve",
+    "precheckTip": "Pre-check at submission; the re-check when the cooling period ends decides",
+    "noRecord": "No check record",
+    "noRecordLong": "No check record (submitted before auto-approval existed).",
+    "masterOffBanner": "Master switch off: every withdrawal is reviewed manually",
+    "masterOffWouldTrigger": "Rules still run for reference: if it were on, {{count}} rules would trigger ({{codes}}).",
+    "masterOffWouldPass": "Rules still run for reference: if it were on, this would be auto-approved.",
+    "precheckNote": "Pre-check at submission, no quota used. The re-check when the cooling period ends uses the data and settings at that time and decides.",
+    "autoBanner": "All {{enabled}} enabled rules passed; approved automatically",
+    "autoBannerSub": "Paid out after the cooling period; ≥ 3,000 USDT still waits 6 hours.",
+    "manualBanner": "{{count}} rules triggered; sent to manual review",
+    "manualBannerSub": "Check the rules in red below before approving or rejecting.",
+    "phasePre": "Pre-check at submission",
+    "phaseFinal": "Checked when cooling ended",
+    "configLine": "Settings used: version {{version}} (changed by {{by}} at {{time}})",
+    "precheckDiff": "Pre-check at submission: {{result}}; data changed during cooling, the re-check above decides.",
+    "disabledLine": "Disabled (not checked)",
+    "unknownLine": "Could not check: {{why}} (treated as failed)",
+    "sep": "; ",
+    "snapshotNote": "Values and thresholds are a snapshot at check time; later rule changes don't affect this record.",
+    "viewRules": "View rule settings",
+    "reviewerAuto": "Reviewed by: system auto-approval (all rules passed)",
+    "masterIs": "Auto-approval"
+  },
+  "autoApprove": {
+    "title": "Auto-approval rules",
+    "sub": "A withdrawal is approved automatically only when every enabled rule passes; any failure sends it to manual review",
+    "back": "Back to withdrawals",
+    "notLiveTitle": "Not live yet",
+    "notLiveSub": "Withdrawal auto-approval is still being reviewed as a plan. Until the backend ships this page is unavailable and every withdrawal is reviewed manually.",
+    "master": "Auto-approval master switch",
+    "masterOn": "On",
+    "masterOff": "Off",
+    "masterDefault": "Default: off",
+    "masterOnDesc": "When the cooling period ends, the {{count}} enabled rules below are checked: all passed → approved automatically; any failure → manual review.",
+    "masterOffDesc": "While off, every withdrawal goes to manual review (as today). Rules still run and are recorded for reviewers' reference.",
+    "versionLine": "Version {{version}} · changed by {{by}} at {{time}}",
+    "notLoosen": "Rules only decide whether a person reviews; no limit is relaxed",
+    "notLoosenDesc": "The 2-hour cooling period stays (auto-approved withdrawals are paid only after it); ≥ 3,000 USDT still waits 6 hours after approval; whitelist 24-hour activation and the 10,000 per withdrawal / 30,000 daily limits stay.",
+    "rulesTitle": "12 rules",
+    "rulesSub": "{{enabled}} of {{total}} enabled; disabled rules are not checked",
+    "colRule": "Rule",
+    "colValue": "Value",
+    "colEnabled": "Enabled",
+    "modified": "Edited",
+    "ruleOff": "Disabled",
+    "ruleSwitch": "Enable {{code}} {{name}}",
+    "defaultIs": "Default {{v}}",
+    "savedIs": "saved {{v}}",
+    "defaultOn": "Default on",
+    "unit": {
+      "hours": "{{v}} h",
+      "days": "{{v}} days",
+      "times": "{{v}}",
+      "multiple": "{{v}}×",
+      "percent": "{{v}}%",
+      "usdt": "{{v}} USDT"
+    },
+    "unitShort": {
+      "hours": "h",
+      "days": "days",
+      "times": "times",
+      "multiple": "×",
+      "percent": "%",
+      "usdt": "USDT"
+    },
+    "errRequired": "Required",
+    "errInteger": "Enter a whole number",
+    "errDecimals": "Enter a number with at most {{n}} decimals",
+    "errRange": "Between {{min}} and {{max}}",
+    "errR2LtR1": "Must not be below the R1 single cap",
+    "errR3LtR2": "Must not be below the R2 customer 24h cap",
+    "dirty": "{{count}} unsaved changes",
+    "clean": "No changes",
+    "fixErrors": "Fix the values in red first",
+    "discard": "Discard",
+    "save": "Save changes",
+    "saveTitle": "Save auto-approval rules",
+    "saveDesc": "{{count}} changes. Saving creates version {{version}}, effective for withdrawals whose cooling period ends from now on:",
+    "saveMasterOff": "The master switch will be off: every withdrawal goes to manual review.",
+    "saveConfirm": "Save",
+    "saved": "Saved; new checks use the new rules",
+    "changeLine": "{{field}}: {{before}} → {{after}}",
+    "historyTitle": "Recent changes",
+    "historySub": "Also written to the audit log (high risk)",
+    "historyEmpty": "No changes yet",
+    "reasonLine": "Reason: {{reason}}"
   }
 }
