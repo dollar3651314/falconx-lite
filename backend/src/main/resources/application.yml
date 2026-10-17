@@ -245,6 +245,11 @@ falconx:
       tron-fee-limit-sun: 30000000
       stuck-after: 30m
       max-replacements: 3
+    # 热钱包余额查询（2026-10-17，技术方案/v1-提现方案.md 第 6 节）：每 5 分钟查一次已配置热钱包的 USDT 和手续费币余额，后台对账页显示。
+    # 告警下限不在这里：在后台"系统配置"页（hotWallet.*，迁移 V25），默认 0 = 不告警（Amos 2026-10-17）
+    hot-balance:
+      enabled: true
+      interval: 5m
     chains:
       ERC20:
         rpc-url: ${FX_WALLET_ETH_RPC_URL:}

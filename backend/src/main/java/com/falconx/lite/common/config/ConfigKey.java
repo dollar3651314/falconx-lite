@@ -32,6 +32,16 @@ public enum ConfigKey {
   ADJUST_SINGLE_LIMIT("adjust.singleLimit", Unit.USDT, "adjust", BigDecimal.ZERO),
   ADJUST_DAILY_LIMIT("adjust.dailyLimit", Unit.USDT, "adjust", BigDecimal.ZERO),
   NOTIFY_MARGIN_CALL_THROTTLE_MINUTES("notify.marginCallThrottleMinutes", Unit.MINUTES, "notify", BigDecimal.ONE),
+  /**
+   * 热钱包余额告警的下限（Amos 2026-10-17："告警的默认下限让我可以设置，现在设置成零"）：余额低于它时发 E8 告警邮件。
+   * <b>0（默认，迁移 V25）= 不告警</b>：这一项不检查、告警项不出现；余额照常查询，后台对账页能看到。代码见 wallet/withdraw/HotBalanceMonitor
+   */
+  HOT_MIN_USDT_ERC20("hotWallet.minUsdt.ERC20", Unit.USDT, "hotWallet", BigDecimal.ZERO),
+  HOT_MIN_USDT_BSC("hotWallet.minUsdt.BSC", Unit.USDT, "hotWallet", BigDecimal.ZERO),
+  HOT_MIN_USDT_TRC20("hotWallet.minUsdt.TRC20", Unit.USDT, "hotWallet", BigDecimal.ZERO),
+  HOT_MIN_ETH("hotWallet.minGas.ERC20", Unit.ETH, "hotWallet", BigDecimal.ZERO),
+  HOT_MIN_BNB("hotWallet.minGas.BSC", Unit.BNB, "hotWallet", BigDecimal.ZERO),
+  HOT_MIN_TRX("hotWallet.minGas.TRC20", Unit.TRX, "hotWallet", BigDecimal.ZERO),
   /** 单个客户的持仓上限（USD 名义价值，含挂单）：在风控页改（权限 risk:user_limit），不在系统配置页 */
   RISK_PER_USER_LIMIT("risk.perUserLimitUsd", Unit.USDT, "risk", BigDecimal.ONE, false),
   /** 追保线（保证金水平 %，100 即 100%）：在交易参数页改（权限 params:edit），不在系统配置页 */
@@ -39,7 +49,9 @@ public enum ConfigKey {
 
   /** 单位，和原型一致 */
   public enum Unit {
-    USDT, HOURS, MINUTES, COUNT, TEXT, PERCENT;
+    USDT, HOURS, MINUTES, COUNT, TEXT, PERCENT,
+    /** 热钱包手续费币（余额告警下限），最多 8 位小数 */
+    ETH, BNB, TRX;
 
     public String api() {
       return name().toLowerCase();
@@ -81,7 +93,7 @@ public enum ConfigKey {
     try {
       BigDecimal d = new BigDecimal(v);
       if (d.compareTo(min) < 0) return Optional.empty();
-      if (unit == Unit.USDT || unit == Unit.PERCENT) {
+      if (unit == Unit.USDT || unit == Unit.PERCENT || unit == Unit.ETH || unit == Unit.BNB || unit == Unit.TRX) {
         if (d.scale() > 8 || d.compareTo(new BigDecimal("1000000000")) > 0) return Optional.empty();
         return Optional.of(d.stripTrailingZeros().toPlainString());
       }

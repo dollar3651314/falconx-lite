@@ -307,10 +307,12 @@
     "view": "查看"
   },
   "config": {
+    "alertOff": "0（不告警）",
     "editDesc": "{{key}} 当前值 {{value}}，修改后立即生效。",
     "editTitle": "修改配置：{{name}}",
     "group": "分组",
     "hint": "这里的每一项都会被代码读取并立即生效；修改是高危操作，会写审计。",
+    "hotWalletHint": "热钱包余额低于这个值时给告警邮箱发邮件（30 分钟内不重复）；填 0 = 不告警。",
     "hours": "{{count}} 小时",
     "key": "键",
     "minutes": "{{count}} 分钟",
@@ -324,6 +326,7 @@
   "configGroup": {
     "adjust": "余额调整",
     "deposit": "入金",
+    "hotWallet": "热钱包余额告警",
     "notify": "通知",
     "security": "安全",
     "withdraw": "出金"
@@ -335,6 +338,12 @@
     "deposit_confirmations_BSC": "BSC 确认数",
     "deposit_confirmations_ERC20": "ERC20 确认数",
     "deposit_confirmations_TRC20": "TRC20 确认数",
+    "hotWallet_minGas_BSC": "BSC 热钱包 BNB（手续费）下限",
+    "hotWallet_minGas_ERC20": "ERC20 热钱包 ETH（手续费）下限",
+    "hotWallet_minGas_TRC20": "TRC20 热钱包 TRX（手续费）下限",
+    "hotWallet_minUsdt_BSC": "BSC 热钱包 USDT 下限",
+    "hotWallet_minUsdt_ERC20": "ERC20 热钱包 USDT 下限",
+    "hotWallet_minUsdt_TRC20": "TRC20 热钱包 USDT 下限",
     "login_lockMinutes": "锁定时长",
     "login_lockThreshold": "登录失败锁定次数",
     "notify_marginCallThrottleMinutes": "追保通知节流",
@@ -1302,5 +1311,27 @@
     "userLine": "{{email}} · 用户 ID {{id}}",
     "userPh": "姓名 / 邮箱 / 用户 ID",
     "whitelistAt": "白名单添加于 {{time}}，已过 24 小时生效期"
+  },
+  "hotWallet": {
+    "address": "热钱包地址",
+    "asset": "币种",
+    "balance": "当前余额",
+    "chain": "链",
+    "checkedAt": "最后查询",
+    "empty": "没有配置热钱包（服务器上没有填热钱包地址或节点）",
+    "gas": "手续费",
+    "hint": "每 5 分钟查一次链上余额。低于告警下限时给告警邮箱发邮件；下限在“系统配置”页设置，0 = 不告警。",
+    "off": "不告警",
+    "queryFailed": "最近一次查询失败",
+    "reload": "刷新",
+    "status": "状态",
+    "threshold": "告警下限",
+    "title": "热钱包余额"
+  },
+  "hotWalletStatus": {
+    "low": "低于下限",
+    "off": "未启用告警",
+    "ok": "正常",
+    "unknown": "还没查到"
   }
 }

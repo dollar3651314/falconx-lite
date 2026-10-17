@@ -307,10 +307,12 @@
     "view": "View"
   },
   "config": {
+    "alertOff": "0 (no alert)",
     "editDesc": "{{key}} is {{value}}; the change applies immediately.",
     "editTitle": "Edit: {{name}}",
     "group": "Group",
     "hint": "Each item is read by the code and takes effect immediately; changes are high-risk and audited.",
+    "hotWalletHint": "An alert email is sent when the hot wallet balance falls below this value (not repeated within 30 minutes); 0 = no alert.",
     "hours": "{{count}} h",
     "key": "Key",
     "minutes": "{{count}} min",
@@ -324,6 +326,7 @@
   "configGroup": {
     "adjust": "Balance adjustment",
     "deposit": "Deposits",
+    "hotWallet": "Hot wallet balance alerts",
     "notify": "Notifications",
     "security": "Security",
     "withdraw": "Withdrawals"
@@ -335,6 +338,12 @@
     "deposit_confirmations_BSC": "BSC confirmations",
     "deposit_confirmations_ERC20": "ERC20 confirmations",
     "deposit_confirmations_TRC20": "TRC20 confirmations",
+    "hotWallet_minGas_BSC": "BSC hot wallet BNB (gas) minimum",
+    "hotWallet_minGas_ERC20": "ERC20 hot wallet ETH (gas) minimum",
+    "hotWallet_minGas_TRC20": "TRC20 hot wallet TRX (gas) minimum",
+    "hotWallet_minUsdt_BSC": "BSC hot wallet USDT minimum",
+    "hotWallet_minUsdt_ERC20": "ERC20 hot wallet USDT minimum",
+    "hotWallet_minUsdt_TRC20": "TRC20 hot wallet USDT minimum",
     "login_lockMinutes": "Lock duration",
     "login_lockThreshold": "Failed sign-ins before lock",
     "notify_marginCallThrottleMinutes": "Margin call throttle",
@@ -1302,5 +1311,27 @@
     "userLine": "{{email}} · User ID {{id}}",
     "userPh": "Name / email / user ID",
     "whitelistAt": "Whitelisted {{time}}, past the 24-hour waiting period"
+  },
+  "hotWallet": {
+    "address": "Hot wallet address",
+    "asset": "Asset",
+    "balance": "Balance",
+    "chain": "Chain",
+    "checkedAt": "Last checked",
+    "empty": "No hot wallet configured (no hot wallet address or node on the server)",
+    "gas": "gas",
+    "hint": "On-chain balances are checked every 5 minutes. An alert email is sent when a balance falls below its minimum; set the minimums on the System config page (0 = no alert).",
+    "off": "No alert",
+    "queryFailed": "Last check failed",
+    "reload": "Refresh",
+    "status": "Status",
+    "threshold": "Alert minimum",
+    "title": "Hot wallet balances"
+  },
+  "hotWalletStatus": {
+    "low": "Below minimum",
+    "off": "Alert off",
+    "ok": "OK",
+    "unknown": "Not checked yet"
   }
 }

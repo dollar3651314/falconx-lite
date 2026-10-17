@@ -10,6 +10,7 @@ import com.falconx.lite.common.task.TaskItem;
 import com.falconx.lite.common.task.TaskService;
 import com.falconx.lite.common.task.TaskStatus;
 import com.falconx.lite.trading.api.TradingAdminApi;
+import com.falconx.lite.wallet.api.HotWalletApi;
 import com.falconx.lite.wallet.api.WalletAdminApi;
 import com.falconx.lite.wallet.api.WalletReconApi;
 import com.falconx.lite.wallet.api.WithdrawAdminApi;
@@ -59,6 +60,13 @@ class FundsOps {
   record ReconView(String id, String type, String ref, Long customerId, String customerName, String expected, String actual, String diff, String detail,
       String status, String note, String handler, String detectedAt, String resolvedAt) {}
 
+  /**
+   * 热钱包余额（对账页上方，2026-10-17）。status：ok 正常、low 低于下限（在告警）、off 下限为 0 不告警、unknown 还没查到余额。
+   * threshold 是后台系统配置里的下限（{@code hotWallet.*}）。error 是最近一次查询失败的原因（不含节点地址）
+   */
+  record HotWalletView(String chain, String asset, boolean gas, String address, String balance, String threshold, String status, String checkedAt,
+      String error) {}
+
   /** 字段和原型 TaskItem 一致 */
   record TaskView(String id, String type, String bizRef, String status, int attempts, int maxAttempts, String nextRetryAt, String lastError,
       String createdAt, String updatedAt) {}
@@ -70,6 +78,7 @@ class FundsOps {
   private final WalletAdminApi wallet;
   private final WithdrawAdminApi withdraws;
   private final WalletReconApi recon;
+  private final HotWalletApi hot;
   private final CustomerAdminApi customers;
   private final AccountApi accounts;
   private final TradingAdminApi trading;
@@ -78,11 +87,12 @@ class FundsOps {
   private final Audit audit;
   private final Clock clock;
 
-  FundsOps(WalletAdminApi wallet, WithdrawAdminApi withdraws, WalletReconApi recon, CustomerAdminApi customers, AccountApi accounts,
+  FundsOps(WalletAdminApi wallet, WithdrawAdminApi withdraws, WalletReconApi recon, HotWalletApi hot, CustomerAdminApi customers, AccountApi accounts,
       TradingAdminApi trading, TaskService tasks, AdminNames names, Audit audit, Clock clock) {
     this.wallet = wallet;
     this.withdraws = withdraws;
     this.recon = recon;
+    this.hot = hot;
     this.customers = customers;
     this.accounts = accounts;
     this.trading = trading;
@@ -272,6 +282,12 @@ class FundsOps {
           Ops.time(i.createdAt()), Ops.time(i.resolvedAt())));
     }
     return new Ops.Page<>(out, recon.countIssues(st), s.page(), s.size());
+  }
+
+  List<HotWalletView> hotWallets() {
+    return hot.hotBalances().stream().map(b -> new HotWalletView(b.chain(), b.asset(), b.gas(), b.address(), Ops.money(b.balance()), Ops.money(b.threshold()),
+        b.threshold().signum() <= 0 ? "off" : b.balance() == null ? "unknown" : b.low() ? "low" : "ok",
+        b.checkedAt() == null ? null : b.checkedAt().truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString(), b.error())).toList();
   }
 
   void resolveRecon(AdminContext actor, long id, String note) {
