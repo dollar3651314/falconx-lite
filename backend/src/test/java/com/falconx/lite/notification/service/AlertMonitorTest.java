@@ -150,4 +150,60 @@ class AlertMonitorTest {
     assertThat(h.evaluate().getFirst().ok()).isTrue();
     assertThat(new MailHealth(AlertProperties.defaults(), false).evaluate()).isEmpty();
   }
+
+  /** 可以"不再检查"的项（例如热钱包余额告警的下限改回 0） */
+  static class Toggle extends Switch {
+    volatile boolean enabled = true;
+
+    Toggle(String name) {
+      super(name);
+    }
+
+    @Override
+    public List<Item> evaluate() {
+      return enabled ? super.evaluate() : List.of();
+    }
+  }
+
+  @Test
+  void 不再检查的项_清掉状态不发恢复邮件_重新启用后按新的一次异常处理() {
+    Toggle hot = new Toggle("hot.ERC20.usdt");
+    AlertMonitor m = new AlertMonitor(List.of(hot), props("ops@example.com"), outbox, clock);
+    hot.ok = false;
+    m.check();
+    assertThat(outbox.sent).containsExactly("ops@example.com OPS_ALERT 项目hot.ERC20.usdt hot.ERC20.usdt 坏了");
+    hot.enabled = false;
+    m.check();
+    assertThat(outbox.sent).as("下限改回 0：不发\"已恢复\"").hasSize(1);
+    clock.advance(Duration.ofMinutes(31));
+    hot.enabled = true;
+    m.check();
+    assertThat(outbox.sent).as("重新启用、仍然低：过了节流期再发一封告警").hasSize(2);
+    hot.ok = true;
+    m.check();
+    assertThat(outbox.sent).last().asString().contains("OPS_RECOVERED");
+  }
+
+  @Test
+  void 有检查出错的一轮不清别的项的状态() {
+    Toggle hot = new Toggle("hot.BSC.gas");
+    AlertCheck bad = () -> {
+      throw new IllegalStateException("坏了");
+    };
+    java.util.concurrent.atomic.AtomicBoolean fail = new java.util.concurrent.atomic.AtomicBoolean(false);
+    AlertCheck flaky = () -> {
+      if (fail.get()) return bad.evaluate();
+      return List.of();
+    };
+    AlertMonitor m = new AlertMonitor(List.of(flaky, hot), props("ops@example.com"), outbox, clock);
+    hot.ok = false;
+    m.check();
+    fail.set(true);
+    hot.enabled = false;
+    m.check();
+    fail.set(false);
+    hot.enabled = true;
+    m.check();
+    assertThat(outbox.sent).as("状态没被清：持续异常不重复发").hasSize(1);
+  }
 }

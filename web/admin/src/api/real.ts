@@ -38,6 +38,7 @@ import type {
   PendingOrder,
   PermissionDef,
   Position,
+  HotWalletBalance,
   ReconItem,
   ReconQuery,
   RiskEvent,
@@ -190,6 +191,11 @@ export function emergencyCancelWithdrawal(id: string, reason: string): Promise<W
 /** 对账问题（字段按后台方案第 8 节）；后端只支持按状态筛选 */
 export function listRecon(q: ReconQuery): Promise<Page<ReconItem>> {
   return request('/recon', { query: { status: q.status, page: q.page, pageSize: q.pageSize } });
+}
+
+/** 热钱包当前余额和告警下限（对账页上方）；下限在系统配置页改 */
+export function listHotWallets(): Promise<HotWalletBalance[]> {
+  return request('/hot-wallets');
 }
 
 /** 标记已处理：说明字段是 note（F5） */

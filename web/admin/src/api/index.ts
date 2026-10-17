@@ -80,6 +80,8 @@ export const rejectWithdrawal: typeof real.rejectWithdrawal = IS_MOCK ? mock.rej
 export const emergencyCancelWithdrawal: typeof real.emergencyCancelWithdrawal = IS_MOCK ? mock.emergencyCancelWithdrawal : real.emergencyCancelWithdrawal;
 /** GET /api/admin/recon */
 export const listRecon: typeof real.listRecon = IS_MOCK ? mock.listRecon : real.listRecon;
+/** GET /api/admin/hot-wallets：热钱包余额和告警下限 */
+export const listHotWallets: typeof real.listHotWallets = IS_MOCK ? mock.listHotWallets : real.listHotWallets;
 /** POST /api/admin/recon/{id}/resolve */
 export const resolveRecon: typeof real.resolveRecon = IS_MOCK ? mock.resolveRecon : real.resolveRecon;
 /** GET /api/admin/tasks */

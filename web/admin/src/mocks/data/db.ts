@@ -22,6 +22,7 @@ import type {
   Role,
   SymbolExposure,
   SystemConfig,
+  HotWalletBalance,
   TaskItem,
   TradingParams,
   TradingSession,
@@ -604,6 +605,8 @@ export const auditLogs: AuditLog[] = Array.from({ length: 48 }, (_, i) => {
 // ---------------- 系统配置（只列真正生效的配置项） ----------------
 /** 写成函数是为了避免密钥扫描把 key: '...' 误判成密钥 */
 const withdrawFeeKey = (chain: string) => `withdraw.fee.${chain}`;
+/** 热钱包余额告警下限的配置键（和后端 ConfigKey 一致） */
+export const hotWalletMinKey = (chain: string, gas: boolean) => `hotWallet.${gas ? 'minGas' : 'minUsdt'}.${chain}`;
 
 export const systemConfigs: SystemConfig[] = [
   { key: 'withdraw.minAmount', value: '10', unit: 'usdt', group: 'withdraw', updatedAt: '2026-10-01 10:00:00' },
@@ -626,6 +629,23 @@ export const systemConfigs: SystemConfig[] = [
   { key: 'adjust.singleLimit', value: '5000', unit: 'usdt', group: 'adjust', updatedAt: '2026-10-01 10:00:00' },
   { key: 'adjust.dailyLimit', value: '20000', unit: 'usdt', group: 'adjust', updatedAt: '2026-10-01 10:00:00' },
   { key: 'notify.marginCallThrottleMinutes', value: '30', unit: 'minutes', group: 'notify', updatedAt: '2026-10-01 10:00:00' },
+  // 热钱包余额告警下限（迁移 V25）：默认 0 = 不告警（Amos 2026-10-17）
+  { key: hotWalletMinKey('ERC20', false), value: '0', unit: 'usdt', group: 'hotWallet', updatedAt: null },
+  { key: hotWalletMinKey('BSC', false), value: '0', unit: 'usdt', group: 'hotWallet', updatedAt: null },
+  { key: hotWalletMinKey('TRC20', false), value: '0', unit: 'usdt', group: 'hotWallet', updatedAt: null },
+  { key: hotWalletMinKey('ERC20', true), value: '0', unit: 'eth', group: 'hotWallet', updatedAt: null },
+  { key: hotWalletMinKey('BSC', true), value: '0', unit: 'bnb', group: 'hotWallet', updatedAt: null },
+  { key: hotWalletMinKey('TRC20', true), value: '0', unit: 'trx', group: 'hotWallet', updatedAt: null },
+];
+
+/** 热钱包余额（原型数据；地址是公开的测试地址，不是密钥）。下限在 systemConfigs 里 */
+export const hotWallets: Omit<HotWalletBalance, 'threshold' | 'status'>[] = [
+  { chain: 'ERC20', asset: 'USDT', gas: false, address: '0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf', balance: '812.5', checkedAt: '2026-10-17T06:55:00Z', error: null },
+  { chain: 'ERC20', asset: 'ETH', gas: true, address: '0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf', balance: '0.0412', checkedAt: '2026-10-17T06:55:00Z', error: null },
+  { chain: 'BSC', asset: 'USDT', gas: false, address: '0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf', balance: '2350', checkedAt: '2026-10-17T06:55:00Z', error: null },
+  { chain: 'BSC', asset: 'BNB', gas: true, address: '0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf', balance: '0.0835', checkedAt: '2026-10-17T06:55:00Z', error: null },
+  { chain: 'TRC20', asset: 'USDT', gas: false, address: 'TUiRdTFS88JN9k1joQ5Hw6zgBBP9MtLobc', balance: '5120.75', checkedAt: '2026-10-17T06:55:00Z', error: null },
+  { chain: 'TRC20', asset: 'TRX', gas: true, address: 'TUiRdTFS88JN9k1joQ5Hw6zgBBP9MtLobc', balance: null, checkedAt: null, error: 'TRON 节点返回 HTTP 503（/wallet/getaccount）' },
 ];
 
 /** 今日已调整余额合计（每日上限用） */
