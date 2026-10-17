@@ -3,6 +3,7 @@
  * 隔夜费率：现有数据只有 BTCUSD、XAUUSD 有值（A-02），这里再示意性地给几个已录入的，其余为 null（后台标红）。
  */
 import type { SymbolCategory, TradingSymbol } from '../../api/types';
+import { defaultMarkup } from '../../config/constants';
 
 interface Seed {
   code: string;
@@ -158,7 +159,8 @@ export function buildSymbols(): TradingSymbol[] {
       openFeeRate: crypto ? '0.0006' : s.cat === 'stock' ? '0.0004' : '0.00007',
       swapLong: sw ? sw[0] : null,
       swapShort: sw ? sw[1] : null,
-      markup: crypto ? '2.5' : s.cat === 'index' ? '1.2' : s.cat === 'metal' ? '0.18' : s.digits === 3 ? '0.008' : '0.00008',
+      // 和后端迁移 V24 一致：每边 10 点、买卖合计 20 点（1 点 = 10^(-小数位)）
+      markup: defaultMarkup(s.digits) ?? '0',
       digits: s.digits,
       hot: HOT.has(s.code),
       // XPD 不在清单；这里让 SOLUSD 处于暂停状态，演示"启用/暂停"

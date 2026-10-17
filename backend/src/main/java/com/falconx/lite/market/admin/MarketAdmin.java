@@ -212,6 +212,14 @@ class MarketAdmin implements MarketAdminApi, SimulatedQuoteSource.SimStartPrices
 
   private static final Set<String> CATEGORIES = Set.of("fx", "metal", "index", "energy", "crypto", "stock");
   /** 代码：大写字母开头，大写字母和数字，2–16 位（和第一版 50 个品种同样的写法，例如 EURUSD、US30、JPN225） */
+  /** 默认加点的点数（V24）：每边 10 点，买卖合计 20 点。1 点 = 最小价格单位 10^(-digits) */
+  static final int DEFAULT_MARKUP_POINTS = 10;
+
+  /** 小数位 → 默认加点（每边）10 × 10^(-digits)，例如 5 位 → 0.00010、2 位 → 0.10、0 位 → 10 */
+  static BigDecimal defaultMarkup(int digits) {
+    return BigDecimal.valueOf(DEFAULT_MARKUP_POINTS).movePointLeft(digits).setScale(Math.max(digits, 0));
+  }
+
   private static final Pattern CODE = Pattern.compile("[A-Z][A-Z0-9]{1,15}");
 
   /** 模板的一周时段：{星期, 开始分钟, 结束分钟}，和 V4 迁移一致 */
@@ -303,7 +311,8 @@ class MarketAdmin implements MarketAdminApi, SimulatedQuoteSource.SimStartPrices
     BigDecimal step = required(c, "lotStep", x.lotStep());
     if (step != null) step = positive(c, "lotStep", step, null);
     if (minLots != null && maxLots != null && minLots.compareTo(maxLots) > 0) c.add("maxLots", "lessThanMin");
-    BigDecimal markup = x.markup() == null ? BigDecimal.ZERO : x.markup();
+    // 不填加点时默认每边 10 点、买卖合计 20 点（Amos 2026-10-17"买卖一共 20 点"，和迁移 V24 一致）：1 点 = 10^(-digits)
+    BigDecimal markup = x.markup() != null ? x.markup() : x.digits() != null && x.digits() >= 0 && x.digits() <= 8 ? defaultMarkup(x.digits()) : BigDecimal.ZERO;
     if (markup.signum() < 0 || markup.scale() > 8) c.add("markup", "invalid");
     // 交易时段：从已有品种复制，或用模板（二选一）
     String copy = x.copySessionsFrom() == null || x.copySessionsFrom().isBlank() ? null : x.copySessionsFrom().strip();

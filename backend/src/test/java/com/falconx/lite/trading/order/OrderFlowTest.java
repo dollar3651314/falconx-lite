@@ -47,7 +47,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-/** 下单（S7）。公共设置见 {@link TradingTestSupport}。 */
+/**
+ * 下单（S7）。公共设置见 {@link TradingTestSupport}。
+ * 报价是原始价，客户价含加点（V24：买卖合计 20 点 = 每边 10 点，XAUUSD 每边 0.10、USDJPY 每边 0.010）：XAUUSD 原始 4126.35 / 4126.75 → 客户 4126.25 / 4126.85。
+ */
 class OrderFlowTest extends TradingTestSupport {
 
   @Test
@@ -55,13 +58,15 @@ class OrderFlowTest extends TradingTestSupport {
     long uid = newUser("1000");
     var r = orders.place(uid, market("XAUUSD", "buy", "0.10", 100));
     assertThat(r.kind()).isEqualTo("filled");
-    assertThat(r.price()).isEqualTo("4126.75");
+    assertThat(r.price()).as("原始 ask 4126.75 + 加点 0.10").isEqualTo("4126.85");
     PositionRow p = orders.positions(uid).getFirst();
-    assertThat(p.margin).isEqualByComparingTo("412.675");
-    assertThat(p.fee).isEqualByComparingTo("2.063375");
-    assertThat(p.liquidationPrice).isEqualByComparingTo("4095.80");
+    // 名义价值 4126.85 × 0.1 × 100 = 41,268.5；保证金 ÷100 = 412.685；手续费 × 0.005% = 2.063425
+    assertThat(p.margin).isEqualByComparingTo("412.685");
+    assertThat(p.fee).isEqualByComparingTo("2.063425");
+    // 强平价 = 4126.85 − 412.685 ÷ 10 + 4126.85 × 0.25% = 4095.898625 → 4095.90
+    assertThat(p.liquidationPrice).isEqualByComparingTo("4095.90");
     assertThat(p.maintenanceMarginRate).isEqualByComparingTo("0.0025");
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo("997.936625");
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo("997.936575");
     assertThat(ledgerSum(uid, "BALANCE")).as("账本合计 = 余额").isEqualByComparingTo(bucket(uid, "balance"));
   }
 
@@ -69,15 +74,18 @@ class OrderFlowTest extends TradingTestSupport {
   void 非USD报价品种_卖出按bid_按实时汇率折算() {
     long uid = newUser("1000");
     var r = orders.place(uid, market("USDJPY", "sell", "1.00", 500));
-    assertThat(r.price()).isEqualTo("151.840");
+    assertThat(r.price()).as("原始 bid 151.840 − 加点 0.010").isEqualTo("151.830");
     PositionRow p = orders.positions(uid).getFirst();
-    BigDecimal exact = new BigDecimal("15184000").divide(new BigDecimal("151.85"), java.math.MathContext.DECIMAL64);
+    // 汇率用不含加点的中间价 151.85
+    BigDecimal exact = new BigDecimal("15183000").divide(new BigDecimal("151.85"), java.math.MathContext.DECIMAL64);
     assertThat(p.notionalUsd.subtract(exact).abs()).isLessThanOrEqualTo(new BigDecimal("0.01"));
     assertThat(p.margin.subtract(exact.divide(new BigDecimal("500"), java.math.MathContext.DECIMAL64)).abs()).isLessThanOrEqualTo(new BigDecimal("0.01"));
   }
 
   @Test
   void 加点只加一次_成交价等于对客报价() {
+    BigDecimal before = jdbc.queryForObject("SELECT markup FROM market_symbol WHERE code = 'US500'", BigDecimal.class);
+    assertThat(before).as("V24：US500 1 位小数，每边 10 点 = 1.0").isEqualByComparingTo("1.0");
     jdbc.update("UPDATE market_symbol SET markup = 0.5 WHERE code = 'US500'");
     catalog.reload();
     try {
@@ -86,7 +94,7 @@ class OrderFlowTest extends TradingTestSupport {
       assertThat(orders.place(uid, market("US500", "buy", "1.00", 100)).price()).as("6712.4 + 0.5，只加一次").isEqualTo("6712.9");
       assertThat(orders.place(uid, market("US500", "sell", "1.00", 100)).price()).as("6712.0 − 0.5").isEqualTo("6711.5");
     } finally {
-      jdbc.update("UPDATE market_symbol SET markup = 0 WHERE code = 'US500'");
+      jdbc.update("UPDATE market_symbol SET markup = ? WHERE code = 'US500'", before);
       catalog.reload();
     }
   }
@@ -100,7 +108,7 @@ class OrderFlowTest extends TradingTestSupport {
     assertThat(b.id()).isEqualTo(a.id());
     assertThat(b.price()).isEqualTo(a.price());
     assertThat(orders.positions(uid)).hasSize(1);
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo("997.936625");
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo("997.936575");
   }
 
   @Test
@@ -176,7 +184,7 @@ class OrderFlowTest extends TradingTestSupport {
 
   @Test
   void 并发下单不会超出可用余额_账本和余额一致() throws Exception {
-    // 每单需要 412.675 + 2.063375；开仓后每单浮亏 4 USD。1,300 只够 3 单
+    // 每单需要 412.685 + 2.063425；开仓后每单浮亏 (4126.25 − 4126.85) × 10 = 6 USD。1,300 只够 3 单
     long uid = newUser("1300");
     ExecutorService pool = Executors.newFixedThreadPool(10);
     CountDownLatch go = new CountDownLatch(1);
@@ -197,7 +205,7 @@ class OrderFlowTest extends TradingTestSupport {
     pool.shutdown();
     assertThat(ok).isEqualTo(3);
     assertThat(orders.positions(uid)).hasSize(3);
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo(new BigDecimal("1300").subtract(new BigDecimal("2.063375").multiply(new BigDecimal(3))));
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo(new BigDecimal("1300").subtract(new BigDecimal("2.063425").multiply(new BigDecimal(3))));
     assertThat(ledgerSum(uid, "BALANCE")).isEqualByComparingTo(bucket(uid, "balance"));
   }
 
@@ -208,19 +216,19 @@ class OrderFlowTest extends TradingTestSupport {
     String filled = mvc.perform(post("/api/trading/orders").cookie(c).contentType(MediaType.APPLICATION_JSON)
         .content("{\"symbol\":\"XAUUSD\",\"type\":\"market\",\"side\":\"buy\",\"lots\":\"0.10\",\"leverage\":100,\"takeProfit\":\"4200.00\",\"clientOrderId\":\"api-1\"}"))
         .andReturn().getResponse().getContentAsString();
-    assertThat(filled).contains("\"kind\":\"filled\"").contains("\"price\":\"4126.75\"");
+    assertThat(filled).contains("\"kind\":\"filled\"").contains("\"price\":\"4126.85\"");
     String pos = mvc.perform(get("/api/trading/positions").cookie(c)).andReturn().getResponse().getContentAsString();
-    assertThat(pos).contains("\"side\":\"buy\"").contains("\"lots\":\"0.10\"").contains("\"openPrice\":\"4126.75\"").contains("\"margin\":\"412.675\"")
-        .contains("\"liquidationPrice\":\"4095.80\"").contains("\"takeProfit\":\"4200.00\"").contains("\"maintenanceMarginRate\":\"0.0025\"").contains("Z\"");
+    assertThat(pos).contains("\"side\":\"buy\"").contains("\"lots\":\"0.10\"").contains("\"openPrice\":\"4126.85\"").contains("\"margin\":\"412.685\"")
+        .contains("\"liquidationPrice\":\"4095.90\"").contains("\"takeProfit\":\"4200.00\"").contains("\"maintenanceMarginRate\":\"0.0025\"").contains("Z\"");
     String pending = mvc.perform(post("/api/trading/orders").cookie(c).contentType(MediaType.APPLICATION_JSON)
         .content("{\"symbol\":\"XAUUSD\",\"type\":\"limit\",\"side\":\"buy\",\"lots\":\"0.10\",\"leverage\":100,\"limitPrice\":\"4100.00\",\"clientOrderId\":\"api-2\"}"))
         .andReturn().getResponse().getContentAsString();
     assertThat(pending).contains("\"kind\":\"pending\"");
     assertThat(mvc.perform(get("/api/trading/orders").cookie(c)).andReturn().getResponse().getContentAsString()).contains("\"limitPrice\":\"4100.00\"").contains("\"frozenMargin\":\"412.05\"");
-    // 余额 1000 − 2.063375；浮亏 (4126.35 − 4126.75) × 10 = −4；可用 = 997.936625 − 4 − 412.675 − 412.05
+    // 余额 1000 − 2.063425；浮亏 (4126.25 − 4126.85) × 10 = −6；可用 = 997.936575 − 6 − 412.685 − 412.05
     String acc = mvc.perform(get("/api/trading/account").cookie(c)).andReturn().getResponse().getContentAsString();
-    assertThat(acc).contains("\"balance\":\"997.936625\"").contains("\"orderFrozen\":\"412.05\"").contains("\"floatingPnl\":\"-4\"")
-        .contains("\"equity\":\"993.936625\"").contains("\"usedMargin\":\"412.675\"").contains("\"available\":\"169.211625\"");
+    assertThat(acc).contains("\"balance\":\"997.936575\"").contains("\"orderFrozen\":\"412.05\"").contains("\"floatingPnl\":\"-6\"")
+        .contains("\"equity\":\"991.936575\"").contains("\"usedMargin\":\"412.685\"").contains("\"available\":\"167.201575\"");
     String id = pending.replaceAll(".*\"id\":\"(\\d+)\".*", "$1");
     assertThat(mvc.perform(delete("/api/trading/orders/" + id).cookie(c)).andReturn().getResponse().getStatus()).isEqualTo(200);
     var notFound = mvc.perform(delete("/api/trading/orders/" + id).cookie(c)).andReturn().getResponse();

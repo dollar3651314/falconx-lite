@@ -1,5 +1,5 @@
 /**
- * 品种页的当前报价源（技术方案/v2-报价源接入.md 第 5.5 节）：AllTick 主源、iTick 备源、模拟、两家偏差暂停成交（标红）。
+ * 品种页的当前报价源（技术方案/v2-报价源接入.md 第 5.5 节）：AllTick 主源、iTick 备源、模拟、两家偏差暂停开仓（标红）。
  */
 import { screen } from '@testing-library/react';
 import { listSymbols } from './api';
@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 describe('报价源', () => {
-  it('主源只显示名字；备源加"（备）"；模拟；偏差暂停标红；停用或没有报价源不显示', () => {
+  it('主源只显示名字；备源加"（备）"；模拟；偏差暂停开仓标红；停用或没有报价源不显示', () => {
     const { container, unmount } = renderAs(
       <div>
         <span data-testid="a">
@@ -42,7 +42,7 @@ describe('报价源', () => {
     expect(screen.getByTestId('a').textContent).toBe(' · AllTick');
     expect(screen.getByTestId('b').textContent).toBe(' · iTick（备）');
     expect(screen.getByTestId('c').textContent).toBe(' · 模拟');
-    expect(screen.getByTestId('d').textContent).toBe(' · AllTick · 偏差暂停');
+    expect(screen.getByTestId('d').textContent).toBe(' · AllTick · 偏差·暂停开仓');
     expect(screen.getByTestId('d').querySelector('.quote-source.stale')).not.toBeNull();
     expect(screen.getByTestId('e').textContent).toBe('');
     expect(screen.getByTestId('f').textContent).toBe('');

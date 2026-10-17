@@ -30,5 +30,12 @@ public interface MarketApi {
    */
   Optional<BigDecimal> liveUsdRate(String ccy);
 
+  /**
+   * 两家真实报价源这个品种的价格偏差超过阈值，<b>暂停开仓</b>（技术方案/v2-报价源接入.md 第 4 节，Amos 2026-10-17 选 B）。
+   * 只影响开仓（市价开仓、挂单成交）；报价照常可以成交（用主源的价格），平仓、止盈止损、强平照常。
+   * 和品种自己的 {@link SymbolSpec#openPaused()}、风控的暂停是三个独立的开关，任何一个打开都不能开仓；偏差回落后自动恢复，只恢复这一个。
+   */
+  boolean quoteDeviationPaused(String code);
+
   void subscribe(QuoteListener listener);
 }

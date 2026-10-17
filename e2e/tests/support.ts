@@ -18,6 +18,12 @@ export const ADMIN_NEW_PASSWORD = process.env.E2E_ADMIN_NEW_PASSWORD || 'ci_only
  */
 export const SYMBOL = 'ETHUSD';
 
+/**
+ * SYMBOL 的加点（迁移 V24：买卖合计 20 点 = 每边 10 点，ETHUSD 2 位小数 → 每边 0.10）：客户看到的卖价 = 原始卖价 − 0.10、买价 = 原始买价 + 0.10。
+ * `e2e.quote` 返回的是客户价（含加点），`e2e.move` 设的是原始卖价（不含加点），换算时要用它。
+ */
+export const SYMBOL_MARKUP = 0.1;
+
 /** 每轮新数据：新邮箱、新证件号 */
 export function uniqueId(): string {
   return `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;

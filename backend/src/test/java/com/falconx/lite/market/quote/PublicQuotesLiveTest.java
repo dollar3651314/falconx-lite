@@ -70,6 +70,7 @@ class PublicQuotesLiveTest {
     simulated.moveTo("XAUUSD", new BigDecimal("4197.70"));
     JsonNode body = json.readTree(mvc.perform(get("/api/public/quotes")).andReturn().getResponse().getContentAsString());
     assertThat(body.get("sample").asBoolean()).isFalse();
-    assertThat(body.get("items").get(0).get("bid").asString()).isEqualTo("4126.50");
+    // AllTick 的 4126.50 − 加点 0.10（V24）
+    assertThat(body.get("items").get(0).get("bid").asString()).isEqualTo("4126.40");
   }
 }

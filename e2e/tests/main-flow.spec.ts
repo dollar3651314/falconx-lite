@@ -9,7 +9,7 @@
  */
 import { expect, request as apiRequest, test, type BrowserContext, type Page } from '@playwright/test';
 import { adminLogin, cjk, confirmAndWait, setConfig } from './admin';
-import { CLIENT_PASSWORD, e2e, expectNoHorizontalScroll, expectNoHorizontalScrollWithScrollbar, PNG_1PX, Recorder, selectTab, step, SYMBOL, trackSocketOpen, uniqueId, waitSocketOpen } from './support';
+import { CLIENT_PASSWORD, e2e, expectNoHorizontalScroll, expectNoHorizontalScrollWithScrollbar, PNG_1PX, Recorder, selectTab, step, SYMBOL, SYMBOL_MARKUP, trackSocketOpen, uniqueId, waitSocketOpen } from './support';
 import { ADMIN_URL, CLIENT_URL, DEPLOYED, EXPECT_ENV_BANNER, STUB_URL } from './targets';
 
 const DEPOSIT = '1000';
@@ -249,7 +249,10 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await page.goto('/positions');
       await expect(page.locator('.pos-card').filter({ hasText: SYMBOL })).toHaveCount(1);
       await expectNoHorizontalScroll(page, '持仓页');
-      bid = Number((await e2e.quote(request, SYMBOL)).bid);
+      const q = await e2e.quote(request, SYMBOL);
+      bid = Number(q.bid);
+      // 客户看到的点差 = 原始点差 + 2 × 加点（V24 每边 10 点，合计 20 点）
+      expect(Number(q.ask) - bid, `${SYMBOL} 点差含加点`).toBeGreaterThanOrEqual(2 * SYMBOL_MARKUP - 1e-9);
     });
 
     // 价格只推动不到 1%：质量守卫把 60 秒内波动超过 5% 的报价判为异常、不能成交（连续跑几轮也不会超过）
@@ -269,7 +272,8 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
     });
 
     await step('报价涨过止盈价：自动平仓（止盈）', async () => {
-      await e2e.move(request, SYMBOL, bid * 1.007);
+      // bid 是客户卖价（含加点），move 设原始卖价：加回加点，客户卖价正好到 bid × 1.007，比止盈价（bid × 1.004）高 0.3%（ETHUSD 约 7 美元，远大于随机游走一步）
+      await e2e.move(request, SYMBOL, bid * 1.007 + SYMBOL_MARKUP);
       await expect(page.getByText('暂无持仓')).toBeVisible();
       await selectTab(page, '历史');
       await expect(page.locator('.hist-row').filter({ hasText: SYMBOL }).getByText('止盈')).toBeVisible();

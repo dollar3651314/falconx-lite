@@ -75,7 +75,7 @@ falconx:
       # 主源一个品种多久没报价切备源；主源恢复多久后切回
       failover-after: ${FX_QUOTE_FAILOVER_AFTER:10s}
       failback-after: ${FX_QUOTE_FAILBACK_AFTER:30s}
-      # 两家中间价偏差超过这个比例（0.005 = 0.5%）→ 这个品种暂停成交并告警；两家的报价都在 cross-check-max-age 以内才比较
+      # 两家中间价偏差超过这个比例（0.005 = 0.5%）→ 这个品种暂停开仓并告警（平仓、止盈止损、强平照常，用主源价格）；两家的报价都在 cross-check-max-age 以内才比较
       max-deviation: ${FX_QUOTE_MAX_DEVIATION:0.005}
       cross-check-max-age: 5s
       # USDT 计价的映射（代码以 USDT 结尾）乘的系数：Amos 2026-10-17 确认 USDT 按 1:1 当 USD

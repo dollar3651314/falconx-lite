@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>{@code quote.alltick} / {@code quote.itick}（配了 token 才有）：有连接没连上，或者这家负责的品种有开市的、但超过 {@code silence-alert} 没给任何报价；</li>
  *   <li>{@code quote.failover}（配了两家才有）：有品种正在用备源；</li>
- *   <li>{@code quote.deviation}（配了两家才有）：有品种因为两家价格偏差暂停成交。</li>
+ *   <li>{@code quote.deviation}（配了两家才有）：有品种因为两家价格偏差暂停开仓（平仓照常，用主源价格）。</li>
  * </ul>
  * 只看内存里的状态，不访问网络。详情里没有 token（错误信息已经抹掉）。
  */
@@ -49,7 +49,7 @@ class QuoteFeedAlert implements AlertCheck {
       List<String> dev = router.deviations();
       out.add(new Item("quote.deviation", "报价源价格偏差", "Quote feed deviation", dev.isEmpty(),
           dev.isEmpty() ? "正常" : dev.size() + " 个品种两家价格偏差超过 " + props.maxDeviation().movePointRight(2).stripTrailingZeros().toPlainString()
-              + "%，已暂停成交：" + String.join("、", dev)));
+              + "%，已暂停开仓（平仓照常，用主源价格）：" + String.join("、", dev)));
     }
     return out;
   }

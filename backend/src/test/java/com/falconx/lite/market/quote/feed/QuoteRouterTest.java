@@ -179,19 +179,40 @@ class QuoteRouterTest {
   }
 
   @Test
-  void 两家偏差超过千分之五暂停成交_回落后恢复() {
+  void 两家偏差超过千分之五暂停开仓_报价只用主源_回落后恢复() {
     QuoteRouter r = both();
     r.onQuote("alltick", "BTCUSDT", d("81500.0"), d("81510.0"), null);
     r.onQuote("itick", "BTCUSDT$BA", d("81900.0"), d("81910.0"), null); // 偏差约 0.49%
-    verify(processor, never()).setSourceBlocked(anyString(), anyBoolean());
+    verify(processor, never()).setDeviationPaused(anyString(), anyBoolean());
     r.onQuote("itick", "BTCUSDT$BA", d("82000.0"), d("82010.0"), null); // 偏差约 0.61%
-    verify(processor).setSourceBlocked("BTCUSD", true);
+    verify(processor).setDeviationPaused("BTCUSD", true);
     assertThat(r.current("BTCUSD")).contains(new QuoteSource("alltick", "deviation"));
     assertThat(r.deviations()).hasSize(1);
     assertThat(r.deviations().getFirst()).startsWith("BTCUSD 0.6");
+    // 偏差期间主源的报价照常进主链路（平仓、止盈止损、强平用它），备源的不进
+    clearInvocations(processor);
+    r.onQuote("alltick", "BTCUSDT", d("81520.0"), d("81530.0"), null);
+    r.onQuote("itick", "BTCUSDT$BA", d("82020.0"), d("82030.0"), null);
+    assertThat(submitted()).extracting(RawQuote::bid).as("只有主源的价格").containsExactly(d("81520.0"));
     r.onQuote("alltick", "BTCUSDT", d("81990.0"), d("82000.0"), null);
-    verify(processor).setSourceBlocked("BTCUSD", false);
+    verify(processor).setDeviationPaused("BTCUSD", false);
     assertThat(r.deviations()).isEmpty();
+  }
+
+  @Test
+  void 正在用备源时出现偏差_立即切回主源用主源价格() {
+    QuoteRouter r = both();
+    r.onQuote("itick", "EURUSD$GB", d("1.12500"), d("1.12510"), null);
+    assertThat(r.current("EURUSD")).as("主源从来没报价，用备源").contains(new QuoteSource("itick", "backup"));
+    clearInvocations(processor);
+    // 主源恢复（没满 30 秒，本来还会继续用备源），但两家相差约 0.9%
+    r.onQuote("alltick", "EURUSD", d("1.13500"), d("1.13510"), null);
+    verify(processor).setDeviationPaused("EURUSD", true);
+    assertThat(r.current("EURUSD")).contains(new QuoteSource("alltick", "deviation"));
+    assertThat(submitted()).extracting(RawQuote::bid).as("切回主源，这一条主源的报价就进主链路").containsExactly(d("1.13500"));
+    clearInvocations(processor);
+    r.onQuote("itick", "EURUSD$GB", d("1.12501"), d("1.12511"), null);
+    assertThat(submitted()).as("备源的价格不进主链路").isEmpty();
   }
 
   @Test
@@ -200,7 +221,7 @@ class QuoteRouterTest {
     r.onQuote("itick", "BTCUSDT$BA", d("90000.0"), d("90010.0"), null);
     clock.advance(Duration.ofSeconds(6));
     r.onQuote("alltick", "BTCUSDT", d("81500.0"), d("81510.0"), null);
-    verify(processor, never()).setSourceBlocked(anyString(), anyBoolean());
+    verify(processor, never()).setDeviationPaused(anyString(), anyBoolean());
   }
 
   @Test

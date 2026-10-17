@@ -56,17 +56,19 @@ class SwapTest extends TradingTestSupport {
     long uid = newUser("1000");
     long id = open(uid, "XAUUSD", "buy", "0.10", 100, "2026-10-14 09:00:00");
     swaps.settleDue(Instant.parse("2026-10-14T22:01:00Z"));
-    // 0.1 × 100 × 4126.35（bid）× 0.0001 = 4.12635
-    assertThat(swapRows(id)).singleElement().satisfies(a -> assertThat(a).isEqualByComparingTo("-4.12635"));
-    assertThat(col(id, "margin")).isEqualByComparingTo("408.54865");
-    // 可亏 408.54865 − 103.16875 = 305.3799，强平价 4126.75 − 30.53799 = 4096.21
-    assertThat(col(id, "liquidation_price")).isEqualByComparingTo("4096.21");
-    assertThat(col(id, "swap_total")).isEqualByComparingTo("-4.12635");
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo("993.810275");
+    // 客户价含加点（V24 每边 0.10）：开仓 ask 4126.85，平仓价 bid 4126.25。0.1 × 100 × 4126.25（bid）× 0.0001 = 4.12625
+    assertThat(swapRows(id)).singleElement().satisfies(a -> assertThat(a).isEqualByComparingTo("-4.12625"));
+    // 保证金 412.685 − 4.12625
+    assertThat(col(id, "margin")).isEqualByComparingTo("408.55875");
+    // 可亏 408.55875 − 103.17125 = 305.3875，强平价 4126.85 − 30.53875 = 4096.31
+    assertThat(col(id, "liquidation_price")).isEqualByComparingTo("4096.31");
+    assertThat(col(id, "swap_total")).isEqualByComparingTo("-4.12625");
+    // 1000 − 手续费 2.063425 − 隔夜费 4.12625
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo("993.810325");
     assertThat(ledgerSum(uid, "BALANCE")).isEqualByComparingTo(bucket(uid, "balance"));
     swaps.settleDue(Instant.parse("2026-10-14T23:30:00Z"));
     assertThat(swapRows(id)).hasSize(1);
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo("993.810275");
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo("993.810325");
   }
 
   @Test
@@ -76,10 +78,11 @@ class SwapTest extends TradingTestSupport {
     long id = open(uid, "XAUUSD", "sell", "0.10", 100, "2026-10-14 09:00:00");
     BigDecimal before = bucket(uid, "balance");
     swaps.settleDue(Instant.parse("2026-10-14T22:01:00Z"));
-    // 0.1 × 100 × 4126.75（ask）× 0.00005 = 2.063375
-    assertThat(swapRows(id)).singleElement().satisfies(a -> assertThat(a).isEqualByComparingTo("2.063375"));
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo(before.add(new BigDecimal("2.063375")));
-    assertThat(col(id, "margin")).isEqualByComparingTo("412.635");
+    // 0.1 × 100 × 4126.85（客户 ask，含加点）× 0.00005 = 2.063425
+    assertThat(swapRows(id)).singleElement().satisfies(a -> assertThat(a).isEqualByComparingTo("2.063425"));
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo(before.add(new BigDecimal("2.063425")));
+    // 空单按客户 bid 4126.25 开仓：保证金 412.625
+    assertThat(col(id, "margin")).isEqualByComparingTo("412.625");
   }
 
   @Test
@@ -118,8 +121,9 @@ class SwapTest extends TradingTestSupport {
     positions.close(uid, id);
     BigDecimal before = bucket(uid, "balance");
     swaps.settleDue(Instant.parse("2026-10-14T22:01:00Z"));
-    assertThat(swapRows(id)).singleElement().satisfies(a -> assertThat(a).isEqualByComparingTo("-4.12635"));
-    assertThat(bucket(uid, "balance")).isEqualByComparingTo(before.subtract(new BigDecimal("4.12635")));
+    // 0.1 × 100 × 4126.25（客户 bid，含加点）× 0.0001
+    assertThat(swapRows(id)).singleElement().satisfies(a -> assertThat(a).isEqualByComparingTo("-4.12625"));
+    assertThat(bucket(uid, "balance")).isEqualByComparingTo(before.subtract(new BigDecimal("4.12625")));
   }
 
   @Test
