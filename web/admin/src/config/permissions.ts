@@ -19,6 +19,7 @@ export const PERMISSIONS = [
   { code: 'withdrawal:view', module: 'funds', highRisk: false },
   { code: 'withdrawal:review', module: 'funds', highRisk: false },
   { code: 'withdrawal:emergency_cancel', module: 'funds', highRisk: true },
+  { code: 'withdrawal:auto_rule_edit', module: 'funds', highRisk: true },
   { code: 'recon:view', module: 'funds', highRisk: false },
   { code: 'recon:resolve', module: 'funds', highRisk: false },
   { code: 'task:view', module: 'funds', highRisk: false },

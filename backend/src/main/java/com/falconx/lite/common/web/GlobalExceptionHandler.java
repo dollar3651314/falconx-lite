@@ -36,6 +36,8 @@ public class GlobalExceptionHandler {
       Map.entry("CODE_TOO_FREQUENT", HttpStatus.TOO_MANY_REQUESTS),
       Map.entry("RATE_LIMITED", HttpStatus.TOO_MANY_REQUESTS),
       Map.entry("EMAIL_TAKEN", HttpStatus.CONFLICT),
+      // 带版本号的配置被别人先改了（提现自动审批规则），刷新后再改
+      Map.entry("CONFIG_CHANGED", HttpStatus.CONFLICT),
       Map.entry("NOT_FOUND", HttpStatus.NOT_FOUND));
 
   @ExceptionHandler(BizException.class)

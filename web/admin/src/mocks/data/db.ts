@@ -270,6 +270,44 @@ autoSeeds.forEach((s, i) => {
   });
 });
 
+// 以前已完成的出金（2026-10-17 补，修正原型演示数据前后不一致）：firstUse = false 表示这个客户以前往这个地址成功提现过（和后端 first_use 同一口径），
+// 以前没有这几笔，规则判定 R4"此前已完成提现 N 笔"和出金详情的"最近出金：无"对不上。这里补上：
+// - 地址不是第一次用的：往同一个地址补 1～2 笔；
+// - 新地址首次提现（firstUse = true）：往另一个地址补 1 笔（不是第一笔提现，但这个地址没成功提现过）；
+// - FIRST_EVER 里的客户是第一笔提现，不补（并把 firstUse 改成 true）。
+// 都在 6 天以前，金额是累计入金的一成左右；用单独的随机数，不影响其他数据。默认的"进行中"筛选看不到它们。
+const histRng = createRng(20261018);
+/** 第一笔提现的客户（customers 下标）：规则判定里 R4 未通过 */
+const FIRST_EVER = new Set([8, 31]);
+const creditedOf = (customerId: number) =>
+  customerId === 100482 ? 20000 : deposits.filter((d) => d.customerId === customerId && d.status === 'credited').reduce((s, d) => s + Number(d.amount), 0);
+const history: Withdrawal[] = [];
+withdrawals.forEach((w, i) => {
+  if (FIRST_EVER.has(customers.findIndex((c) => c.id === w.customerId))) {
+    w.firstUse = true;
+    return;
+  }
+  const n = w.firstUse ? 1 : histRng.int(1, 2);
+  const amount = Math.max(50, Math.floor((creditedOf(w.customerId) * 0.1) / 10) * 10).toFixed(2);
+  for (let k = 0; k < n; k++) {
+    const ago = 60 * 24 * (6 + histRng.int(0, 20) + k * 9) + histRng.int(0, 600);
+    history.push({
+      ...w,
+      id: mockNo(ago, 3500 + i * 3 + k),
+      amount,
+      address: w.firstUse ? (w.chain === 'TRC20' ? tronAddress(histRng) : evmAddress(histRng)) : w.address,
+      firstUse: false,
+      status: 'completed',
+      delayRemainingMinutes: null,
+      submittedAt: minutesAgo(ago),
+      reviewer: '李娜',
+      reason: null,
+      txHash: w.chain === 'TRC20' ? histRng.hex(64) : '0x' + histRng.hex(64),
+    });
+  }
+});
+withdrawals.push(...history);
+
 // ---------------- 对账（字段和问题类型按后端，后台方案第 8 节） ----------------
 export const reconItems: ReconItem[] = [
   { type: 'deposit_ledger_mismatch', ref: 'DEPOSIT:41207', expected: '2000', actual: '1999.99', detail: '充值记录的金额和账本入账不一致', status: 'open' },

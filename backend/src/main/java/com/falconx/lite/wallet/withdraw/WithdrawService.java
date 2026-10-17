@@ -13,6 +13,7 @@ import com.falconx.lite.trading.api.LedgerEntryType;
 import com.falconx.lite.notification.api.NotifyApi;
 import com.falconx.lite.trading.api.UserEventsApi;
 import com.falconx.lite.wallet.Chain;
+import com.falconx.lite.wallet.api.AutoApprove;
 import com.falconx.lite.wallet.api.WithdrawAdminApi;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -32,6 +33,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 冷静期 → 待审核 → 已审核待上链（大额先延迟 6 小时）→ 上链中 → 已完成；
  * 任何失败路径（撤销、驳回、紧急取消、确定没上链）都把冻结金额完整退回。
  * 每次状态变化都在锁住提现单之后按"从哪个状态到哪个状态"条件更新，并记一条提现事件。
+ * <p>v2 提现自动审批（技术方案/v2-提现自动审批.md）：提交后预判一次（只做参考）；冷静期结束时在同一个事务里复判，已启用的规则全部通过（并且总开关打开）时由系统代替审核人员
+ * "通过"（{@value #AUTO_ACTOR}），之后和人工通过完全一样（大额延迟 6 小时、上链）；否则转人工，和以前一样。规则只决定要不要人工看，不放宽任何限额。
  */
 @Service
 @EnableConfigurationProperties(WithdrawProperties.class)
@@ -39,6 +42,8 @@ public class WithdrawService implements WithdrawAdminApi {
 
   private static final Logger log = LoggerFactory.getLogger(WithdrawService.class);
   static final String BIZ_WITHDRAW = "WITHDRAW";
+  /** 自动通过时提现事件的操作人（事件表 actor 列 VARCHAR(32)） */
+  static final String AUTO_ACTOR = "system:auto-approve";
   private static final Pattern AMOUNT = Pattern.compile("\\d{1,12}(\\.\\d{1,8})?");
 
   private final WithdrawMapper mapper;
@@ -49,12 +54,13 @@ public class WithdrawService implements WithdrawAdminApi {
   private final NotifyApi notify;
   private final WithdrawSenders senders;
   private final WithdrawLimits limits;
+  private final AutoApproveService auto;
   private final TransactionTemplate tx;
   private final Clock clock;
   private final Snowflake ids;
 
   WithdrawService(WithdrawMapper mapper, LedgerApi ledger, FundsApi funds, AccountApi account, UserEventsApi events, NotifyApi notify, WithdrawSenders senders,
-      WithdrawLimits limits, TransactionTemplate tx, Clock clock, Snowflake ids) {
+      WithdrawLimits limits, AutoApproveService auto, TransactionTemplate tx, Clock clock, Snowflake ids) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.funds = funds;
@@ -63,6 +69,7 @@ public class WithdrawService implements WithdrawAdminApi {
     this.notify = notify;
     this.senders = senders;
     this.limits = limits;
+    this.auto = auto;
     this.tx = tx;
     this.clock = clock;
     this.ids = ids;
@@ -132,6 +139,8 @@ public class WithdrawService implements WithdrawAdminApi {
       return n;
     });
     notify(r);
+    // 提交时预判（不占额度、不决定结果，出错只记日志）
+    auto.precheck(r.id);
     return r;
   }
 
@@ -207,9 +216,68 @@ public class WithdrawService implements WithdrawAdminApi {
   /** 推进到期的状态：冷静期满 → 待审核；大额延迟满 → 待上链（修复 F1：直接进入上链，不依赖别的事件）；然后发送所有待上链的 */
   void advance() {
     LocalDateTime now = now();
-    for (Long id : mapper.due("COOLING", "cooling_ends_at", now)) systemMove(id, "COOLING", "REVIEWING", "冷静期结束");
+    for (Long id : mapper.due("COOLING", "cooling_ends_at", now)) coolingEnded(id);
     for (Long id : mapper.due("DELAYED", "delay_ends_at", now)) systemMove(id, "DELAYED", "APPROVED", "延迟期结束，进入上链");
     for (Long id : mapper.withStatus("APPROVED")) send(id);
+  }
+
+  /**
+   * 冷静期结束（v2 自动审批，方案第 3、5 节）：锁住提现单、确认还在冷静期 → 复判（总开关打开时锁全局锁，R2 / R3 在锁里现算）→ 冷静期 → 待审核（system）；
+   * 复判全部通过时同一个事务里再 待审核 → 已审核待上链 / 延迟中（{@value #AUTO_ACTOR}），写 review_mode = AUTO。提交以后才上链（不在事务里访问节点）。
+   * 复判整个出错时转人工（尽量记一条 ERROR 判定），不会因为出错而放行，也不会卡在冷静期。
+   */
+  void coolingEnded(long id) {
+    WithdrawalRow r;
+    try {
+      // 配置在事务外一次读出：事务里第一条一致性读要发生在拿到全局锁之后，才能看到前一笔刚提交的自动通过
+      AutoApprove.Settings s = auto.settings();
+      r = tx.execute(st -> {
+        WithdrawalRow w = mapper.lock(id);
+        if (w == null || !"COOLING".equals(w.status) || now().isBefore(w.coolingEndsAt)) return null;
+        AutoApproveService.Decision d = auto.decideFinal(w, s);
+        move(w, "REVIEWING", "system", "冷静期结束");
+        if (d.approved()) autoApprove(w, d);
+        return w;
+      });
+    } catch (RuntimeException e) {
+      log.error("提现 {} 冷静期结束时自动审批判定出错，转人工", id, e);
+      r = coolingEndedManually(id, e);
+    }
+    if (r == null) return;
+    notify(r);
+    if ("APPROVED".equals(r.status)) send(r.id);
+  }
+
+  /** 自动通过：和人工通过一样，< 大额阈值直接待上链，≥ 大额阈值延迟 6 小时；审核人为空，事件操作人是 system:auto-approve */
+  private void autoApprove(WithdrawalRow w, AutoApproveService.Decision d) {
+    boolean large = w.amount.compareTo(props().largeAmount()) >= 0;
+    LocalDateTime delay = large ? now().plus(props().largeDelay()) : null;
+    auto.markApproved(w.id, now(), delay);
+    String note = "自动审批通过（判定 #" + d.checkId() + "，配置第 " + d.configVersion() + " 版）" + (large ? "；大额，延迟到 " + delay : "");
+    move(w, large ? "DELAYED" : "APPROVED", AUTO_ACTOR, note);
+    w.delayEndsAt = delay;
+  }
+
+  /** 复判出错后的兜底：记一条 ERROR 判定并转人工；连这也失败就只转人工 */
+  private WithdrawalRow coolingEndedManually(long id, RuntimeException cause) {
+    try {
+      AutoApprove.Settings s = auto.settings();
+      return tx.execute(st -> {
+        WithdrawalRow w = mapper.lock(id);
+        if (w == null || !"COOLING".equals(w.status) || now().isBefore(w.coolingEndsAt)) return null;
+        auto.recordError(w, s, "判定出错：" + cause.getClass().getSimpleName());
+        move(w, "REVIEWING", "system", "冷静期结束（自动审批判定出错，转人工）");
+        return w;
+      });
+    } catch (RuntimeException e) {
+      log.error("提现 {} 记录自动审批出错失败，直接转人工", id, e);
+      return tx.execute(st -> {
+        WithdrawalRow w = mapper.lock(id);
+        if (w == null || !"COOLING".equals(w.status)) return null;
+        move(w, "REVIEWING", "system", "冷静期结束（自动审批判定出错，转人工）");
+        return w;
+      });
+    }
   }
 
   private void systemMove(long id, String from, String to, String note) {

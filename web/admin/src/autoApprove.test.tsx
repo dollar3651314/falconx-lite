@@ -1,6 +1,6 @@
 /**
- * v2 提现自动审批原型（技术方案/v2-提现自动审批.md 第 9 节）：出金列表的"规则判定"列和筛选、详情的规则判定卡片、规则设置页。
- * 页面跑原型（mock）模式；真实接口模式下隐藏的情况在 autoApproveNotLive.test.tsx。
+ * v2 提现自动审批（技术方案/v2-提现自动审批.md 第 9 节）：出金列表的"规则判定"列和筛选、详情的规则判定卡片、规则设置页（权限 withdrawal:auto_rule_edit、
+ * 版本号冲突）。页面跑模拟数据（mock）模式，模拟层和真实接口同一口径；真实接口的路径和字段在 api/real.test.ts。
  */
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import i18n from './i18n';
@@ -15,6 +15,19 @@ import { AutoReviewCard, ruleLine } from './pages/funds/AutoReview';
 const t = i18n.getFixedT('zh-CN');
 
 describe('规则判定的模拟数据', () => {
+  it('R4、R5 和出金详情一致：此前已完成提现的笔数 = 这个客户之前已完成的出金，"最近出金"里能看到', async () => {
+    const all = (await listWithdrawals({ page: 1, pageSize: 100, status: 'pending' })).items.filter((w) => w.autoReview?.phase === 'final');
+    expect(all.length).toBeGreaterThan(5);
+    for (const w of all) {
+      const d = await getWithdrawal(w.id);
+      const r4 = d.autoReviewDetail!.rules.find((x) => x.code === 'R4')!;
+      expect(r4.values.count).toBe(String(d.recentWithdrawals.length));
+      expect(r4.status).toBe(d.recentWithdrawals.length ? 'passed' : 'failed');
+      // firstUse（地址第一次用）和 R5 一致
+      expect(d.autoReviewDetail!.rules.find((x) => x.code === 'R5')!.status).toBe(d.firstUse ? 'failed' : 'passed');
+    }
+  });
+
   it('覆盖：自动通过、触发 1 条、触发多条、总开关关闭、冷静期预判、没有判定记录', async () => {
     const all = (await listWithdrawals({ page: 1, pageSize: 100 })).items;
     const outcomes = all.map((w) => w.autoReview?.outcome ?? 'none');
@@ -56,6 +69,10 @@ describe('判定说明的文字', () => {
     expect(ruleLine(t, r('R12', 'failed', { issues: 'quoteDeviation,hotWallet', balance: '820', need: '1099' }))).toBe('有报价偏差告警；热钱包余额 820 < 需要 1,099');
     expect(ruleLine(t, r('R6', 'failed', { event: 'password_change', ago: '1.5', hours: '48' }))).toBe('1.5 小时前改了密码（窗口 48 小时）');
     expect(ruleLine(t, r('R8', 'disabled'))).toBe('未启用（不参与判定）');
+    expect(ruleLine(t, r('R8', 'passed', { volume: '0', deposit: '0', ratio: '—', limit: '1', note: 'noDeposit' }))).toBe('近 30 天没有充值，不检查');
+    expect(ruleLine(t, r('R12', 'failed', { issues: 'hotWalletUnknown', balance: '—', need: '99' }))).toBe('查不到热钱包余额（超过 10 分钟没查成功），按不通过处理');
+    expect(ruleLine(t, r('R7', 'failed', { days: '3', limit: '7', kyc: 'pending' }))).toBe('注册 3 天（要求 ≥ 7 天）· KYC 待审核');
+    expect(ruleLine(t, r('R3', 'unknown', { why: '数据读取失败' }))).toBe('无法判定：数据读取失败（按未通过处理）');
   });
 });
 
@@ -157,7 +174,40 @@ describe('自动审批规则设置页', () => {
     const log = (await listAuditLogs({ page: 1, pageSize: 5 })).items[0];
     expect(log.action).toBe('withdrawal.auto_rule_update');
     expect(log.highRisk).toBe(true);
-    // 没有修改不能保存
-    await expect(updateAutoApproveSettings({ masterEnabled: s.masterEnabled, rules: s.rules, reason: 'x' })).rejects.toMatchObject({ reasonKey: 'errors.autoApproveNoChange' });
+    // 没有修改不能保存；版本号不对和后端一样返回 409
+    await expect(updateAutoApproveSettings({ masterEnabled: s.masterEnabled, rules: s.rules, reason: 'x', expectedVersion: s.version })).rejects.toMatchObject({
+      reasonKey: 'errors.autoApproveNoChange',
+    });
+    await expect(updateAutoApproveSettings({ masterEnabled: false, rules: s.rules, reason: 'x', expectedVersion: s.version - 1 })).rejects.toMatchObject({
+      status: 409,
+      code: 'CONFIG_CHANGED',
+    });
+  });
+
+  it('别人先保存了（版本变了）：提示 409 原因，页面换成最新的配置', async () => {
+    renderAs(<AutoApprovePage />);
+    const r1 = await screen.findByLabelText('单笔上限');
+    fireEvent.change(r1, { target: { value: '450' } });
+    // 另一个人在这期间保存了一次（R11 改成 4 笔）
+    const cur = await getAutoApproveSettings();
+    await updateAutoApproveSettings({
+      masterEnabled: cur.masterEnabled,
+      rules: cur.rules.map((r) => (r.code === 'R11' ? { ...r, params: { maxCount: '4' } } : r)),
+      reason: '另一个人改的',
+      expectedVersion: cur.version,
+    });
+    fireEvent.click(screen.getByRole('button', { name: /保存修改/ }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: '收紧单笔' } });
+    fireEvent.click(within(dialog).getByRole('checkbox'));
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认保存' }));
+    expect(await within(dialog).findByText(/规则已被别人修改/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText('每天最多')).toHaveValue('4'));
+  });
+
+  it('风控身份没有 withdrawal:auto_rule_edit：开关不可用，直接调接口也被拒', async () => {
+    renderAs(<AutoApprovePage />, { adminId: 3 });
+    expect(await screen.findByRole('switch', { name: '自动审批总开关' })).toBeDisabled();
+    await expect(updateAutoApproveSettings({ ...(await getAutoApproveSettings()), reason: 'x', expectedVersion: 5 })).rejects.toMatchObject({ reasonKey: 'errors.forbidden' });
   });
 });

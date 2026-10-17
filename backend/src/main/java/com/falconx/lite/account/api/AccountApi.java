@@ -1,5 +1,8 @@
 package com.falconx.lite.account.api;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
+
 /** account 模块对其他模块开放的操作（后台 S16、提现 S13 使用）。 */
 public interface AccountApi {
 
@@ -14,6 +17,14 @@ public interface AccountApi {
 
   /** 登录邮箱（通知模块发邮件时用）；用户不存在时抛 {@code BizException("USER_NOT_FOUND")}。 */
   String email(long userId);
+
+  /** 注册时间（UTC）；用户不存在时抛 {@code BizException("USER_NOT_FOUND")}。提现自动审批 R7 用。 */
+  LocalDateTime registeredAt(long userId);
+
+  /**
+   * 时间在 (since, 现在] 里最近的一条安全事件（改密码、重置密码、改邮箱、冻结、解冻）；没有时为空。正好在 since 的不算（提现自动审批 R6 的边界）。
+   */
+  Optional<SecurityEvent> lastSecurityEventSince(long userId, LocalDateTime since);
 
   /** 当前 KYC 状态。只在提现前要求 APPROVED（需求 4.1-6）。 */
   KycStatus kycStatus(long userId);

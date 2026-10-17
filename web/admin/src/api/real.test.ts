@@ -168,6 +168,35 @@ describe('资金、通知', () => {
     expect(calls[3].body).toEqual({ reason: '客户来电称被盗' });
   });
 
+  it('v2 提现自动审批：列表按规则筛选、详情带完整判定记录、规则读取 / 保存（带版本号）/ 修改记录、409 版本冲突', async () => {
+    const detail = {
+      phase: 'final', outcome: 'manual', failed: ['R6'], decidedAt: '2026-10-14T08:00:00Z', masterEnabled: true, configVersion: 3,
+      configChangedAt: '2026-10-13T06:00:00Z', configChangedBy: 'Amos', precheck: { phase: 'precheck', outcome: 'auto_approved', failed: [], decidedAt: '2026-10-14T06:00:00Z' },
+      rules: [{ code: 'R6', status: 'failed', values: { hours: '48', event: 'password_change', ago: '1.5' } }],
+    };
+    const settings = { masterEnabled: false, rules: [{ code: 'R1' as const, enabled: true, params: { maxAmount: '500' } }], version: 7, updatedAt: null, updatedBy: null };
+    const { calls } = fakeFetch({
+      'GET /api/admin/withdrawals': { body: { items: [{ id: '55', autoReview: detail.precheck }], total: 1, page: 1, pageSize: 8 } },
+      'GET /api/admin/withdrawals/55': { body: { withdrawal: { id: '55', status: 'pending', autoReview: detail }, kycStatus: 'approved', registeredDays: 3, autoReviewDetail: detail } },
+      'GET /api/admin/withdraw-auto-approve': { body: settings },
+      'GET /api/admin/withdraw-auto-approve/changes': { body: [] },
+      'PUT /api/admin/withdraw-auto-approve': (_url, init) =>
+        JSON.parse(String(init.body)).expectedVersion === 7 ? { body: { ...settings, version: 8 } } : { status: 409, body: { code: 'CONFIG_CHANGED', message: 'x' } },
+    });
+    const list = await real.listWithdrawals({ page: 1, pageSize: 8, autoReview: 'R6' });
+    expect(calls[0].url).toBe('/api/admin/withdrawals?autoReview=R6&page=1&pageSize=8');
+    expect(list.items[0].autoReview?.phase).toBe('precheck');
+    const d = await real.getWithdrawal('55');
+    expect(d.autoReviewDetail?.rules[0].values.event).toBe('password_change');
+    expect(d.autoReviewDetail?.precheck?.outcome).toBe('auto_approved');
+    expect((await real.getAutoApproveSettings()).version).toBe(7);
+    expect(await real.listAutoApproveChanges()).toEqual([]);
+    const input = { masterEnabled: true, rules: settings.rules, reason: '观察后打开', expectedVersion: 7 };
+    expect((await real.updateAutoApproveSettings(input)).version).toBe(8);
+    expect(calls.at(-1)?.body).toEqual(input);
+    await expect(real.updateAutoApproveSettings({ ...input, expectedVersion: 6 })).rejects.toMatchObject({ status: 409, code: 'CONFIG_CHANGED', reasonKey: 'errors.configChanged' });
+  });
+
   it('对账：只按状态筛选，标记已处理的说明字段是 note', async () => {
     const { calls } = fakeFetch({ 'GET /api/admin/recon': { body: { items: [], total: 0, page: 1, pageSize: 10 } }, 'POST /api/admin/recon/3/resolve': {} });
     await real.listRecon({ page: 1, pageSize: 10, status: 'open' });

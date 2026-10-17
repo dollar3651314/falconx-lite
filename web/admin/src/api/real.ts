@@ -8,6 +8,9 @@
 import { API_BASE, request } from './http';
 import type {
   AdjustLimits,
+  AutoApproveChange,
+  AutoApproveSettings,
+  AutoApproveSettingsInput,
   AdminInput,
   AdminSession,
   AdminUser,
@@ -160,7 +163,16 @@ export function listDeposits(q: DepositQuery): Promise<Page<Deposit>> {
 
 export function listWithdrawals(q: WithdrawalQuery): Promise<Page<Withdrawal>> {
   return request('/withdrawals', {
-    query: { status: q.status, chain: q.chain, minAmount: q.minAmount, maxAmount: q.maxAmount, keyword: q.keyword, page: q.page, pageSize: q.pageSize },
+    query: {
+      status: q.status,
+      chain: q.chain,
+      minAmount: q.minAmount,
+      maxAmount: q.maxAmount,
+      keyword: q.keyword,
+      autoReview: q.autoReview,
+      page: q.page,
+      pageSize: q.pageSize,
+    },
   });
 }
 
@@ -186,6 +198,21 @@ export function rejectWithdrawal(id: string, reason: string): Promise<Withdrawal
 /** 大额延迟期内紧急取消（必须填原因，AC-21） */
 export function emergencyCancelWithdrawal(id: string, reason: string): Promise<Withdrawal> {
   return request(`/withdrawals/${enc(id)}/emergency-cancel`, { method: 'POST', body: { reason } });
+}
+
+// ---------- v2 提现自动审批（技术方案/v2-提现自动审批.md 第 7.2 节） ----------
+export function getAutoApproveSettings(): Promise<AutoApproveSettings> {
+  return request('/withdraw-auto-approve');
+}
+
+/** 最近 20 次修改（后端从审计日志 withdrawal.auto_rule_update 取） */
+export function listAutoApproveChanges(): Promise<AutoApproveChange[]> {
+  return request('/withdraw-auto-approve/changes');
+}
+
+/** 一次保存总开关和 12 条规则；原因必填，expectedVersion 不对返回 409 CONFIG_CHANGED，没有变化返回 NO_CHANGE */
+export function updateAutoApproveSettings(input: AutoApproveSettingsInput): Promise<AutoApproveSettings> {
+  return request('/withdraw-auto-approve', { method: 'PUT', body: input });
 }
 
 /** 对账问题（字段按后台方案第 8 节）；后端只支持按状态筛选 */

@@ -8,6 +8,8 @@
  * - 第 4 版 2026-10-14 09:20 重新打开，并暂时关闭 R8（演示"未启用"）。
  * 每笔出金的判定记录带着判定时那一版的阈值，所以同一条规则在不同记录里的阈值可以不同（例如 R1 第 1 版是 1,000）。
  * 冷静期中的出金只有提交时的预判；冷静期结束时的复判才决定自动通过还是转人工。
+ * 字段和真实接口一致（后端 admin/ops/AutoApproveOps.java、wallet/withdraw/AutoApproveEngine.java 的数值键）。
+ * R4、R5、R7、R9 的数值按模拟数据里这个客户的出金、入金、注册时长、KYC 算（和出金详情一致）；R2、R3、R8、R10、R12 的数值是演示用的。
  */
 import type { AutoApproveChange, AutoApproveSettings, AutoReviewDetail, AutoReviewOutcome, AutoRuleCode, AutoRuleResult, Withdrawal } from '../../api/types';
 import { AUTO_RULES } from '../../config/autoApprove';
@@ -104,6 +106,12 @@ interface Ctx {
   deposit: number;
   regDays: number;
   kyc: string;
+  /** 这笔之前这个客户已完成的出金笔数、往同一地址的笔数、金额合计（和出金详情的"最近出金"一致） */
+  done: number;
+  sameAddr: number;
+  doneSum: number;
+  /** 累计提现：不是驳回、撤销、失败已退回的出金合计，含本笔 */
+  withdrawn: number;
 }
 type Fail = Record<string, string> | ((c: Ctx) => Record<string, string>);
 type Fails = Partial<Record<AutoRuleCode, Fail>>;
@@ -112,27 +120,31 @@ type Fails = Partial<Record<AutoRuleCode, Fail>>;
 function passValues(c: Ctx): Record<AutoRuleCode, Record<string, string>> {
   const p = c.v.params;
   const dep = c.deposit;
+  const principal = Math.max(0, dep - c.doneSum);
   return {
     R1: { amount: c.w.amount, limit: p.R1.maxAmount },
     R2: { used: '0.00', amount: c.w.amount, total: c.w.amount, limit: p.R2.maxUser24h },
     R3: { used: '6420.00', amount: c.w.amount, total: n2(6420 + c.amt), limit: p.R3.maxPlatform24h },
-    R4: { count: '3' },
-    R5: { count: '2' },
+    R4: { count: String(c.done) },
+    R5: { count: String(c.sameAddr) },
     R6: { hours: p.R6.hours },
     R7: { days: String(c.regDays), limit: p.R7.days, kyc: c.kyc },
     R8: { volume: n2(dep * 2.4), deposit: n2(dep), ratio: '2.4', limit: p.R8.multiple },
-    R9: { withdrawn: n2(dep * 0.3 + c.amt), deposit: n2(dep), pnl: '310.00', cap: n2(dep + 310) },
-    R10: { profit: '820.00', principal: n2(dep), pct: dep ? ((820 / dep) * 100).toFixed(1) : '—', limitAbs: p.R10.maxProfit7d, limitPct: p.R10.maxProfitPct },
+    R9: { withdrawn: n2(c.withdrawn), deposit: n2(dep), pnl: '310.00', cap: n2(dep + 310) },
+    R10: { profit: '820.00', principal: n2(principal), pct: principal ? ((820 / principal) * 100).toFixed(1) : '—', limitAbs: p.R10.maxProfit7d, limitPct: p.R10.maxProfitPct },
     R11: { count: '1', limit: p.R11.maxCount },
     R12: { balance: '38500.00', need: n2(c.amt - Number(c.w.fee)) },
   };
 }
 
-/** 客户本身的情况决定的未通过（注册不满、KYC 没过、没有入金），不用在下面的计划里手写 */
+/** 客户本身的情况决定的未通过（第一笔、新地址、注册不满、KYC 没过、提现超过入金 + 盈亏），不用在下面的计划里手写 */
 function implied(c: Ctx): Fails {
   const f: Fails = {};
+  if (c.done === 0) f.R4 = {};
+  if (c.sameAddr === 0) f.R5 = {};
   if (c.regDays < Number(c.v.params.R7.days) || c.kyc !== 'approved') f.R7 = {};
-  if (c.deposit === 0) f.R9 = { withdrawn: c.w.amount, deposit: '0.00', pnl: '0.00', cap: '0.00' };
+  if (c.deposit === 0) f.R9 = { withdrawn: n2(c.withdrawn), deposit: '0.00', pnl: '0.00', cap: '0.00' };
+  else if (c.withdrawn > c.deposit + 310) f.R9 = {};
   return f;
 }
 
@@ -150,10 +162,9 @@ function buildRules(c: Ctx, fails: Fails): AutoRuleResult[] {
 
 // 常用的未通过写法
 const R2_OVER: Fail = {};
-const R5_NEW: Fail = { count: '0' };
+const R5_NEW: Fail = {};
 const R6_PWD: Fail = { event: 'password_change', ago: '1.5' };
 const R8_LOW: Fail = (c) => ({ volume: n2(c.deposit * 0.35), ratio: '0.35' });
-const R9_OVER: Fail = (c) => ({ withdrawn: n2(c.deposit + 310 + 1260) });
 const R10_HIGH: Fail = (c) => {
   const profit = Math.max(Number(c.v.params.R10.maxProfit7d), (c.deposit * Number(c.v.params.R10.maxProfitPct)) / 100) + 1380;
   return { profit: n2(profit), pct: c.deposit ? ((profit / c.deposit) * 100).toFixed(1) : '—' };
@@ -181,7 +192,7 @@ const PLANS: Plan[] = [
   { ci: 4, fails: { R1: {}, R6: R6_PWD }, preFails: { R1: {} } },
   { ci: 6, fails: { R1: {} } },
   { ci: 7, fails: { R1: {}, R2: R2_OVER, R11: { count: '4' } } },
-  { ci: 8, fails: { R1: {}, R4: { count: '0' }, R5: R5_NEW, R7: { days: '3' } } },
+  { ci: 8, fails: { R1: {}, R7: { days: '3' } } },
   { ci: 9, fails: { R1: {} } },
   { ci: 10, fails: { R1: {}, R12: (c) => ({ issues: 'hotWallet', balance: '820.00', need: n2(c.amt - Number(c.w.fee)) }) } },
   { ci: 11, fails: { R1: {}, R10: R10_HIGH } },
@@ -192,8 +203,8 @@ const PLANS: Plan[] = [
   { ci: 2, fails: { R1: {}, R2: R2_OVER, R3: { used: '16800.00', total: '28800.00' } } },
   { ci: 5 },
   { ci: 14 },
-  // 冷静期中：只有预判
-  { ci: 15, fails: { R1: {}, R9: R9_OVER } },
+  // 冷静期中：只有预判（R9 是否触发按这个客户的入金和出金算）
+  { ci: 15, fails: { R1: {} } },
   { ci: 16 },
   { ci: 17 },
   { ci: 18 },
@@ -201,7 +212,7 @@ const PLANS: Plan[] = [
   // 已完成 / 上链中
   ...[20, 22, 23, 24, 25, 26, 27, 28, 29, 30].map((ci) => ({ ci })),
   // 已驳回：转人工后被驳回
-  { ci: 31, fails: { R4: { count: '0' }, R5: R5_NEW, R7: { days: '2' } } },
+  { ci: 31, fails: { R7: { days: '2' } } },
   // 已紧急取消：功能上线前提交的，没有判定记录
   { ci: 32, none: true },
   { ci: 33 },
@@ -223,6 +234,9 @@ function outcomeOf(master: boolean, rules: AutoRuleResult[]): AutoReviewOutcome 
 
 const failedOf = (rules: AutoRuleResult[]) => rules.filter((r) => r.status === 'failed' || r.status === 'unknown').map((r) => r.code);
 
+const OUT = ['rejected', 'cancelled', 'failed'];
+const sum = (xs: Withdrawal[]) => xs.reduce((s, x) => s + Number(x.amount), 0);
+
 const depositOf = (customerId: number) =>
   customerId === 100482
     ? 20000
@@ -234,11 +248,27 @@ export const reviews = new Map<string, AutoReviewDetail>();
 for (const plan of PLANS) {
   const custId = plan.x !== undefined ? autoSeedCustomerIds[plan.x] : customers[plan.ci ?? -1]?.id;
   const cust = customers.find((c) => c.id === custId);
+  // 这个客户的第一笔就是要演示的那笔（补的历史出金排在最后）
   const w = cust ? withdrawals.find((x) => x.customerId === cust.id) : undefined;
   if (!cust || !w || plan.none) continue;
   const amt = Number(w.amount);
   const fails: Fails = plan.fails ?? (amt > 2000 ? { R1: {}, R2: R2_OVER } : amt > 500 ? { R1: {} } : {});
-  const ctxAt = (v: Version): Ctx => ({ w, v, amt, deposit: depositOf(cust.id), regDays: registeredDaysOf(cust), kyc: cust.kycStatus });
+  const mine = withdrawals.filter((x) => x.customerId === cust.id && x.id !== w.id);
+  const done = mine.filter((x) => x.status === 'completed' && x.submittedAt < w.submittedAt);
+  const sameAddr = done.filter((x) => x.chain === w.chain && x.address.toLowerCase() === w.address.toLowerCase());
+  const withdrawn = sum(mine.filter((x) => !OUT.includes(x.status) && x.submittedAt <= w.submittedAt)) + amt;
+  const ctxAt = (v: Version): Ctx => ({
+    w,
+    v,
+    amt,
+    deposit: depositOf(cust.id),
+    regDays: registeredDaysOf(cust),
+    kyc: cust.kycStatus,
+    done: done.length,
+    sameAddr: sameAddr.length,
+    doneSum: sum(done),
+    withdrawn,
+  });
   const preAt = w.submittedAt;
   const preV = versionAt(preAt);
   if (!preV) continue;

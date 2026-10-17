@@ -1,17 +1,17 @@
 /**
- * v2 提现自动审批规则设置（原型，技术方案/v2-提现自动审批.md 第 9 节）：总开关、12 条规则（开关 + 数值 + 说明 + 默认值）、
- * 保存时高危确认（必须填原因，写审计）、最近修改记录。从出金审核页进入（菜单归在"出金审核"下）。
- * 真实接口模式下后端还没有这些接口：页面只显示"未上线"（config/autoApprove.ts 的 AUTO_APPROVE_UI）。
+ * v2 提现自动审批规则设置（技术方案/v2-提现自动审批.md 第 7、9 节）：总开关（默认关闭）、12 条规则（开关 + 数值 + 说明 + 默认值）、
+ * 保存时高危确认（必须填原因，写审计 withdrawal.auto_rule_update；权限 withdrawal:auto_rule_edit）、最近修改记录。从出金审核页进入（菜单归在"出金审核"下）。
+ * 保存带上打开页面时的版本号：别人先改了会返回 409 CONFIG_CHANGED，这时重新读取最新配置。
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Alert, Button, Empty, Input, Result, Skeleton, Switch } from 'antd';
+import { Alert, Button, Empty, Input, Skeleton, Switch } from 'antd';
 import { ArrowLeftOutlined, HistoryOutlined, SaveOutlined, UndoOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 import { getAutoApproveSettings, listAutoApproveChanges, updateAutoApproveSettings } from '../../api';
-import type { AutoApproveChange, AutoApproveSettings, AutoRuleCode, AutoRuleSetting } from '../../api/types';
-import { AUTO_APPROVE_UI, AUTO_RULES, crossRuleProblems, ruleParamProblem, type RuleParamDef } from '../../config/autoApprove';
+import { ApiError, type AutoApproveChange, type AutoApproveSettings, type AutoRuleCode, type AutoRuleSetting } from '../../api/types';
+import { AUTO_RULE_EDIT_PERM, AUTO_RULES, crossRuleProblems, ruleParamProblem, type RuleParamDef } from '../../config/autoApprove';
 import { useApi } from '../../hooks/useApi';
 import { useHighRisk } from '../../hooks/useConfirmDialogs';
 import { useCan } from '../../components/PermButton';
@@ -21,9 +21,6 @@ import { ErrorState } from '../../components/ErrorState';
 import { Pill } from '../../components/Pill';
 import { shortTime } from '../../utils/display';
 import { fmtUsdt } from './AutoReview';
-
-/** 原型先借用 config:edit；正式版用新的高危权限点 withdrawal:auto_rule_edit（方案第 7 节） */
-export const AUTO_RULE_EDIT_PERM = 'config:edit';
 
 const DEF = Object.fromEntries(AUTO_RULES.flatMap((r) => r.params.map((p) => [`${r.code}.${p.key}`, p]))) as Record<string, RuleParamDef>;
 
@@ -73,16 +70,6 @@ export function AutoApprovePage() {
       {t('autoApprove.back')}
     </Button>
   );
-  if (!AUTO_APPROVE_UI) {
-    return (
-      <>
-        <PageHeader title={t('autoApprove.title')} extra={back} />
-        <div className="card">
-          <Result status="info" title={t('autoApprove.notLiveTitle')} subTitle={t('autoApprove.notLiveSub')} />
-        </div>
-      </>
-    );
-  }
   return <AutoApproveEditor back={back} />;
 }
 
@@ -159,7 +146,18 @@ function AutoApproveEditor({ back }: { back: ReactNode }) {
       ),
       confirmText: t('autoApprove.saveConfirm'),
       successText: t('autoApprove.saved'),
-      onConfirm: (v) => updateAutoApproveSettings({ masterEnabled: draft.masterEnabled, rules: draft.rules, reason: v.reason }),
+      onConfirm: async (v) => {
+        try {
+          await updateAutoApproveSettings({ masterEnabled: draft.masterEnabled, rules: draft.rules, reason: v.reason, expectedVersion: saved.version });
+        } catch (e) {
+          // 别人先保存了（版本变了）：读取最新配置和修改记录，提示核对后重新修改
+          if (e instanceof ApiError && (e.code === 'CONFIG_CHANGED' || e.reasonKey === 'errors.configChanged')) {
+            settings.refresh();
+            history.refresh();
+          }
+          throw e;
+        }
+      },
       onDone: () => {
         settings.reload();
         history.reload();

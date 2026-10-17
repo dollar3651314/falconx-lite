@@ -337,6 +337,8 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await expect(detail).toContainText(email);
       withdrawalId = ((await detail.locator('h3 .num').innerText()) || '').trim();
       expect(withdrawalId).toMatch(/^\d+$/);
+      // v2 提现自动审批：总开关默认关闭，冷静期结束时照常复判并记录（详情有"规则判定"卡片），仍然人工审核
+      await expect(detail.getByRole('region', { name: '规则判定' })).toContainText('总开关关闭，全部人工审核');
       await detail.getByRole('button', { name: cjk('通过') }).click();
       await confirmAndWait(adminPage, cjk('通过'), `/api/admin/withdrawals/${withdrawalId}/approve`);
       await expect(page.locator('.wd-recs li').first()).toContainText('上链中');

@@ -4,7 +4,7 @@
 <mapper namespace="com.falconx.lite.wallet.withdraw.WithdrawMapper">
 
   <sql id="wlCols">id, user_id, network, address, address_key, label, active_at, created_at</sql>
-  <sql id="wdCols">id, public_no, user_id, network, address, amount, fee, status, cooling_ends_at, delay_ends_at, tx_hash, reject_reason, created_at</sql>
+  <sql id="wdCols">id, public_no, user_id, network, address, amount, fee, status, cooling_ends_at, delay_ends_at, tx_hash, reject_reason, created_at, last_check_id</sql>
 
   <select id="whitelist" resultType="com.falconx.lite.wallet.withdraw.WhitelistRow">
     SELECT <include refid="wlCols"/> FROM wallet_whitelist WHERE user_id = #{userId} ORDER BY id
@@ -67,7 +67,8 @@
   </update>
 
   <update id="setReview">
-    UPDATE wallet_withdrawal SET reviewer_id = #{reviewerId}, reviewed_at = #{at}, reject_reason = #{reason}, delay_ends_at = #{delayEndsAt} WHERE id = #{id}
+    UPDATE wallet_withdrawal SET reviewer_id = #{reviewerId}, reviewed_at = #{at}, reject_reason = #{reason}, delay_ends_at = #{delayEndsAt}, review_mode = 'MANUAL'
+    WHERE id = #{id}
   </update>
 
   <update id="setTx">

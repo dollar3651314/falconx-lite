@@ -532,9 +532,9 @@
     "whitelistExcludesSelf": "新的白名单不包含你当前的 IP，保存后你会无法访问后台，已拒绝保存。",
     "withdrawNotCancellable": "只有延迟期内的大额出金可以紧急取消，请刷新后再看。",
     "withdrawNotReviewable": "这笔出金已经不是待审核状态，请刷新后再操作。",
-    "notLive": "这个功能还没上线",
     "autoApproveInvalid": "规则数值不合法，请检查后重新保存",
-    "autoApproveNoChange": "没有修改，不需要保存"
+    "autoApproveNoChange": "没有修改，不需要保存",
+    "configChanged": "规则已被别人修改（版本变了），已刷新为最新的配置，请核对后重新修改"
   },
   "exposureStatus": {
     "auto_blocked": "自动禁开",
@@ -782,6 +782,7 @@
     "task_retry": "手动重试任务",
     "task_view": "查看任务表",
     "withdrawal_emergency_cancel": "紧急取消出金",
+    "withdrawal_auto_rule_edit": "修改提现自动审批规则",
     "withdrawal_review": "审核出金",
     "withdrawal_view": "查看出金"
   },
@@ -1412,7 +1413,8 @@
         "multiple": "倍数"
       },
       "pass": "充值后交易量 {{volume}} / 充值 {{deposit}} = {{ratio}} 倍 ≥ {{limit}} 倍",
-      "fail": "充值后交易量 {{volume}} / 充值 {{deposit}} = {{ratio}} 倍 < {{limit}} 倍"
+      "fail": "充值后交易量 {{volume}} / 充值 {{deposit}} = {{ratio}} 倍 < {{limit}} 倍",
+      "noDeposit": "近 30 天没有充值，不检查"
     },
     "R9": {
       "name": "提现不超过充值 + 盈亏",
@@ -1449,7 +1451,8 @@
       "issue": {
         "quoteDeviation": "有报价偏差告警",
         "globalPause": "全局暂停中",
-        "hotWallet": "热钱包余额 {{balance}} < 需要 {{need}}"
+        "hotWallet": "热钱包余额 {{balance}} < 需要 {{need}}",
+        "hotWalletUnknown": "查不到热钱包余额（超过 10 分钟没查成功），按不通过处理"
       }
     }
   },
@@ -1511,14 +1514,12 @@
     "title": "自动审批规则",
     "sub": "同时满足全部已启用的规则才自动通过，任何一条不满足就转人工审核",
     "back": "返回出金审核",
-    "notLiveTitle": "未上线",
-    "notLiveSub": "提现自动审批还在方案确认阶段，后端上线前这里不能使用；现在所有提现都由人工审核。",
     "master": "自动审批总开关",
     "masterOn": "已开启",
     "masterOff": "已关闭",
     "masterDefault": "默认：关闭",
     "masterOnDesc": "冷静期结束时按下面 {{count}} 条已启用的规则判定：全部通过的自动通过，任何一条不满足的转人工审核。",
-    "masterOffDesc": "关闭时全部提现转人工审核（和现在一样）。规则照常判定并记录结果，审核人员可以参考。",
+    "masterOffDesc": "关闭时全部提现转人工审核（和现在一样）。规则照常判定并记录结果，审核人员可以参考。建议上线满 48 小时再打开（R6 要用到上线后才开始记录的改密码）。",
     "versionLine": "当前第 {{version}} 版 · {{by}} {{time}} 修改",
     "notLoosen": "规则只决定“要不要人工看”，不放宽任何限额",
     "notLoosenDesc": "2 小时冷静期照旧（自动通过也要等冷静期结束才放款）；≥3,000 USDT 通过后延迟 6 小时照旧；白名单 24 小时生效、单笔 10,000 / 每日 30,000 限额照旧。",

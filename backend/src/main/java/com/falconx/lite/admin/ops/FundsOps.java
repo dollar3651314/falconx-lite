@@ -40,16 +40,16 @@ class FundsOps {
   record DepositView(String id, long customerId, String customerName, String email, String chain, String txHash, String amount, int confirmations,
       int requiredConfirmations, String status, String detectedAt, String creditedAt) {}
 
-  /** 字段和原型 Withdrawal 一致 */
+  /** 字段和原型 Withdrawal 一致；autoReview 是最近一次自动审批判定的摘要（v2），没有判定记录时为空。自动通过的 reviewer 为空 */
   record WithdrawalView(String id, long customerId, String customerName, String email, String amount, String fee, String chain, String address,
       boolean firstUse, String whitelistAddedAt, String status, Long delayRemainingMinutes, String submittedAt, String reviewer, String reason,
-      String txHash) {}
+      String txHash, AutoApproveOps.ReviewView autoReview) {}
 
   record Recent(String time, String chain, String amount) {}
 
-  /** 字段和原型 WithdrawalDetail 一致 */
+  /** 字段和原型 WithdrawalDetail 一致；autoReviewDetail 是完整的自动审批判定记录（v2），没有时为空 */
   record WithdrawalDetail(WithdrawalView withdrawal, String kycStatus, long registeredDays, String totalDeposit, String balance, int openPositions,
-      List<Recent> recentDeposits, List<Recent> recentWithdrawals) {}
+      List<Recent> recentDeposits, List<Recent> recentWithdrawals, AutoApproveOps.ReviewDetailView autoReviewDetail) {}
 
   record Bucket(long count, String amount) {}
 
@@ -85,10 +85,11 @@ class FundsOps {
   private final TaskService tasks;
   private final AdminNames names;
   private final Audit audit;
+  private final AutoApproveOps autoApprove;
   private final Clock clock;
 
   FundsOps(WalletAdminApi wallet, WithdrawAdminApi withdraws, WalletReconApi recon, HotWalletApi hot, CustomerAdminApi customers, AccountApi accounts,
-      TradingAdminApi trading, TaskService tasks, AdminNames names, Audit audit, Clock clock) {
+      TradingAdminApi trading, TaskService tasks, AdminNames names, Audit audit, AutoApproveOps autoApprove, Clock clock) {
     this.wallet = wallet;
     this.withdraws = withdraws;
     this.recon = recon;
@@ -99,6 +100,7 @@ class FundsOps {
     this.tasks = tasks;
     this.names = names;
     this.audit = audit;
+    this.autoApprove = autoApprove;
     this.clock = clock;
   }
 
@@ -175,21 +177,24 @@ class FundsOps {
   private List<WithdrawalView> views(List<WalletAdminApi.Withdrawal> ws) {
     var cs = customers.customers(ws.stream().map(WalletAdminApi.Withdrawal::userId).toList());
     Map<Long, String> reviewers = names.of(ws.stream().map(WalletAdminApi.Withdrawal::reviewerId).filter(Objects::nonNull).toList());
+    Map<Long, AutoApproveOps.ReviewView> reviews = autoApprove.summaries(ws.stream().map(WalletAdminApi.Withdrawal::id).toList());
     LocalDateTime now = now();
     return ws.stream().map(w -> {
       var c = cs.get(w.userId());
       Long remaining = "DELAYED".equals(w.status()) && w.delayEndsAt() != null ? Math.max(0, Duration.between(now, w.delayEndsAt()).toMinutes()) : null;
       return new WithdrawalView(String.valueOf(w.no()), w.userId(), c == null ? null : c.name(), c == null ? null : c.email(), Ops.money(w.amount()),
           Ops.money(w.fee()), w.chain(), w.address(), w.firstUse(), Ops.time(w.whitelistAddedAt()), withdrawStatus(w.status()), remaining,
-          Ops.time(w.submittedAt()), w.reviewerId() == null ? null : reviewers.get(w.reviewerId()), w.rejectReason(), w.txHash());
+          Ops.time(w.submittedAt()), w.reviewerId() == null ? null : reviewers.get(w.reviewerId()), w.rejectReason(), w.txHash(), reviews.get(w.id()));
     }).toList();
   }
 
   @Transactional(readOnly = true)
-  Ops.Page<WithdrawalView> withdrawals(String status, String chain, String minAmount, String maxAmount, String keyword, int page, int pageSize) {
+  Ops.Page<WithdrawalView> withdrawals(String status, String chain, String minAmount, String maxAmount, String keyword, String autoReview, int page,
+      int pageSize) {
     Ops.Slice s = Ops.slice(page, pageSize);
+    String auto = AutoApproveOps.filter(autoReview);
     var p = wallet.withdrawals(withdrawStatuses(status), Ops.blank(chain), decimal(minAmount), decimal(maxAmount), userFilter(keyword),
-        Ops.number(keyword), s.offset(), s.size());
+        Ops.number(keyword), auto, s.offset(), s.size());
     return new Ops.Page<>(views(p.items()), p.total(), s.page(), s.size());
   }
 
@@ -231,7 +236,8 @@ class FundsOps {
         Ops.money(trading.balances(List.of(w.userId())).getOrDefault(w.userId(), BigDecimal.ZERO)),
         trading.openPositionCounts(List.of(w.userId())).getOrDefault(w.userId(), 0),
         f.recentDeposits().stream().map(d -> new Recent(Ops.time(d.creditedAt() == null ? d.detectedAt() : d.creditedAt()), d.chain(), Ops.money(d.amount()))).toList(),
-        f.recentWithdrawals().stream().map(x -> new Recent(Ops.time(x.submittedAt()), x.chain(), Ops.money(x.amount()))).toList());
+        f.recentWithdrawals().stream().map(x -> new Recent(Ops.time(x.submittedAt()), x.chain(), Ops.money(x.amount()))).toList(),
+        autoApprove.detail(w.id()));
   }
 
   WithdrawalView approve(AdminContext actor, long no) {

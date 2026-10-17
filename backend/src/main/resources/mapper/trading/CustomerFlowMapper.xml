@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 客户资金流水、交易量的只读合计（v2 提现自动审批 R8、R9、R10）。只有 trading 模块使用；其他模块经 trading.api.CustomerFlowApi。 -->
+<mapper namespace="com.falconx.lite.trading.order.CustomerFlowMapper">
+
+  <!-- 充值 − 冲正（冲正在账本里是负数），以及最早一笔充值的入账时间 -->
+  <select id="depositsSince" resultType="com.falconx.lite.trading.order.CustomerFlowMapper$DepositRow">
+    SELECT COALESCE(SUM(l.amount), 0) AS net, MIN(CASE WHEN l.entry_type = 'DEPOSIT' THEN l.created_at END) AS first_at
+    FROM trading_ledger l JOIN trading_account a ON a.id = l.account_id
+    WHERE a.user_id = #{userId} AND l.bucket = 'BALANCE' AND l.entry_type IN ('DEPOSIT', 'DEPOSIT_REVERSAL')
+    <if test="since != null">AND l.created_at &gt;= #{since}</if>
+  </select>
+
+  <select id="realizedPnl" resultType="java.math.BigDecimal">
+    SELECT COALESCE(SUM(l.amount), 0)
+    FROM trading_ledger l JOIN trading_account a ON a.id = l.account_id
+    WHERE a.user_id = #{userId} AND l.bucket = 'BALANCE' AND l.entry_type = 'REALIZED_PNL'
+    <if test="since != null">AND l.created_at &gt;= #{since}</if>
+  </select>
+
+  <!-- 成交的开仓订单（每笔成交的订单对应一个持仓，成交时间是持仓的开仓时间）按下单时的 USD 名义价值合计 -->
+  <select id="openedNotionalSince" resultType="java.math.BigDecimal">
+    SELECT COALESCE(SUM(o.notional_usd), 0)
+    FROM trading_order o JOIN trading_position p ON p.order_id = o.id
+    WHERE o.user_id = #{userId} AND o.status = 'FILLED' AND p.opened_at &gt;= #{since}
+  </select>
+</mapper>

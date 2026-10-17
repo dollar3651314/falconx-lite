@@ -1,17 +1,13 @@
 /**
- * v2 提现自动审批的规则定义（技术方案/v2-提现自动审批.md 第 4 节）：12 条规则的编号、数值参数、单位、默认值和取值范围。
- * 规则名称、说明、判定结果的文字在翻译文件的 autoRule 下（中英文）。
+ * v2 提现自动审批的规则定义（技术方案/v2-提现自动审批.md 第 2 节）：12 条规则的编号、数值参数、单位、默认值和取值范围。
+ * 和后端 backend/.../wallet/api/AutoApprove.java 一致（后端保存时再校验一遍）。规则名称、说明、判定结果的文字在翻译文件的 autoRule 下（中英文）。
  *
- * 现在只有原型：后端还没实现，真实接口模式下这些界面不显示（出金审核页不显示"规则判定"列、筛选和卡片，
- * 规则设置页显示"未上线"）。后端上线后把 AUTO_APPROVE_UI 改成 true（或改成看后端返回的开关）。
- *
- * Auto-approval rule definitions (prototype only until the backend ships).
+ * Auto-approval rule definitions; mirrors the backend's AutoApprove.java.
  */
 import type { AutoRuleCode } from '../api/types';
-import { IS_MOCK } from '../api/mode';
 
-/** 自动审批的界面是否显示：现在只在原型（模拟数据）模式下显示 */
-export const AUTO_APPROVE_UI = IS_MOCK;
+/** 改总开关和规则的权限点（高危）；查看用 withdrawal:view */
+export const AUTO_RULE_EDIT_PERM = 'withdrawal:auto_rule_edit';
 
 export type RuleParamUnit = 'usdt' | 'hours' | 'days' | 'times' | 'multiple' | 'percent';
 

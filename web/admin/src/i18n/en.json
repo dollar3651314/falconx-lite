@@ -532,9 +532,9 @@
     "whitelistExcludesSelf": "The new whitelist does not include your current IP and would lock you out, so it was not saved.",
     "withdrawNotCancellable": "Only large withdrawals in the delay period can be cancelled. Refresh to see the latest status.",
     "withdrawNotReviewable": "This withdrawal is no longer pending review. Refresh and try again.",
-    "notLive": "This feature is not live yet",
     "autoApproveInvalid": "Some rule values are invalid; check and save again",
-    "autoApproveNoChange": "Nothing changed"
+    "autoApproveNoChange": "Nothing changed",
+    "configChanged": "The rules were changed by someone else (new version). The latest rules are loaded; please review and edit again."
   },
   "exposureStatus": {
     "auto_blocked": "Auto-blocked",
@@ -782,6 +782,7 @@
     "task_retry": "Retry tasks",
     "task_view": "View tasks",
     "withdrawal_emergency_cancel": "Emergency-cancel withdrawals",
+    "withdrawal_auto_rule_edit": "Edit withdrawal auto-approval rules",
     "withdrawal_review": "Review withdrawals",
     "withdrawal_view": "View withdrawals"
   },
@@ -1412,7 +1413,8 @@
         "multiple": "Multiple"
       },
       "pass": "Volume {{volume}} / deposits {{deposit}} = {{ratio}}× ≥ {{limit}}×",
-      "fail": "Volume {{volume}} / deposits {{deposit}} = {{ratio}}× < {{limit}}×"
+      "fail": "Volume {{volume}} / deposits {{deposit}} = {{ratio}}× < {{limit}}×",
+      "noDeposit": "No deposits in the last 30 days; not checked"
     },
     "R9": {
       "name": "Withdrawals within deposits + P&L",
@@ -1449,7 +1451,8 @@
       "issue": {
         "quoteDeviation": "Quote deviation alert",
         "globalPause": "Global pause on",
-        "hotWallet": "Hot wallet {{balance}} < needed {{need}}"
+        "hotWallet": "Hot wallet {{balance}} < needed {{need}}",
+        "hotWalletUnknown": "Hot-wallet balance unavailable (no successful check in 10 minutes); treated as failed"
       }
     }
   },
@@ -1511,14 +1514,12 @@
     "title": "Auto-approval rules",
     "sub": "A withdrawal is approved automatically only when every enabled rule passes; any failure sends it to manual review",
     "back": "Back to withdrawals",
-    "notLiveTitle": "Not live yet",
-    "notLiveSub": "Withdrawal auto-approval is still being reviewed as a plan. Until the backend ships this page is unavailable and every withdrawal is reviewed manually.",
     "master": "Auto-approval master switch",
     "masterOn": "On",
     "masterOff": "Off",
     "masterDefault": "Default: off",
     "masterOnDesc": "When the cooling period ends, the {{count}} enabled rules below are checked: all passed → approved automatically; any failure → manual review.",
-    "masterOffDesc": "While off, every withdrawal goes to manual review (as today). Rules still run and are recorded for reviewers' reference.",
+    "masterOffDesc": "While off, every withdrawal goes to manual review (as today). Rules still run and are recorded for reviewers' reference. We suggest switching it on no earlier than 48 hours after launch (R6 needs password changes, which are recorded only from launch).",
     "versionLine": "Version {{version}} · changed by {{by}} at {{time}}",
     "notLoosen": "Rules only decide whether a person reviews; no limit is relaxed",
     "notLoosenDesc": "The 2-hour cooling period stays (auto-approved withdrawals are paid only after it); ≥ 3,000 USDT still waits 6 hours after approval; whitelist 24-hour activation and the 10,000 per withdrawal / 30,000 daily limits stay.",

@@ -271,11 +271,11 @@ export interface Withdrawal {
   reviewer: string | null;
   reason: string | null;
   txHash: string | null;
-  /** v2 自动审批（技术方案/v2-提现自动审批.md）：最近一次规则判定的摘要；没有判定记录（功能上线前的提现、真实接口尚未提供）时为空或不存在 */
+  /** v2 自动审批（技术方案/v2-提现自动审批.md）：最近一次规则判定的摘要；没有判定记录（功能上线前的提现）时为空 */
   autoReview?: AutoReviewSummary | null;
 }
 
-// ---------- v2 提现自动审批（原型，技术方案/v2-提现自动审批.md；真实接口上线前只有模拟层提供） ----------
+// ---------- v2 提现自动审批（技术方案/v2-提现自动审批.md 第 7.2 节；后端 admin/ops/AutoApproveOps.java） ----------
 export type AutoRuleCode = 'R1' | 'R2' | 'R3' | 'R4' | 'R5' | 'R6' | 'R7' | 'R8' | 'R9' | 'R10' | 'R11' | 'R12';
 /** 判定结果：自动通过 / 转人工（有规则没通过）/ 总开关关闭（全部人工，规则照常判定做参考）/ 判定出错（按转人工处理） */
 export type AutoReviewOutcome = 'auto_approved' | 'manual' | 'master_off' | 'error';
@@ -333,6 +333,8 @@ export interface AutoApproveSettingsInput {
   masterEnabled: boolean;
   rules: AutoRuleSetting[];
   reason: string;
+  /** 页面打开时读到的版本；后端发现版本变了返回 409 CONFIG_CHANGED（防止两个人同时改互相覆盖） */
+  expectedVersion: number;
 }
 
 /** 一次保存的修改记录（同时写审计日志 withdrawal.auto_rule_update） */
@@ -365,7 +367,7 @@ export interface WithdrawalQuery extends PageQuery {
   minAmount?: string;
   maxAmount?: string;
   keyword?: string;
-  /** v2 自动审批（原型）：按判定结果或触发的规则筛选 */
+  /** v2 自动审批：按最近一次判定的结果或触发的规则筛选 */
   autoReview?: AutoReviewFilter;
 }
 

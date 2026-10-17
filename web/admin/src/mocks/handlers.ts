@@ -54,7 +54,7 @@ import {
   type WithdrawalSummary,
   type Withdrawal,
 } from '../api/types';
-import { AUTO_RULES, crossRuleProblems, ruleParamProblem } from '../config/autoApprove';
+import { AUTO_RULE_EDIT_PERM, AUTO_RULES, crossRuleProblems, ruleParamProblem } from '../config/autoApprove';
 import { defaultMarkup } from '../config/constants';
 import { MENU, type MenuItemDef } from '../config/menu';
 import { PERMISSIONS, SUPER_ADMIN_ROLE } from '../config/permissions';
@@ -588,26 +588,27 @@ export function emergencyCancelWithdrawal(id: string, reason: string): Promise<W
   });
 }
 
-// ============ v2 提现自动审批（原型；技术方案/v2-提现自动审批.md） ============
-/** GET /api/admin/withdraw-auto-approve（计划） */
+// ============ v2 提现自动审批（技术方案/v2-提现自动审批.md；和后端 admin/ops/AutoApproveOps 同一口径） ============
+/** GET /api/admin/withdraw-auto-approve */
 export function getAutoApproveSettings(): Promise<AutoApproveSettings> {
   return respond(() => auto.settings);
 }
 
-/** GET /api/admin/withdraw-auto-approve/changes（计划）：最近 20 次修改 */
+/** GET /api/admin/withdraw-auto-approve/changes：最近 20 次修改 */
 export function listAutoApproveChanges(): Promise<AutoApproveChange[]> {
   return respond(() => auto.changes.slice(0, 20), { empty: () => [] });
 }
 
 /**
- * PUT /api/admin/withdraw-auto-approve（计划，高危）：一次保存总开关和 12 条规则，必须填原因，写审计。
- * 正式版用新的高危权限点 withdrawal:auto_rule_edit；原型先借用 config:edit（权限点清单前后端要一致，后端实现时一起加）。
+ * PUT /api/admin/withdraw-auto-approve（高危，权限 withdrawal:auto_rule_edit）：一次保存总开关和 12 条规则，必须填原因，写审计。
+ * expectedVersion 不是当前版本时和后端一样返回 409 CONFIG_CHANGED；没有变化返回 NO_CHANGE。
  */
 export function updateAutoApproveSettings(input: AutoApproveSettingsInput): Promise<AutoApproveSettings> {
   return mutate(() => {
-    requirePerm('config:edit');
+    requirePerm(AUTO_RULE_EDIT_PERM);
     const reason = requireReason(input.reason);
     const cur = auto.settings;
+    if (input.expectedVersion !== cur.version) throw new ApiError('errors.configChanged', undefined, { status: 409, code: 'CONFIG_CHANGED' });
     const diff: AutoApproveChange['changes'] = [];
     if (input.masterEnabled !== cur.masterEnabled) diff.push({ field: 'master', before: String(cur.masterEnabled), after: String(input.masterEnabled) });
     const nextParams: Record<string, Record<string, string>> = {};
@@ -626,7 +627,7 @@ export function updateAutoApproveSettings(input: AutoApproveSettingsInput): Prom
       }
     }
     if (crossRuleProblems(nextParams).length) throw new ApiError('errors.autoApproveInvalid');
-    if (!diff.length) throw new ApiError('errors.autoApproveNoChange');
+    if (!diff.length) throw new ApiError('errors.autoApproveNoChange', undefined, { status: 400, code: 'NO_CHANGE' });
     const time = nowString();
     const admin = currentAdmin().displayName;
     cur.masterEnabled = input.masterEnabled;

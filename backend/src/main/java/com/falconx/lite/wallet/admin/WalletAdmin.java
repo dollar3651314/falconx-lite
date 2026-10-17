@@ -57,17 +57,18 @@ class WalletAdmin implements WalletAdminApi {
   @Override
   @Transactional(readOnly = true)
   public Page<Withdrawal> withdrawals(Collection<String> statuses, String chain, BigDecimal minAmount, BigDecimal maxAmount, Collection<Long> userIds, Long no,
-      int offset, int limit) {
+      String autoReview, int offset, int limit) {
     if (nothing(userIds, no)) return new Page<>(List.of(), 0);
     Collection<Long> us = users(userIds);
-    return new Page<>(mapper.withdrawals(statuses, chain, minAmount, maxAmount, us, no, null, offset, limit).stream().map(WalletAdmin::withdrawal).toList(),
-        mapper.countWithdrawals(statuses, chain, minAmount, maxAmount, us, no));
+    return new Page<>(
+        mapper.withdrawals(statuses, chain, minAmount, maxAmount, us, no, null, autoReview, offset, limit).stream().map(WalletAdmin::withdrawal).toList(),
+        mapper.countWithdrawals(statuses, chain, minAmount, maxAmount, us, no, autoReview));
   }
 
   @Override
   @Transactional(readOnly = true)
   public Optional<Withdrawal> withdrawal(long id) {
-    return mapper.withdrawals(null, null, null, null, null, null, id, 0, 1).stream().findFirst().map(WalletAdmin::withdrawal);
+    return mapper.withdrawals(null, null, null, null, null, null, id, null, 0, 1).stream().findFirst().map(WalletAdmin::withdrawal);
   }
 
   @Override
@@ -93,13 +94,13 @@ class WalletAdmin implements WalletAdminApi {
   public CustomerFunds customerFunds(long userId, int recent) {
     List<Long> one = List.of(userId);
     return new CustomerFunds(mapper.totalDeposit(userId), mapper.deposits(null, List.of("CREDITED"), null, one, null, 0, recent).stream().map(this::deposit).toList(),
-        mapper.withdrawals(List.of("COMPLETED"), null, null, null, one, null, null, 0, recent).stream().map(WalletAdmin::withdrawal).toList());
+        mapper.withdrawals(List.of("COMPLETED"), null, null, null, one, null, null, null, 0, recent).stream().map(WalletAdmin::withdrawal).toList());
   }
 
   @Override
   @Transactional(readOnly = true)
   public long pendingReview() {
-    return mapper.countWithdrawals(List.of("REVIEWING"), null, null, null, null, null);
+    return mapper.countWithdrawals(List.of("REVIEWING"), null, null, null, null, null, null);
   }
 
   @Override

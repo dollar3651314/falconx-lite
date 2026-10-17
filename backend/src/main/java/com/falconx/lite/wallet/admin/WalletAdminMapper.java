@@ -55,11 +55,11 @@ interface WalletAdminMapper {
       @Param("userIds") Collection<Long> userIds, @Param("no") Long no);
 
   List<WithdrawalRow> withdrawals(@Param("statuses") Collection<String> statuses, @Param("chain") String chain, @Param("min") BigDecimal min,
-      @Param("max") BigDecimal max, @Param("userIds") Collection<Long> userIds, @Param("no") Long no, @Param("id") Long id, @Param("offset") int offset,
-      @Param("limit") int limit);
+      @Param("max") BigDecimal max, @Param("userIds") Collection<Long> userIds, @Param("no") Long no, @Param("id") Long id, @Param("auto") String auto,
+      @Param("offset") int offset, @Param("limit") int limit);
 
   long countWithdrawals(@Param("statuses") Collection<String> statuses, @Param("chain") String chain, @Param("min") BigDecimal min,
-      @Param("max") BigDecimal max, @Param("userIds") Collection<Long> userIds, @Param("no") Long no);
+      @Param("max") BigDecimal max, @Param("userIds") Collection<Long> userIds, @Param("no") Long no, @Param("auto") String auto);
 
   Long withdrawalIdByNo(@Param("no") long no);
 

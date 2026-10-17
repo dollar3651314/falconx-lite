@@ -1,6 +1,7 @@
 /**
- * v2 提现自动审批（原型，技术方案/v2-提现自动审批.md 第 9 节）：出金审核列表的"规则判定"单元格、详情里的"规则判定"卡片。
- * 判定记录里的数值和阈值是判定时刻的快照，这里只负责按规则的模板显示，不重新计算。
+ * v2 提现自动审批（技术方案/v2-提现自动审批.md 第 9 节）：出金审核列表的"规则判定"单元格、详情里的"规则判定"卡片。
+ * 判定记录里的数值和阈值是判定时刻的快照（后端 wallet_withdraw_rule_check.results_json），这里只负责按规则的模板显示，不重新计算。
+ * 每条规则的数值键见后端 wallet/withdraw/AutoApproveEngine.java（例如 R1 是 amount、limit）。
  */
 import type { ReactNode } from 'react';
 import { Tooltip } from 'antd';
@@ -31,6 +32,8 @@ export function ruleLine(t: TFunction, r: AutoRuleResult): string {
   if (r.code === 'R6' && r.values.event) v.event = t(`autoRule.event.${r.values.event}`);
   if (r.code === 'R7' && r.values.kyc) v.kyc = t(`kycStatus.${r.values.kyc}`);
   if (r.status === 'unknown') return t('autoReview.unknownLine', { why: r.values.why ?? '—' });
+  // R8：近 30 天没有充值时通过、不检查
+  if (r.code === 'R8' && r.values.note === 'noDeposit') return t('autoRule.R8.noDeposit');
   if (r.code === 'R12' && r.status === 'failed') {
     return (r.values.issues ?? '')
       .split(',')

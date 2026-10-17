@@ -37,11 +37,13 @@ class OpsController {
   private final CustomerOps customers;
   private final FundsOps funds;
   private final NotifyOps notify;
+  private final AutoApproveOps autoApprove;
 
-  OpsController(CustomerOps customers, FundsOps funds, NotifyOps notify) {
+  OpsController(CustomerOps customers, FundsOps funds, NotifyOps notify, AutoApproveOps autoApprove) {
     this.customers = customers;
     this.funds = funds;
     this.notify = notify;
+    this.autoApprove = autoApprove;
   }
 
   /** 菜单角标：待审核的 KYC、出金（没有查看权限的记 0） */
@@ -142,8 +144,29 @@ class OpsController {
   @GetMapping("/api/admin/withdrawals")
   Ops.Page<FundsOps.WithdrawalView> withdrawals(@RequestParam(required = false) String status, @RequestParam(required = false) String chain,
       @RequestParam(required = false) String minAmount, @RequestParam(required = false) String maxAmount, @RequestParam(required = false) String keyword,
-      @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int pageSize) {
-    return funds.withdrawals(status, chain, minAmount, maxAmount, keyword, page, pageSize);
+      @RequestParam(required = false) String autoReview, @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int pageSize) {
+    return funds.withdrawals(status, chain, minAmount, maxAmount, keyword, autoReview, page, pageSize);
+  }
+
+  // ---------- v2 提现自动审批规则（技术方案/v2-提现自动审批.md 第 7 节） ----------
+
+  @RequiresPermission(Permission.WITHDRAWAL_VIEW)
+  @GetMapping("/api/admin/withdraw-auto-approve")
+  AutoApproveOps.SettingsView autoApproveSettings() {
+    return autoApprove.settings();
+  }
+
+  /** 一次保存总开关和 12 条规则（高危）：必须填原因，expectedVersion 不对返回 409 CONFIG_CHANGED */
+  @RequiresPermission(Permission.WITHDRAWAL_AUTO_RULE_EDIT)
+  @PutMapping("/api/admin/withdraw-auto-approve")
+  AutoApproveOps.SettingsView saveAutoApprove(@RequestBody AutoApproveOps.SaveBody body) {
+    return autoApprove.save(AdminContext.current(), body);
+  }
+
+  @RequiresPermission(Permission.WITHDRAWAL_VIEW)
+  @GetMapping("/api/admin/withdraw-auto-approve/changes")
+  List<AutoApproveOps.ChangeView> autoApproveChanges() {
+    return autoApprove.changes();
   }
 
   @RequiresPermission(Permission.WITHDRAWAL_VIEW)
