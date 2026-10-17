@@ -123,8 +123,11 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await expect(ticker).toBeVisible();
       const track = ticker.locator('.ticker-track');
       await expect.poll(() => track.evaluate((el) => getComputedStyle(el).animationName), { message: '在滚动' }).toBe('ticker-scroll');
+      // "有报价"只看 7×24 交易的加密货币（SYMBOL = ETHUSD）：热门品种的第一个是 EURUSD，周末和节假日外汇休市，一直显示"—"
+      // （2026-10-17 周六 CI 因此失败）。休市品种显示"—"是正确的，不在这里断言
+      await expect(ticker.getByTestId(`ticker-${SYMBOL}`), `${SYMBOL} 显示卖价和涨跌幅`).not.toContainText('—', { timeout: 15_000 });
+      // 点击用第一个品种（不管开没开市都能进交易页）：它在可见区域里，不用等跑马灯把后面的品种滚过来
       const item = ticker.locator('[data-testid^="ticker-"]').first();
-      await expect(item).not.toContainText('—', { timeout: 15_000 });
       await ticker.hover();
       await expect.poll(() => track.evaluate((el) => getComputedStyle(el).animationPlayState), { message: '悬停时暂停' }).toBe('paused');
       const code = (await item.getAttribute('data-testid'))!.replace('ticker-', '');
@@ -148,10 +151,12 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
         const d = await desk.newPage();
         await d.goto('/markets');
         await expect(d.locator('.mt-table svg.spark').first(), '走势图已显示').toBeVisible();
-        // 等第一行的卖价到了（报价没到时显示"—"，列宽和有价格时不同）
-        const firstBid = d.locator('.mt-table tbody tr').first().locator('td').nth(2);
-        await expect(firstBid).toBeVisible();
-        await expect(firstBid).not.toHaveText('—', { timeout: 15_000 });
+        // 等报价到了（报价没到时显示"—"，列宽和有价格时不同）。看 7×24 交易的 SYMBOL（ETHUSD）那一行：
+        // 第一行是 EURUSD，周末和节假日外汇休市，一直是"—"。休市的行本来就显示"—"，和真实环境周末的样子一样
+        const symRow = d.locator('.mt-table tbody tr').filter({ has: d.getByRole('link', { name: SYMBOL, exact: true }) });
+        const symBid = symRow.locator('td').nth(2);
+        await expect(symBid).toBeVisible();
+        await expect(symBid).toHaveText(/^\d[\d,]*\.\d+$/, { timeout: 15_000 });
         await expectNoHorizontalScroll(d, '1024 宽行情页');
         await expectNoHorizontalScrollWithScrollbar(d, '1024 宽行情页');
         // 宽表格本身不能超出外面的面板（以前超出 6～22px：右边的"交易"一列压在面板边框外，内容多时把页面撑出横向滚动）
