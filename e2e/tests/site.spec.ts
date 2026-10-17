@@ -57,10 +57,25 @@ test('官网：区块、行情跳动、字段、跳转、中英文、三种宽�
     await expect
       .poll(async () => (await bidOf(page, 'BTCUSD')) !== before.BTCUSD || (await bidOf(page, 'ETHUSD')) !== before.ETHUSD, { timeout: 10_000, message: '10 秒内价格没有变化' })
       .toBe(true);
-    // 闪色层：涨用客户端的 --long-soft（绿），跌用 --short-soft（红）
-    const flash = page.getByTestId('flash').first();
-    await expect(flash).toBeAttached({ timeout: 10_000 });
-    const f = await flash.evaluate((el) => ({ cls: el.className, anim: getComputedStyle(el).animationName, up: getComputedStyle(el).getPropertyValue('--long-soft').trim(), down: getComputedStyle(el).getPropertyValue('--short-soft').trim() }));
+    // 闪色层：涨用客户端的 --long-soft（绿），跌用 --short-soft（红）。
+    // 闪色层每次价格变动都换一个新元素（key 是 flashSeq，约每秒一次），价格没变时整个去掉。以前先找到元素、再另外一次调用读样式，
+    // 两次之间页面可能已经把它换掉：读到的是已经离开页面的旧元素，getComputedStyle 全是空字符串（CI 偶发 animationName 为 ""，
+    // 本机连读 400 次复现 2 次，都是 isConnected=false）。现在在页面里同一段同步代码里找元素并读样式，中间页面不会重新渲染。
+    // 只看 7×24 交易的加密货币行：外汇等品种周末休市，不闪
+    const f = await (
+      await page.waitForFunction(
+        () => {
+          const el = document.querySelector('[data-testid="quote-row"]:is([data-symbol="BTCUSD"], [data-symbol="ETHUSD"]) [data-testid="flash"]');
+          if (!el || !el.isConnected) return null;
+          const s = getComputedStyle(el);
+          return { symbol: el.closest('[data-symbol]')?.getAttribute('data-symbol'), cls: el.className, anim: s.animationName, up: s.getPropertyValue('--long-soft').trim(), down: s.getPropertyValue('--short-soft').trim() };
+        },
+        undefined,
+        { timeout: 10_000 },
+      )
+    ).jsonValue();
+    if (!f) throw new Error('没有读到闪色层');
+    expect(f.symbol).toMatch(/^(BTCUSD|ETHUSD)$/);
     expect(f.cls).toMatch(/flash-(up|down)/);
     expect(f.anim).toMatch(/^flash-(up|down)$/);
     expect(f.up, '涨：客户端深色主题的 --long-soft').toMatch(/^rgba\(34, 197, 94, 0?\.14\)$/);
@@ -69,6 +84,31 @@ test('官网：区块、行情跳动、字段、跳转、中英文、三种宽�
     for (const r of await rows.all()) {
       const st = await r.getAttribute('data-status');
       if (st !== 'OPEN') await expect(r.getByTestId('bid-off'), `${await r.getAttribute('data-symbol')} ${st}`).toHaveText(st === 'CLOSED' ? '休市' : /暂无报价|—/);
+    }
+  });
+
+  await step('休市和暂无报价的显示（工作日也检查）：替换一次行情返回，黄金休市、白银暂无报价，都不显示价格', async () => {
+    // 上一步的"非 OPEN 不显示价格"在工作日（外汇开市）没有品种可查：这里在另一个页面里直接给出三种状态。
+    // 用固定的返回（route.fulfill），不用 route.fetch：部署形态的假域名只有浏览器能解析。后端"休市不返回价格"由 PublicQuoteControllerTest 覆盖
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'zh-CN', ignoreHTTPSErrors: true, serviceWorkers: 'block' });
+    try {
+      const item = (symbol: string, nameZh: string, nameEn: string, status: string, bid: string | null) => ({ symbol, nameZh, nameEn, bid, changePct: bid && '0.10', time: bid && new Date().toISOString(), status });
+      await ctx.route('**/api/public/quotes', (route) =>
+        route.fulfill({ json: { sample: true, items: [item('BTCUSD', '比特币', 'Bitcoin', 'OPEN', '81000.5'), item('XAUUSD', '黄金', 'Gold', 'CLOSED', null), item('XAGUSD', '白银', 'Silver', 'NO_QUOTE', null)] } }),
+      );
+      const p = await ctx.newPage();
+      await p.goto(`${SITE_URL}/`);
+      const row = (s: string) => p.locator(`[data-testid="quote-row"][data-symbol="${s}"]`);
+      await expect(row('BTCUSD').getByTestId('bid')).toHaveText('81,000.5');
+      await expect(row('XAUUSD')).toHaveAttribute('data-status', 'CLOSED');
+      await expect(row('XAUUSD').getByTestId('bid-off')).toHaveText('休市');
+      await expect(row('XAGUSD').getByTestId('bid-off')).toHaveText('暂无报价');
+      for (const s of ['XAUUSD', 'XAGUSD']) {
+        await expect(row(s).getByTestId('bid'), `${s} 不显示价格`).toHaveCount(0);
+        await expect(row(s).getByTestId('flash'), `${s} 不闪`).toHaveCount(0);
+      }
+    } finally {
+      await ctx.close();
     }
   });
 
