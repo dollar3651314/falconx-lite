@@ -45,13 +45,44 @@ public enum ConfigKey {
   /** 单个客户的持仓上限（USD 名义价值，含挂单）：在风控页改（权限 risk:user_limit），不在系统配置页 */
   RISK_PER_USER_LIMIT("risk.perUserLimitUsd", Unit.USDT, "risk", BigDecimal.ONE, false),
   /** 追保线（保证金水平 %，100 即 100%）：在交易参数页改（权限 params:edit），不在系统配置页 */
-  TRADING_MARGIN_CALL_LEVEL("trading.marginCallLevel", Unit.PERCENT, "trading", BigDecimal.ONE, false);
+  TRADING_MARGIN_CALL_LEVEL("trading.marginCallLevel", Unit.PERCENT, "trading", BigDecimal.ONE, false),
+  /**
+   * 提现自动审批（v2，技术方案/v2-提现自动审批.md 第 7 节）：总开关（<b>默认 false</b>，迁移 V26）、12 条规则的开关和 9 个数值、配置版本号。
+   * 在"出金审核 → 自动审批规则"页一次保存（权限 withdrawal:auto_rule_edit，高危），不在系统配置页；取值范围和 R1 ≤ R2 ≤ R3 的校验在 wallet.api.AutoApprove
+   */
+  AUTO_APPROVE_ENABLED("withdraw.autoApprove.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_VERSION("withdraw.autoApprove.version", Unit.COUNT, "autoApprove", BigDecimal.ZERO, false),
+  AUTO_APPROVE_R1_ENABLED("withdraw.autoApprove.R1.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R2_ENABLED("withdraw.autoApprove.R2.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R3_ENABLED("withdraw.autoApprove.R3.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R4_ENABLED("withdraw.autoApprove.R4.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R5_ENABLED("withdraw.autoApprove.R5.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R6_ENABLED("withdraw.autoApprove.R6.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R7_ENABLED("withdraw.autoApprove.R7.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R8_ENABLED("withdraw.autoApprove.R8.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R9_ENABLED("withdraw.autoApprove.R9.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R10_ENABLED("withdraw.autoApprove.R10.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R11_ENABLED("withdraw.autoApprove.R11.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R12_ENABLED("withdraw.autoApprove.R12.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R1_MAX_AMOUNT("withdraw.autoApprove.R1.maxAmount", Unit.USDT, "autoApprove", BigDecimal.ZERO, false),
+  AUTO_APPROVE_R2_MAX_USER24H("withdraw.autoApprove.R2.maxUser24h", Unit.USDT, "autoApprove", BigDecimal.ZERO, false),
+  AUTO_APPROVE_R3_MAX_PLATFORM24H("withdraw.autoApprove.R3.maxPlatform24h", Unit.USDT, "autoApprove", BigDecimal.ZERO, false),
+  AUTO_APPROVE_R6_HOURS("withdraw.autoApprove.R6.hours", Unit.HOURS, "autoApprove", BigDecimal.ZERO, false),
+  AUTO_APPROVE_R7_DAYS("withdraw.autoApprove.R7.days", Unit.COUNT, "autoApprove", BigDecimal.ZERO, false),
+  AUTO_APPROVE_R8_MULTIPLE("withdraw.autoApprove.R8.multiple", Unit.MULTIPLE, "autoApprove", BigDecimal.ZERO, false),
+  AUTO_APPROVE_R10_MAX_PROFIT7D("withdraw.autoApprove.R10.maxProfit7d", Unit.USDT, "autoApprove", BigDecimal.ZERO, false),
+  AUTO_APPROVE_R10_MAX_PROFIT_PCT("withdraw.autoApprove.R10.maxProfitPct", Unit.PERCENT, "autoApprove", BigDecimal.ZERO, false),
+  AUTO_APPROVE_R11_MAX_COUNT("withdraw.autoApprove.R11.maxCount", Unit.COUNT, "autoApprove", BigDecimal.ZERO, false);
 
   /** 单位，和原型一致 */
   public enum Unit {
     USDT, HOURS, MINUTES, COUNT, TEXT, PERCENT,
     /** 热钱包手续费币（余额告警下限），最多 8 位小数 */
-    ETH, BNB, TRX;
+    ETH, BNB, TRX,
+    /** 开关：true / false（提现自动审批） */
+    BOOL,
+    /** 倍数，最多 8 位小数（提现自动审批 R8） */
+    MULTIPLE;
 
     public String api() {
       return name().toLowerCase();
@@ -90,10 +121,12 @@ public enum ConfigKey {
     if (value == null) return Optional.empty();
     String v = value.strip();
     if (unit == Unit.TEXT) return v.length() <= 1000 ? Optional.of(v) : Optional.empty();
+    if (unit == Unit.BOOL) return "true".equals(v) || "false".equals(v) ? Optional.of(v) : Optional.empty();
     try {
       BigDecimal d = new BigDecimal(v);
       if (d.compareTo(min) < 0) return Optional.empty();
-      if (unit == Unit.USDT || unit == Unit.PERCENT || unit == Unit.ETH || unit == Unit.BNB || unit == Unit.TRX) {
+      if (unit == Unit.USDT || unit == Unit.PERCENT || unit == Unit.ETH || unit == Unit.BNB || unit == Unit.TRX
+          || unit == Unit.MULTIPLE) {
         if (d.scale() > 8 || d.compareTo(new BigDecimal("1000000000")) > 0) return Optional.empty();
         return Optional.of(d.stripTrailingZeros().toPlainString());
       }

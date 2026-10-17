@@ -44,6 +44,9 @@ export const ERROR_KEYS: Record<string, string> = {
   ISSUE_NOT_OPEN: 'errors.issueNotOpen',
   WITHDRAW_NOT_REVIEWABLE: 'errors.withdrawNotReviewable',
   WITHDRAW_NOT_CANCELLABLE: 'errors.withdrawNotCancellable',
+  // v2 提现自动审批规则（admin/ops/AutoApproveOps）：版本冲突 409、没有变化
+  CONFIG_CHANGED: 'errors.configChanged',
+  NO_CHANGE: 'errors.autoApproveNoChange',
   KYC_NOT_FOUND: 'errors.notFound',
   KYC_NOT_PENDING: 'errors.kycNotPending',
   REJECT_REASON_REQUIRED: 'errors.reasonRequired',

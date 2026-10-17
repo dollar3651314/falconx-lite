@@ -46,10 +46,15 @@ import {
   type SymbolPatch,
   type TradingSymbol,
   type WithdrawalDetail,
+  type AutoApproveChange,
+  type AutoApproveSettings,
+  type AutoApproveSettingsInput,
+  type AutoReviewSummary,
   type WithdrawalQuery,
   type WithdrawalSummary,
   type Withdrawal,
 } from '../api/types';
+import { AUTO_RULE_EDIT_PERM, AUTO_RULES, crossRuleProblems, ruleParamProblem } from '../config/autoApprove';
 import { defaultMarkup } from '../config/constants';
 import { MENU, type MenuItemDef } from '../config/menu';
 import { PERMISSIONS, SUPER_ADMIN_ROLE } from '../config/permissions';
@@ -58,6 +63,7 @@ import { compareAmounts, fromScaled, isValidAmountInput, sumAmounts, toScaled, u
 import { CURRENCY_RE, SYMBOL_CODE_RE, birthDateProblems, nameProblems, nationalityProblems, simStartPriceProblems } from '../utils/validators';
 import * as db from './data/db';
 import { NOW_MS, createRng, minutesAgo, nowString } from './data/seed';
+import * as auto from './data/autoApprove';
 import { emptyPage, matches, mutate, paginate, respond } from './runtime';
 
 // ============ 工具 ============
@@ -454,10 +460,29 @@ export function listDeposits(q: DepositQuery): Promise<Page<Deposit>> {
 }
 
 const OPEN_WD = ['cooling', 'pending', 'delayed'];
+
+/** v2 自动审批：出金加上规则判定摘要；自动通过的没有审核人（技术方案/v2-提现自动审批.md 第 3 节） */
+function withAutoReview(w: Withdrawal): Withdrawal {
+  const r = auto.reviews.get(w.id);
+  if (!r) return { ...w, autoReview: null };
+  const summary: AutoReviewSummary = { phase: r.phase, outcome: r.outcome, failed: r.failed, decidedAt: r.decidedAt };
+  return { ...w, autoReview: summary, reviewer: r.outcome === 'auto_approved' ? null : w.reviewer };
+}
+
+function matchesAutoFilter(w: Withdrawal, f: WithdrawalQuery['autoReview']): boolean {
+  if (!f) return true;
+  const r = w.autoReview;
+  if (f === 'none') return !r;
+  if (!r) return false;
+  if (f === 'auto_approved' || f === 'manual' || f === 'master_off') return r.outcome === f || (f === 'manual' && r.outcome === 'error');
+  return r.failed.includes(f);
+}
+
 export function listWithdrawals(q: WithdrawalQuery): Promise<Page<Withdrawal>> {
   return respond(
     () => {
-      const rows = db.withdrawals.filter((w) => {
+      const rows = db.withdrawals.map(withAutoReview).filter((w) => {
+        if (!matchesAutoFilter(w, q.autoReview)) return false;
         if (q.status === 'open' ? !OPEN_WD.includes(w.status) : q.status && w.status !== q.status) return false;
         if (q.chain && w.chain !== q.chain) return false;
         if (q.minAmount && compareAmounts(w.amount, q.minAmount) < 0) return false;
@@ -499,7 +524,8 @@ export function getWithdrawal(id: string): Promise<WithdrawalDetail> {
     const prevWd = db.withdrawals.filter((x) => x.customerId === c.id && x.id !== id && x.status === 'completed').slice(0, 3);
     const regDays = Math.max(1, Math.round((Date.UTC(2026, 9, 14) - Date.parse(c.registeredAt.replace(' ', 'T') + 'Z')) / 86_400_000));
     return {
-      ...w,
+      ...withAutoReview(w),
+      autoReviewDetail: auto.reviews.get(w.id) ?? null,
       kycStatus: c.kycStatus,
       registeredDays: w.customerId === 100482 ? 30 : regDays,
       totalDeposit: w.customerId === 100482 ? '20000.00' : sumAmounts(db.deposits.filter((d) => d.customerId === c.id && d.status === 'credited').map((d) => d.amount)),
@@ -559,6 +585,66 @@ export function emergencyCancelWithdrawal(id: string, reason: string): Promise<W
     w.delayRemainingMinutes = null;
     audit('withdrawal.emergency_cancel', id, true, r, { status: 'delayed' }, { status: 'cancelled' });
     return w;
+  });
+}
+
+// ============ v2 提现自动审批（技术方案/v2-提现自动审批.md；和后端 admin/ops/AutoApproveOps 同一口径） ============
+/** GET /api/admin/withdraw-auto-approve */
+export function getAutoApproveSettings(): Promise<AutoApproveSettings> {
+  return respond(() => auto.settings);
+}
+
+/** GET /api/admin/withdraw-auto-approve/changes：最近 20 次修改 */
+export function listAutoApproveChanges(): Promise<AutoApproveChange[]> {
+  return respond(() => auto.changes.slice(0, 20), { empty: () => [] });
+}
+
+/**
+ * PUT /api/admin/withdraw-auto-approve（高危，权限 withdrawal:auto_rule_edit）：一次保存总开关和 12 条规则，必须填原因，写审计。
+ * expectedVersion 不是当前版本时和后端一样返回 409 CONFIG_CHANGED；没有变化返回 NO_CHANGE。
+ */
+export function updateAutoApproveSettings(input: AutoApproveSettingsInput): Promise<AutoApproveSettings> {
+  return mutate(() => {
+    requirePerm(AUTO_RULE_EDIT_PERM);
+    const reason = requireReason(input.reason);
+    const cur = auto.settings;
+    if (input.expectedVersion !== cur.version) throw new ApiError('errors.configChanged', undefined, { status: 409, code: 'CONFIG_CHANGED' });
+    const diff: AutoApproveChange['changes'] = [];
+    if (input.masterEnabled !== cur.masterEnabled) diff.push({ field: 'master', before: String(cur.masterEnabled), after: String(input.masterEnabled) });
+    const nextParams: Record<string, Record<string, string>> = {};
+    for (const def of AUTO_RULES) {
+      const before = cur.rules.find((r) => r.code === def.code)!;
+      const after = input.rules.find((r) => r.code === def.code);
+      if (!after) throw new ApiError('errors.autoApproveInvalid');
+      if (after.enabled !== before.enabled) diff.push({ field: `${def.code}.enabled`, before: String(before.enabled), after: String(after.enabled) });
+      nextParams[def.code] = {};
+      for (const p of def.params) {
+        const v = (after.params[p.key] ?? '').trim();
+        if (ruleParamProblem(p, v)) throw new ApiError('errors.autoApproveInvalid');
+        const norm = String(Number(v));
+        nextParams[def.code][p.key] = norm;
+        if (Number(norm) !== Number(before.params[p.key])) diff.push({ field: `${def.code}.${p.key}`, before: before.params[p.key], after: norm });
+      }
+    }
+    if (crossRuleProblems(nextParams).length) throw new ApiError('errors.autoApproveInvalid');
+    if (!diff.length) throw new ApiError('errors.autoApproveNoChange', undefined, { status: 400, code: 'NO_CHANGE' });
+    const time = nowString();
+    const admin = currentAdmin().displayName;
+    cur.masterEnabled = input.masterEnabled;
+    cur.rules = AUTO_RULES.map((d) => ({ code: d.code, enabled: input.rules.find((r) => r.code === d.code)!.enabled, params: nextParams[d.code] }));
+    cur.version += 1;
+    cur.updatedAt = time;
+    cur.updatedBy = admin;
+    auto.changes.unshift({ id: `AAC-${cur.version}`, version: cur.version, time, adminName: admin, reason, changes: diff });
+    audit(
+      'withdrawal.auto_rule_update',
+      `v${cur.version}`,
+      true,
+      reason,
+      Object.fromEntries(diff.map((d) => [d.field, d.before])),
+      Object.fromEntries(diff.map((d) => [d.field, d.after])),
+    );
+    return cur;
   });
 }
 

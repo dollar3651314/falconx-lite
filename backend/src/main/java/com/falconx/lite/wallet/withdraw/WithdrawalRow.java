@@ -19,4 +19,6 @@ class WithdrawalRow {
   String txHash;
   String rejectReason;
   LocalDateTime createdAt;
+  /** 最近一次自动审批判定（v2）；没有时为空 */
+  Long lastCheckId;
 }

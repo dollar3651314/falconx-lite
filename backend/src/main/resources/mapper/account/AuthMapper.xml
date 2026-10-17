@@ -24,6 +24,18 @@
 
   <update id="updateStatus">UPDATE account_user SET status = #{status} WHERE id = #{id}</update>
 
+  <!-- 账号安全事件（v2 提现自动审批 R6）：时间由调用方给（注入的时钟），不用数据库时间 -->
+  <insert id="insertSecurityEvent">
+    INSERT INTO account_security_event (user_id, type, created_at) VALUES (#{userId}, #{type}, #{at})
+  </insert>
+
+  <!-- 窗口 (since, 现在]：正好在 since 的不算"内"（方案第 4 节的边界） -->
+  <select id="lastSecurityEventSince" resultType="com.falconx.lite.account.api.SecurityEvent">
+    SELECT type, created_at AS at FROM account_security_event WHERE user_id = #{userId} AND created_at &gt; #{since} ORDER BY created_at DESC, id DESC LIMIT 1
+  </select>
+
+  <select id="registeredAt" resultType="java.time.LocalDateTime">SELECT created_at FROM account_user WHERE id = #{id}</select>
+
   <update id="touchLogin">UPDATE account_user SET last_login_at = UTC_TIMESTAMP(3) WHERE id = #{id}</update>
 
   <insert id="insertEmailCode">

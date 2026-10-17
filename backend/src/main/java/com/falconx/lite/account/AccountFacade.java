@@ -2,9 +2,12 @@ package com.falconx.lite.account;
 
 import com.falconx.lite.account.api.AccountApi;
 import com.falconx.lite.account.api.KycStatus;
+import com.falconx.lite.account.api.SecurityEvent;
 import com.falconx.lite.account.api.UserStatus;
 import com.falconx.lite.account.auth.AuthAccess;
 import com.falconx.lite.account.kyc.KycAccess;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 /** {@link AccountApi} 的实现：把登录和 KYC 两部分的对外操作合在一起。 */
@@ -37,6 +40,16 @@ class AccountFacade implements AccountApi {
   @Override
   public String email(long userId) {
     return auth.email(userId);
+  }
+
+  @Override
+  public LocalDateTime registeredAt(long userId) {
+    return auth.registeredAt(userId);
+  }
+
+  @Override
+  public Optional<SecurityEvent> lastSecurityEventSince(long userId, LocalDateTime since) {
+    return auth.lastSecurityEventSince(userId, since);
   }
 
   @Override

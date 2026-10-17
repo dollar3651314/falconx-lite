@@ -271,9 +271,86 @@ export interface Withdrawal {
   reviewer: string | null;
   reason: string | null;
   txHash: string | null;
+  /** v2 自动审批（技术方案/v2-提现自动审批.md）：最近一次规则判定的摘要；没有判定记录（功能上线前的提现）时为空 */
+  autoReview?: AutoReviewSummary | null;
+}
+
+// ---------- v2 提现自动审批（技术方案/v2-提现自动审批.md 第 7.2 节；后端 admin/ops/AutoApproveOps.java） ----------
+export type AutoRuleCode = 'R1' | 'R2' | 'R3' | 'R4' | 'R5' | 'R6' | 'R7' | 'R8' | 'R9' | 'R10' | 'R11' | 'R12';
+/** 判定结果：自动通过 / 转人工（有规则没通过）/ 总开关关闭（全部人工，规则照常判定做参考）/ 判定出错（按转人工处理） */
+export type AutoReviewOutcome = 'auto_approved' | 'manual' | 'master_off' | 'error';
+/** 判定时机：提交时预判（只做参考，不占额度）/ 冷静期结束时复判（以这次为准） */
+export type AutoReviewPhase = 'precheck' | 'final';
+
+export interface AutoReviewSummary {
+  phase: AutoReviewPhase;
+  outcome: AutoReviewOutcome;
+  /** 没通过的规则（含无法判定的），按编号排序；全部通过时为空 */
+  failed: AutoRuleCode[];
+  decidedAt: string;
+}
+
+/** 一条规则的判定结果。values 是判定时刻的实际数值和阈值（快照），前端按规则的模板显示，以后改规则不影响 */
+export interface AutoRuleResult {
+  code: AutoRuleCode;
+  status: 'passed' | 'failed' | 'disabled' | 'unknown';
+  values: Record<string, string>;
+}
+
+export interface AutoReviewDetail extends AutoReviewSummary {
+  /** 判定时总开关的状态（快照） */
+  masterEnabled: boolean;
+  rules: AutoRuleResult[];
+  /** 判定时用的规则配置版本和这一版的修改人、时间 */
+  configVersion: number;
+  configChangedAt: string | null;
+  configChangedBy: string | null;
+  /** 复判记录上附带提交时的预判摘要（冷静期中的提现只有预判） */
+  precheck: AutoReviewSummary | null;
+}
+
+/** 出金列表的"规则判定"筛选：判定结果，或触发了某条规则 */
+export type AutoReviewFilter = 'auto_approved' | 'manual' | 'master_off' | 'none' | AutoRuleCode;
+
+export interface AutoRuleSetting {
+  code: AutoRuleCode;
+  enabled: boolean;
+  /** 数值参数（字符串，和系统配置一样）；没有数值的规则为空对象 */
+  params: Record<string, string>;
+}
+
+export interface AutoApproveSettings {
+  /** 总开关，默认关闭（= 全部人工审核） */
+  masterEnabled: boolean;
+  rules: AutoRuleSetting[];
+  /** 配置版本：每次保存 +1，判定记录里记这个号 */
+  version: number;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface AutoApproveSettingsInput {
+  masterEnabled: boolean;
+  rules: AutoRuleSetting[];
+  reason: string;
+  /** 页面打开时读到的版本；后端发现版本变了返回 409 CONFIG_CHANGED（防止两个人同时改互相覆盖） */
+  expectedVersion: number;
+}
+
+/** 一次保存的修改记录（同时写审计日志 withdrawal.auto_rule_update） */
+export interface AutoApproveChange {
+  id: string;
+  version: number;
+  time: string;
+  adminName: string;
+  reason: string;
+  /** field：master，或 R1.enabled、R1.maxAmount 这样的"规则.参数" */
+  changes: { field: string; before: string; after: string }[];
 }
 
 export interface WithdrawalDetail extends Withdrawal {
+  /** v2 自动审批：规则判定卡片的数据（12 条逐条结果） */
+  autoReviewDetail?: AutoReviewDetail | null;
   kycStatus: KycStatus;
   registeredDays: number;
   totalDeposit: string;
@@ -290,6 +367,8 @@ export interface WithdrawalQuery extends PageQuery {
   minAmount?: string;
   maxAmount?: string;
   keyword?: string;
+  /** v2 自动审批：按最近一次判定的结果或触发的规则筛选 */
+  autoReview?: AutoReviewFilter;
 }
 
 export interface WithdrawalSummary {

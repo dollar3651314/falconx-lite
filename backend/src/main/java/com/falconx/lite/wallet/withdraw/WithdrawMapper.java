@@ -44,6 +44,7 @@ interface WithdrawMapper {
   /** 状态从 from 改到 to；返回 1 表示改成功（状态在条件里，防止并发重复处理） */
   int transit(@Param("id") long id, @Param("from") String from, @Param("to") String to);
 
+  /** 人工审核（通过或驳回）：同时记 review_mode = MANUAL（v2 自动审批，驳回也记，方便统计） */
   int setReview(@Param("id") long id, @Param("reviewerId") Long reviewerId, @Param("at") LocalDateTime at, @Param("reason") String reason,
       @Param("delayEndsAt") LocalDateTime delayEndsAt);
 

@@ -47,6 +47,8 @@ describe('错误码映射', () => {
       'RATE_LIMITED',
       // v2 E3 新增品种
       'SYMBOL_EXISTS',
+      // v2 提现自动审批规则
+      'CONFIG_CHANGED', 'NO_CHANGE',
     ];
     expect(backend.filter((c) => !ERROR_KEYS[c])).toEqual([]);
   });

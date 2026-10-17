@@ -221,7 +221,8 @@
     "withdrawal": {
       "approve": "通过出金",
       "emergency_cancel": "紧急取消出金",
-      "reject": "拒绝出金"
+      "reject": "拒绝出金",
+      "auto_rule_update": "修改提现自动审批规则"
     }
   },
   "auth": {
@@ -530,7 +531,10 @@
     "validationFailed": "提交的内容有误：",
     "whitelistExcludesSelf": "新的白名单不包含你当前的 IP，保存后你会无法访问后台，已拒绝保存。",
     "withdrawNotCancellable": "只有延迟期内的大额出金可以紧急取消，请刷新后再看。",
-    "withdrawNotReviewable": "这笔出金已经不是待审核状态，请刷新后再操作。"
+    "withdrawNotReviewable": "这笔出金已经不是待审核状态，请刷新后再操作。",
+    "autoApproveInvalid": "规则数值不合法，请检查后重新保存",
+    "autoApproveNoChange": "没有修改，不需要保存",
+    "configChanged": "规则已被别人修改（版本变了），已刷新为最新的配置，请核对后重新修改"
   },
   "exposureStatus": {
     "auto_blocked": "自动禁开",
@@ -778,6 +782,7 @@
     "task_retry": "手动重试任务",
     "task_view": "查看任务表",
     "withdrawal_emergency_cancel": "紧急取消出金",
+    "withdrawal_auto_rule_edit": "修改提现自动审批规则",
     "withdrawal_review": "审核出金",
     "withdrawal_view": "查看出金"
   },
@@ -1333,5 +1338,238 @@
     "off": "未启用告警",
     "ok": "正常",
     "unknown": "还没查到"
+  },
+  "autoRule": {
+    "event": {
+      "password_change": "改了密码",
+      "password_reset": "重置了密码",
+      "email_change": "改了邮箱",
+      "freeze": "被冻结",
+      "unfreeze": "被解冻"
+    },
+    "R1": {
+      "name": "单笔金额",
+      "desc": "本笔提现金额（含手续费）不超过上限；等于上限算通过",
+      "param": {
+        "maxAmount": "单笔上限"
+      },
+      "pass": "单笔 {{amount}} ≤ 上限 {{limit}}",
+      "fail": "单笔 {{amount}} > 上限 {{limit}}"
+    },
+    "R2": {
+      "name": "客户 24 小时自动通过累计",
+      "desc": "该客户过去 24 小时（滚动）自动通过的金额 + 本笔不超过上限；人工审核通过的不算",
+      "param": {
+        "maxUser24h": "累计上限"
+      },
+      "pass": "24 小时已自动通过 {{used}} + 本笔 {{amount}} = {{total}} ≤ {{limit}}",
+      "fail": "24 小时已自动通过 {{used}} + 本笔 {{amount}} = {{total}} > 上限 {{limit}}"
+    },
+    "R3": {
+      "name": "全平台 24 小时自动通过累计",
+      "desc": "全平台过去 24 小时（滚动）自动通过的金额 + 本笔不超过上限",
+      "param": {
+        "maxPlatform24h": "累计上限"
+      },
+      "pass": "全平台 24 小时已自动通过 {{used}} + 本笔 = {{total}} ≤ {{limit}}",
+      "fail": "全平台 24 小时已自动通过 {{used}} + 本笔 = {{total}} > 上限 {{limit}}"
+    },
+    "R4": {
+      "name": "不是第一笔提现",
+      "desc": "该客户此前至少有 1 笔已完成的提现；第一笔一律人工",
+      "fixed": "没有数值：第一笔一律人工",
+      "pass": "此前已完成提现 {{count}} 笔",
+      "fail": "该客户的第一笔提现"
+    },
+    "R5": {
+      "name": "地址成功提现过",
+      "desc": "这个白名单地址以前成功提现过（只在白名单里不算）；新地址首次提现人工",
+      "fixed": "没有数值：新地址首次提现人工",
+      "pass": "该地址此前成功提现 {{count}} 次",
+      "fail": "该地址从没成功提现过（新地址首次）"
+    },
+    "R6": {
+      "name": "近期没有安全变更",
+      "desc": "最近 N 小时内没有改密码、重置密码、改邮箱、冻结 / 解冻",
+      "param": {
+        "hours": "时间窗口"
+      },
+      "pass": "{{hours}} 小时内没有改密码、改邮箱、冻结 / 解冻",
+      "fail": "{{ago}} 小时前{{event}}（窗口 {{hours}} 小时）"
+    },
+    "R7": {
+      "name": "注册时长和 KYC",
+      "desc": "注册满 N 天，并且 KYC 已通过",
+      "param": {
+        "days": "注册满"
+      },
+      "pass": "注册 {{days}} 天 ≥ {{limit}} 天 · KYC {{kyc}}",
+      "fail": "注册 {{days}} 天（要求 ≥ {{limit}} 天）· KYC {{kyc}}"
+    },
+    "R8": {
+      "name": "充值后的交易量",
+      "desc": "近 30 天入账的充值，在最早那笔入账之后的开仓名义价值 ≥ 充值合计 × N 倍",
+      "param": {
+        "multiple": "倍数"
+      },
+      "pass": "充值后交易量 {{volume}} / 充值 {{deposit}} = {{ratio}} 倍 ≥ {{limit}} 倍",
+      "fail": "充值后交易量 {{volume}} / 充值 {{deposit}} = {{ratio}} 倍 < {{limit}} 倍",
+      "noDeposit": "近 30 天没有充值，不检查"
+    },
+    "R9": {
+      "name": "提现不超过充值 + 盈亏",
+      "desc": "累计提现（含本笔，含进行中的）≤ 累计充值 + 已实现盈亏；超过就人工（例如提走后台调增的钱）",
+      "fixed": "没有数值：超过就人工",
+      "pass": "累计提现 {{withdrawn}} ≤ 充值 {{deposit}} + 盈亏 {{pnl}} = {{cap}}",
+      "fail": "累计提现 {{withdrawn}} > 充值 {{deposit}} + 盈亏 {{pnl}} = {{cap}}"
+    },
+    "R10": {
+      "name": "近 7 天盈利",
+      "desc": "近 7 天（滚动）已实现盈利不超过金额上限，或不超过本金的 N%（满足其一即通过）",
+      "param": {
+        "maxProfit7d": "金额上限",
+        "maxProfitPct": "或本金的"
+      },
+      "pass": "近 7 天盈利 {{profit}}（上限 {{limitAbs}}，或本金 {{principal}} 的 {{limitPct}}%）",
+      "fail": "近 7 天盈利 {{profit}} > {{limitAbs}}，且占本金 {{principal}} 的 {{pct}}% > {{limitPct}}%"
+    },
+    "R11": {
+      "name": "当天提现次数",
+      "desc": "当天（UTC，和每日限额同一口径）提交的提现笔数（含本笔，不含客户自己撤销的）",
+      "param": {
+        "maxCount": "每天最多"
+      },
+      "pass": "今天第 {{count}} 笔 ≤ {{limit}} 笔",
+      "fail": "今天第 {{count}} 笔 > {{limit}} 笔"
+    },
+    "R12": {
+      "name": "系统状态正常",
+      "desc": "没有报价偏差告警、没有全局暂停、该链热钱包余额够付本笔和排在前面的提现",
+      "fixed": "没有数值：三项都正常才通过",
+      "pass": "报价正常 · 未全局暂停 · 热钱包余额 {{balance}} ≥ 需要 {{need}}",
+      "fail": "系统状态异常",
+      "issue": {
+        "quoteDeviation": "有报价偏差告警",
+        "globalPause": "全局暂停中",
+        "hotWallet": "热钱包余额 {{balance}} < 需要 {{need}}",
+        "hotWalletUnknown": "查不到热钱包余额（超过 10 分钟没查成功），按不通过处理"
+      }
+    }
+  },
+  "autoReview": {
+    "title": "规则判定",
+    "column": "规则判定",
+    "filter": "规则判定",
+    "filterOutcome": "判定结果",
+    "filterRule": "触发了某条规则",
+    "filterOpt": {
+      "auto_approved": "自动通过",
+      "manual": "转人工（触发了规则）",
+      "master_off": "总开关关闭",
+      "none": "没有判定记录"
+    },
+    "outcome": {
+      "auto_approved": "自动通过",
+      "manual": "转人工",
+      "master_off": "总开关关闭",
+      "error": "判定出错"
+    },
+    "status": {
+      "passed": "通过",
+      "failed": "未通过",
+      "disabled": "未启用",
+      "unknown": "无法判定"
+    },
+    "trigger": "触发 {{count}} 条",
+    "preTrigger": "预判 · 触发 {{count}} 条",
+    "prePass": "预判 · 可自动通过",
+    "prePassShort": "可自动通过",
+    "masterOffShort": "总开关关闭",
+    "ifOnTrigger": "如开启：触发 {{count}} 条",
+    "ifOnPass": "如开启：可自动通过",
+    "precheckTip": "提交时预判，冷静期结束时复判，以复判为准",
+    "noRecord": "没有判定记录",
+    "noRecordLong": "没有判定记录（自动审批上线前提交的提现）。",
+    "masterOffBanner": "总开关关闭，全部人工审核",
+    "masterOffWouldTrigger": "规则照常判定供参考：如果打开，本笔会触发 {{count}} 条（{{codes}}）。",
+    "masterOffWouldPass": "规则照常判定供参考：如果打开，本笔会自动通过。",
+    "precheckNote": "这是提交时的预判，不占额度；冷静期结束时用当时的数据和配置复判，以复判为准。",
+    "autoBanner": "已启用的 {{enabled}} 条规则全部通过，系统自动通过",
+    "autoBannerSub": "冷静期结束后放款；≥3,000 USDT 的照旧延迟 6 小时。",
+    "manualBanner": "触发 {{count}} 条规则，转人工审核",
+    "manualBannerSub": "请核对下面标红的规则后再通过或拒绝。",
+    "phasePre": "提交时预判",
+    "phaseFinal": "冷静期结束时判定",
+    "configLine": "判定时用的配置：第 {{version}} 版（{{by}} {{time}} 修改）",
+    "precheckDiff": "提交时预判：{{result}}；冷静期内数据有变化，以上面的复判为准。",
+    "disabledLine": "未启用（不参与判定）",
+    "unknownLine": "无法判定：{{why}}（按未通过处理）",
+    "sep": "；",
+    "snapshotNote": "数值和阈值是判定时的快照，之后改规则不影响这条记录。",
+    "viewRules": "查看规则设置",
+    "reviewerAuto": "审核：系统自动审批（规则全部通过）",
+    "masterIs": "自动审批"
+  },
+  "autoApprove": {
+    "title": "自动审批规则",
+    "sub": "同时满足全部已启用的规则才自动通过，任何一条不满足就转人工审核",
+    "back": "返回出金审核",
+    "master": "自动审批总开关",
+    "masterOn": "已开启",
+    "masterOff": "已关闭",
+    "masterDefault": "默认：关闭",
+    "masterOnDesc": "冷静期结束时按下面 {{count}} 条已启用的规则判定：全部通过的自动通过，任何一条不满足的转人工审核。",
+    "masterOffDesc": "关闭时全部提现转人工审核（和现在一样）。规则照常判定并记录结果，审核人员可以参考。建议上线满 48 小时再打开（R6 要用到上线后才开始记录的改密码）。",
+    "versionLine": "当前第 {{version}} 版 · {{by}} {{time}} 修改",
+    "notLoosen": "规则只决定“要不要人工看”，不放宽任何限额",
+    "notLoosenDesc": "2 小时冷静期照旧（自动通过也要等冷静期结束才放款）；≥3,000 USDT 通过后延迟 6 小时照旧；白名单 24 小时生效、单笔 10,000 / 每日 30,000 限额照旧。",
+    "rulesTitle": "12 条规则",
+    "rulesSub": "已启用 {{enabled}} / {{total}} 条；关闭的规则不参与判定",
+    "colRule": "规则和说明",
+    "colValue": "数值",
+    "colEnabled": "启用",
+    "modified": "已修改",
+    "ruleOff": "未启用",
+    "ruleSwitch": "启用 {{code}} {{name}}",
+    "defaultIs": "默认 {{v}}",
+    "savedIs": "保存的是 {{v}}",
+    "defaultOn": "默认开",
+    "unit": {
+      "hours": "{{v}} 小时",
+      "days": "{{v}} 天",
+      "times": "{{v}} 笔",
+      "multiple": "{{v}} 倍",
+      "percent": "{{v}}%",
+      "usdt": "{{v}} USDT"
+    },
+    "unitShort": {
+      "hours": "小时",
+      "days": "天",
+      "times": "笔",
+      "multiple": "倍",
+      "percent": "%",
+      "usdt": "USDT"
+    },
+    "errRequired": "请填写",
+    "errInteger": "请填写整数",
+    "errDecimals": "请填写数字，最多 {{n}} 位小数",
+    "errRange": "范围 {{min}} ~ {{max}}",
+    "errR2LtR1": "不能小于 R1 单笔上限",
+    "errR3LtR2": "不能小于 R2 客户 24 小时上限",
+    "dirty": "有 {{count}} 项修改未保存",
+    "clean": "没有修改",
+    "fixErrors": "请先改正标红的数值",
+    "discard": "放弃修改",
+    "save": "保存修改",
+    "saveTitle": "保存自动审批规则",
+    "saveDesc": "共 {{count}} 项修改，保存后成为第 {{version}} 版，立即对之后冷静期结束的提现生效：",
+    "saveMasterOff": "总开关将是关闭状态：全部提现转人工审核。",
+    "saveConfirm": "确认保存",
+    "saved": "已保存，之后的判定按新规则",
+    "changeLine": "{{field}}：{{before}} → {{after}}",
+    "historyTitle": "最近修改记录",
+    "historySub": "同时写入审计日志（高危）",
+    "historyEmpty": "还没有修改记录",
+    "reasonLine": "原因：{{reason}}"
   }
 }

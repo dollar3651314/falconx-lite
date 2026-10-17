@@ -97,6 +97,11 @@ class AuthFlowTest {
     return call(get("/api/me/session"), ip(), c, null).getStatus();
   }
 
+  /** 这个客户的账号安全事件类型（v2 提现自动审批 R6），按时间先后 */
+  private java.util.List<String> securityEvents(String email) {
+    return jdbc.queryForList("SELECT type FROM account_security_event WHERE user_id = ? ORDER BY id", String.class, userId(email));
+  }
+
   private long userId(String email) {
     return jdbc.queryForObject("SELECT id FROM account_user WHERE email = ?", Long.class, email);
   }
@@ -208,6 +213,7 @@ class AuthFlowTest {
     assertThat(me(phone)).isEqualTo(401);
     assertThat(me(pc)).isEqualTo(401);
     login(email, "newpass456", ip());
+    assertThat(securityEvents(email)).as("记安全事件（提现自动审批 R6）").containsExactly("PASSWORD_RESET");
   }
 
   @Test
@@ -219,6 +225,7 @@ class AuthFlowTest {
     assertThat(call(post("/api/auth/password/change"), ip(), phone, "{\"currentPassword\":\"password123\",\"newPassword\":\"newpass456\"}").getStatus()).isEqualTo(204);
     assertThat(me(phone)).isEqualTo(200);
     assertThat(me(pc)).isEqualTo(401);
+    assertThat(securityEvents(email)).as("原密码错误的那次不记").containsExactly("PASSWORD_CHANGE");
   }
 
   @Test
@@ -230,6 +237,8 @@ class AuthFlowTest {
     assertThat(call(post("/api/auth/login"), ip(), null, "{\"email\":\"" + email + "\",\"password\":\"password123\"}").getContentAsString()).contains("USER_FROZEN");
     accounts.unfreeze(userId(email));
     login(email, "password123", ip());
+    assertThat(securityEvents(email)).containsExactly("FREEZE", "UNFREEZE");
+    assertThat(accounts.lastSecurityEventSince(userId(email), java.time.LocalDateTime.now().minusYears(1))).map(e -> e.type()).contains("UNFREEZE");
   }
 
   @Test

@@ -3,10 +3,11 @@
  * 流程：客户提交 → 2 小时冷静期（客户可撤销）→ 待审核 → 通过后上链；≥3,000 USDT 通过后再延迟 6 小时，延迟期内可紧急取消。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { App, Empty, Form, Grid, Input, Select, Skeleton } from 'antd';
-import { StopOutlined, FileTextOutlined, WarningOutlined } from '@ant-design/icons';
+import { App, Button, Empty, Form, Grid, Input, Select, Skeleton } from 'antd';
+import { StopOutlined, FileTextOutlined, WarningOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { approveWithdrawal, emergencyCancelWithdrawal, getWithdrawal, getWithdrawalSummary, listWithdrawals, rejectWithdrawal } from '../../api';
+import { useNavigate } from 'react-router-dom';
+import { approveWithdrawal, emergencyCancelWithdrawal, getAutoApproveSettings, getWithdrawal, getWithdrawalSummary, listWithdrawals, rejectWithdrawal } from '../../api';
 import type { Withdrawal, WithdrawalDetail, WithdrawalQuery } from '../../api/types';
 import { CHAINS } from '../../config/constants';
 import { usePagedList } from '../../hooks/usePagedList';
@@ -23,6 +24,8 @@ import { withdrawalTone } from '../../utils/status';
 import { compareAmounts, formatAmount, isValidAmountInput } from '../../utils/money';
 import { shortHash, shortTime } from '../../utils/display';
 import { errorText } from '../../utils/errors';
+import { AUTO_RULE_CODES } from '../../config/autoApprove';
+import { AUTO_RULES_PATH, AutoReviewCard, AutoReviewCell } from './AutoReview';
 
 type Filters = Omit<WithdrawalQuery, 'page' | 'pageSize'>;
 const INITIAL: Filters = { status: 'open' };
@@ -75,7 +78,7 @@ export function WithdrawalsPage() {
   const s = summary.data;
   return (
     <>
-      <PageHeader title={t('withdrawals.title')} sub={t('withdrawals.sub')} />
+      <PageHeader title={t('withdrawals.title')} sub={t('withdrawals.sub')} extra={<AutoApproveEntry />} />
       <FilterBar onSearch={search} onReset={() => { setDraft(INITIAL); setAmountErr(null); list.setFilters(INITIAL); }}>
         <FilterItem label={t('withdrawals.status')}>
           <Select
@@ -97,6 +100,28 @@ export function WithdrawalsPage() {
             ~
             <Input aria-label={t('withdrawals.maxAmount')} placeholder={t('withdrawals.maxAmount')} inputMode="decimal" value={draft.maxAmount} status={amountErr ? 'error' : undefined} onChange={(e) => setDraft({ ...draft, maxAmount: e.target.value || undefined })} />
           </span>
+        </FilterItem>
+        <FilterItem label={t('autoReview.filter')}>
+          <Select
+            aria-label={t('autoReview.filter')}
+            allowClear
+            style={{ width: 190 }}
+            placeholder={t('common.all')}
+            value={draft.autoReview}
+            onChange={(v) => setDraft({ ...draft, autoReview: v })}
+            popupMatchSelectWidth={false}
+            listHeight={480}
+            options={[
+              {
+                label: t('autoReview.filterOutcome'),
+                options: (['auto_approved', 'manual', 'master_off', 'none'] as const).map((o) => ({ value: o, label: t(`autoReview.filterOpt.${o}`) })),
+              },
+              {
+                label: t('autoReview.filterRule'),
+                options: AUTO_RULE_CODES.map((c) => ({ value: c, label: `${c} ${t(`autoRule.${c}.name`)}` })),
+              },
+            ]}
+          />
         </FilterItem>
         <FilterItem label={t('funds.user')} htmlFor="w-kw">
           <Input id="w-kw" allowClear style={{ width: 200 }} placeholder={t('withdrawals.userPh')} value={draft.keyword} onChange={(e) => setDraft({ ...draft, keyword: e.target.value })} />
@@ -196,6 +221,7 @@ export function WithdrawalsPage() {
                 </Pill>
               ),
             },
+            { title: t('autoReview.column'), key: 'autoReview', render: (_: unknown, r: Withdrawal) => <AutoReviewCell review={r.autoReview} /> },
             { title: t('withdrawals.submittedAt'), dataIndex: 'submittedAt', render: (v: string) => <Num>{shortTime(v)}</Num> },
           ]}
         />
@@ -341,6 +367,7 @@ function WithdrawalDetailPanel({ id, onChanged }: { id: string | null; onChanged
         <br />
         {t('withdrawals.whitelistAt', { time: shortTime(w.whitelistAddedAt) })}
       </div>
+      <AutoReviewCard detail={w.autoReviewDetail} />
       <div className="mini">
         <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>{t('withdrawals.recentDeposits')}</div>
         {w.recentDeposits.length ? (
@@ -400,6 +427,7 @@ function WithdrawalDetailPanel({ id, onChanged }: { id: string | null; onChanged
         <div className="addr-box ok">
           {t('withdrawals.currentStatus')} <Pill tone={withdrawalTone[w.status]}>{t(`withdrawalStatus.${w.status}`)}</Pill>
           {w.reviewer ? <div>{t('withdrawals.reviewerLine', { name: w.reviewer })}</div> : null}
+          {w.autoReview?.phase === 'final' && w.autoReview.outcome === 'auto_approved' ? <div>{t('autoReview.reviewerAuto')}</div> : null}
           {w.reason ? <div>{t('withdrawals.reasonLine', { reason: w.reason })}</div> : null}
           {w.status === 'cooling' ? <div>{t('withdrawals.coolingHint')}</div> : null}
           {w.status === 'delayed' ? <div>{t('withdrawals.delayedHint', { left: formatRemaining(w.delayRemainingMinutes) })}</div> : null}
@@ -421,5 +449,26 @@ function WithdrawalDetailPanel({ id, onChanged }: { id: string | null; onChanged
       </div>
       {hr.element}
     </aside>
+  );
+}
+
+/** v2 自动审批：页头右侧显示总开关状态和规则设置入口 */
+function AutoApproveEntry() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const fetcher = useCallback(() => getAutoApproveSettings(), []);
+  const { data } = useApi(fetcher);
+  return (
+    <span className="aa-entry">
+      {data ? (
+        <span className="muted">
+          {t('autoReview.masterIs')}{' '}
+          <Pill tone={data.masterEnabled ? 'ok' : 'muted'}>{data.masterEnabled ? t('autoApprove.masterOn') : t('autoReview.masterOffShort')}</Pill>
+        </span>
+      ) : null}
+      <Button icon={<SafetyCertificateOutlined />} onClick={() => navigate(AUTO_RULES_PATH)}>
+        {t('autoApprove.title')}
+      </Button>
+    </span>
   );
 }

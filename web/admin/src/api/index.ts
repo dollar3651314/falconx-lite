@@ -78,6 +78,13 @@ export const approveWithdrawal: typeof real.approveWithdrawal = IS_MOCK ? mock.a
 export const rejectWithdrawal: typeof real.rejectWithdrawal = IS_MOCK ? mock.rejectWithdrawal : real.rejectWithdrawal;
 /** POST /api/admin/withdrawals/{id}/emergency-cancel（高危） */
 export const emergencyCancelWithdrawal: typeof real.emergencyCancelWithdrawal = IS_MOCK ? mock.emergencyCancelWithdrawal : real.emergencyCancelWithdrawal;
+// ---- v2 提现自动审批（技术方案/v2-提现自动审批.md 第 7 节） ----
+/** GET /api/admin/withdraw-auto-approve：总开关、12 条规则、版本 */
+export const getAutoApproveSettings: typeof real.getAutoApproveSettings = IS_MOCK ? mock.getAutoApproveSettings : real.getAutoApproveSettings;
+/** GET /api/admin/withdraw-auto-approve/changes：最近 20 次修改 */
+export const listAutoApproveChanges: typeof real.listAutoApproveChanges = IS_MOCK ? mock.listAutoApproveChanges : real.listAutoApproveChanges;
+/** PUT /api/admin/withdraw-auto-approve（高危，withdrawal:auto_rule_edit；版本不对 409 CONFIG_CHANGED） */
+export const updateAutoApproveSettings: typeof real.updateAutoApproveSettings = IS_MOCK ? mock.updateAutoApproveSettings : real.updateAutoApproveSettings;
 /** GET /api/admin/recon */
 export const listRecon: typeof real.listRecon = IS_MOCK ? mock.listRecon : real.listRecon;
 /** GET /api/admin/hot-wallets：热钱包余额和告警下限 */

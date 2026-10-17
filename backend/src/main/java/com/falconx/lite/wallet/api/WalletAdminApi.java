@@ -39,8 +39,16 @@ public interface WalletAdminApi {
    */
   Page<Deposit> deposits(String chain, Collection<String> statuses, String txHash, Collection<Long> userIds, Long no, int offset, int limit);
 
+  default Page<Withdrawal> withdrawals(Collection<String> statuses, String chain, BigDecimal minAmount, BigDecimal maxAmount, Collection<Long> userIds, Long no,
+      int offset, int limit) {
+    return withdrawals(statuses, chain, minAmount, maxAmount, userIds, no, null, offset, limit);
+  }
+
+  /**
+   * autoReview（v2 自动审批，按最近一次判定筛选）：AUTO_APPROVED / MANUAL（含 ERROR）/ MASTER_OFF / NONE（没有判定记录）/ R1…R12（触发了这条规则）；为空不筛选。
+   */
   Page<Withdrawal> withdrawals(Collection<String> statuses, String chain, BigDecimal minAmount, BigDecimal maxAmount, Collection<Long> userIds, Long no,
-      int offset, int limit);
+      String autoReview, int offset, int limit);
 
   Optional<Withdrawal> withdrawal(long id);
 

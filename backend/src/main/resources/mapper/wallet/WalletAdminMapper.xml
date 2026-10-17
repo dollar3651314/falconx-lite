@@ -34,6 +34,19 @@
     FROM wallet_withdrawal w
   </sql>
 
+  <!-- v2 自动审批：按最近一次判定（last_check_id）筛选。auto 只来自代码里的固定值（FundsOps 换算后的） -->
+  <sql id="autoReviewWhere">
+    <if test="auto != null">
+      <choose>
+        <when test="auto == 'NONE'">AND w.last_check_id IS NULL</when>
+        <when test="auto == 'AUTO_APPROVED'">AND EXISTS (SELECT 1 FROM wallet_withdraw_rule_check c WHERE c.id = w.last_check_id AND c.outcome = 'AUTO_APPROVED')</when>
+        <when test="auto == 'MANUAL'">AND EXISTS (SELECT 1 FROM wallet_withdraw_rule_check c WHERE c.id = w.last_check_id AND c.outcome IN ('MANUAL', 'ERROR'))</when>
+        <when test="auto == 'MASTER_OFF'">AND EXISTS (SELECT 1 FROM wallet_withdraw_rule_check c WHERE c.id = w.last_check_id AND c.outcome = 'MASTER_OFF')</when>
+        <otherwise>AND EXISTS (SELECT 1 FROM wallet_withdraw_rule_hit h WHERE h.withdrawal_id = w.id AND h.rule_code = #{auto})</otherwise>
+      </choose>
+    </if>
+  </sql>
+
   <sql id="withdrawalWhere">
     <where>
       <if test="statuses != null and !statuses.isEmpty()">AND w.status IN <foreach collection="statuses" item="s" open="(" separator="," close=")">#{s}</foreach></if>
@@ -45,6 +58,7 @@
         <if test="no != null">OR w.public_no = #{no}</if>
       </trim>)</if>
       <if test="id != null">AND w.id = #{id}</if>
+      <include refid="autoReviewWhere"/>
     </where>
   </sql>
 
@@ -63,6 +77,7 @@
         <if test="userIds != null">OR w.user_id IN <foreach collection="userIds" item="u" open="(" separator="," close=")">#{u}</foreach></if>
         <if test="no != null">OR w.public_no = #{no}</if>
       </trim>)</if>
+      <include refid="autoReviewWhere"/>
     </where>
   </select>
 

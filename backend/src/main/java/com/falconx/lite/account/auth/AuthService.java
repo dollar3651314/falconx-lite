@@ -1,5 +1,6 @@
 package com.falconx.lite.account.auth;
 
+import com.falconx.lite.account.api.SecurityEvent;
 import com.falconx.lite.account.api.UserStatus;
 import com.falconx.lite.account.auth.AuthMapper.UserInsert;
 import com.falconx.lite.account.auth.AuthRequests.Register;
@@ -8,7 +9,11 @@ import com.falconx.lite.account.auth.Rows.UserRow;
 import com.falconx.lite.common.error.BizException;
 import com.falconx.lite.trading.api.LedgerApi;
 import com.falconx.lite.wallet.api.WalletApi;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Locale;
+import java.util.Optional;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -25,10 +30,11 @@ class AuthService {
   private final SendCodeLimiter codeLimiter;
   private final LedgerApi ledger;
   private final WalletApi wallet;
+  private final Clock clock;
   private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
 
   AuthService(AuthMapper mapper, EmailCodeService codes, SessionService sessions, LoginLimiter limiter, SendCodeLimiter codeLimiter, LedgerApi ledger,
-      WalletApi wallet) {
+      WalletApi wallet, Clock clock) {
     this.mapper = mapper;
     this.codes = codes;
     this.sessions = sessions;
@@ -36,6 +42,25 @@ class AuthService {
     this.codeLimiter = codeLimiter;
     this.ledger = ledger;
     this.wallet = wallet;
+    this.clock = clock;
+  }
+
+  /**
+   * 记一条账号安全事件（v2 提现自动审批 R6）：和改密码、重置密码、冻结、解冻在同一个事务里写。
+   * 时间用注入的时钟（UTC），和提现判定的"现在"同一个来源。
+   */
+  private void securityEvent(long userId, String type) {
+    mapper.insertSecurityEvent(userId, type, LocalDateTime.now(clock.withZone(ZoneOffset.UTC)));
+  }
+
+  LocalDateTime registeredAt(long userId) {
+    LocalDateTime t = mapper.registeredAt(userId);
+    if (t == null) throw new BizException("USER_NOT_FOUND", "用户不存在");
+    return t;
+  }
+
+  Optional<SecurityEvent> lastSecurityEventSince(long userId, LocalDateTime since) {
+    return Optional.ofNullable(mapper.lastSecurityEventSince(userId, since));
   }
 
   static String normalizeEmail(String email) {
@@ -99,6 +124,7 @@ class AuthService {
     UserRow u = mapper.findUserByEmail(email);
     if (u == null || !codes.verifyAndConsume(email, EmailCodeService.Purpose.RESET_PASSWORD, code)) throw new BizException("CODE_INVALID", "验证码错误或已失效");
     mapper.updatePassword(u.id(), encoder.encode(password));
+    securityEvent(u.id(), SecurityEvent.PASSWORD_RESET);
     sessions.revokeAll(u.id(), null);
   }
 
@@ -108,6 +134,7 @@ class AuthService {
     UserRow u = mapper.findUserById(userId);
     if (u == null || !encoder.matches(currentPassword, u.passwordHash())) throw new BizException("CURRENT_PASSWORD_WRONG", "原密码错误");
     mapper.updatePassword(userId, encoder.encode(newPassword));
+    securityEvent(userId, SecurityEvent.PASSWORD_CHANGE);
     sessions.revokeAll(userId, currentToken);
   }
 
@@ -121,6 +148,7 @@ class AuthService {
   void freeze(long userId) {
     user(userId);
     mapper.updateStatus(userId, UserStatus.FROZEN.name());
+    securityEvent(userId, SecurityEvent.FREEZE);
     sessions.revokeAll(userId, null);
   }
 
@@ -128,6 +156,7 @@ class AuthService {
   void unfreeze(long userId) {
     user(userId);
     mapper.updateStatus(userId, UserStatus.ACTIVE.name());
+    securityEvent(userId, SecurityEvent.UNFREEZE);
   }
 
   UserStatus status(long userId) {

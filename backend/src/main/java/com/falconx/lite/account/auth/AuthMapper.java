@@ -25,6 +25,15 @@ interface AuthMapper {
 
   int touchLogin(@Param("id") long id);
 
+  // ---------- 账号安全事件（v2 提现自动审批 R6） ----------
+  int insertSecurityEvent(@Param("userId") long userId, @Param("type") String type, @Param("at") java.time.LocalDateTime at);
+
+  /** (since, 现在] 里最近的一条；没有时为 null */
+  com.falconx.lite.account.api.SecurityEvent lastSecurityEventSince(@Param("userId") long userId, @Param("since") java.time.LocalDateTime since);
+
+  /** 注册时间；用户不存在时为 null */
+  java.time.LocalDateTime registeredAt(@Param("id") long id);
+
   int insertEmailCode(@Param("email") String email, @Param("purpose") String purpose, @Param("codeHash") String codeHash, @Param("ttlMinutes") int ttlMinutes);
 
   /** 发验证码时用，不加锁（见 XML 注释，压测 LT-1） */
