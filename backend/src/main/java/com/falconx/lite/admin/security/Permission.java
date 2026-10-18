@@ -23,7 +23,7 @@ public enum Permission {
   WITHDRAWAL_VIEW("withdrawal:view", "funds", false),
   WITHDRAWAL_REVIEW("withdrawal:review", "funds", false),
   WITHDRAWAL_EMERGENCY_CANCEL("withdrawal:emergency_cancel", "funds", true),
-  /** v2 提现自动审批：改总开关和 12 条规则（查看用 withdrawal:view）。不放进系统配置页，否则有 config:edit 的人就能绕过去放宽审核 */
+  /** v2 提现自动审批：改总开关和 13 条规则（查看用 withdrawal:view）。不放进系统配置页，否则有 config:edit 的人就能绕过去放宽审核 */
   WITHDRAWAL_AUTO_RULE_EDIT("withdrawal:auto_rule_edit", "funds", true),
   RECON_VIEW("recon:view", "funds", false),
   RECON_RESOLVE("recon:resolve", "funds", false),

@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * 提现自动审批的 12 条规则判定（技术方案/v2-提现自动审批.md 第 4 节）。纯计算：数据经 {@link Facts} 取，测试里可以换成假的。
+ * 提现自动审批的 13 条规则判定（技术方案/v2-提现自动审批.md 第 4 节）。纯计算：数据经 {@link Facts} 取，测试里可以换成假的。
  * <ul>
  *   <li>"现在"= 判定时刻（UTC）。时间窗口都是滚动的，R11 例外（按 UTC 日历日）。金额都用 {@link BigDecimal} 精确比较。</li>
  *   <li>边界：写"≤"的等于算通过，写"≥"的等于算通过；"N 小时内没有"指 (现在 − N 小时, 现在] 里没有，正好 N 小时前的不算"内"。</li>
@@ -95,6 +95,9 @@ final class AutoApproveEngine {
 
     /** 已实现盈亏；since 为空表示全部时间 */
     BigDecimal realizedPnl(long userId, LocalDateTime since);
+
+    /** 从开户到现在的累计净盈利（已实现盈亏、手续费、隔夜费，账本），不含持仓浮动盈亏 */
+    com.falconx.lite.trading.api.CustomerFlowApi.NetProfit netProfit(long userId);
 
     /** 已完成提现的金额合计 */
     BigDecimal completedAmount(long userId);
@@ -256,6 +259,14 @@ final class AutoApproveEngine {
         Map<String, String> v = vals("balance", fresh ? p(balance) : "—", "need", p(need));
         if (!issues.isEmpty()) v.put("issues", String.join(",", issues));
         yield new Checked(issues.isEmpty(), v);
+      }
+      case R13 -> {
+        // 累计净盈利 = 已实现 − 手续费 − 隔夜费（账本，开户到现在），不算浮盈；"> 门槛"不通过，等于门槛算通过
+        BigDecimal limit = param(s, r, "maxNetProfit");
+        var np = f.netProfit(w.userId());
+        BigDecimal net = np.net();
+        yield new Checked(net.compareTo(limit) <= 0,
+            vals("net", p(net), "realized", p(np.realized()), "fee", p(np.fee()), "swap", p(np.swap()), "limit", p(limit)));
       }
     };
   }

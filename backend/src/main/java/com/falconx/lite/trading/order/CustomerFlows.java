@@ -41,6 +41,15 @@ class CustomerFlows implements CustomerFlowApi {
 
   @Override
   @Transactional(readOnly = true)
+  public NetProfit netProfit(long userId) {
+    CustomerFlowMapper.ProfitRow r = mapper.netProfit(userId);
+    if (r == null) return new NetProfit(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+    // 账本里手续费是负数、隔夜费付出是负数：取反成"客户付出的"
+    return new NetProfit(zero(r.realized), zero(r.fee).negate(), zero(r.swap).negate());
+  }
+
+  @Override
+  @Transactional(readOnly = true)
   public BigDecimal openedNotionalSince(long userId, LocalDateTime since) {
     return zero(mapper.openedNotionalSince(userId, since));
   }

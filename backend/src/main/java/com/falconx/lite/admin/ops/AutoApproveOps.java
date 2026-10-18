@@ -51,7 +51,7 @@ class AutoApproveOps {
   /** 字段和原型 AutoApproveSettings 一致 */
   record SettingsView(boolean masterEnabled, List<RuleView> rules, long version, String updatedAt, String updatedBy) {}
 
-  /** 保存：一次提交总开关和 12 条规则；reason 必填，expectedVersion 是页面打开时读到的版本 */
+  /** 保存：一次提交总开关和 13 条规则；reason 必填，expectedVersion 是页面打开时读到的版本 */
   record SaveBody(Boolean masterEnabled, List<RuleView> rules, String reason, Long expectedVersion) {}
 
   record FieldChange(String field, String before, String after) {}
@@ -220,7 +220,7 @@ class AutoApproveOps {
     return out;
   }
 
-  /** 详情：完整的判定记录（12 条逐条、判定时的配置版本和这一版的修改人、提交时的预判摘要）；没有判定记录时为空 */
+  /** 详情：完整的判定记录（逐条结果、判定时的配置版本和这一版的修改人、提交时的预判摘要）；没有判定记录时为空 */
   ReviewDetailView detail(long withdrawalId) {
     return auto.detail(withdrawalId).map(d -> {
       String changedAt = null;

@@ -25,7 +25,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
- * 提现自动审批 12 条规则的判定（技术方案/v2-提现自动审批.md 第 4、10 节）：每条规则的通过、不通过、正好等于边界、时间窗口边界、规则关闭不参与、
+ * 提现自动审批 13 条规则的判定（技术方案/v2-提现自动审批.md 第 4、10 节）：每条规则的通过、不通过、正好等于边界、时间窗口边界、规则关闭不参与、
  * 数据读不到或配置值不合法按"无法判定"（不通过）。纯计算，数据用假的。
  */
 class AutoApproveEngineTest {
@@ -50,6 +50,10 @@ class AutoApproveEngineTest {
     BigDecimal pnlAll = new BigDecimal("310");
     BigDecimal pnl7 = new BigDecimal("100");
     BigDecimal completedAmount = new BigDecimal("300");
+    /** R13：已实现 310 − 手续费 250 − 隔夜费 80 = −20（不盈利） */
+    BigDecimal realized = new BigDecimal("310");
+    BigDecimal fee = new BigDecimal("250");
+    BigDecimal swap = new BigDecimal("80");
     long onDay = 1;
     boolean deviation;
     boolean paused;
@@ -121,6 +125,12 @@ class AutoApproveEngineTest {
     @Override
     public BigDecimal realizedPnl(long userId, LocalDateTime since) {
       return since == null ? pnlAll : pnl7;
+    }
+
+    @Override
+    public CustomerFlowApi.NetProfit netProfit(long userId) {
+      maybeThrow("profit");
+      return new CustomerFlowApi.NetProfit(realized, fee, swap);
     }
 
     @Override
@@ -198,7 +208,7 @@ class AutoApproveEngineTest {
     Evaluation e = eval(on, "100", new FakeFacts());
     assertThat(e.outcome()).isEqualTo("AUTO_APPROVED");
     assertThat(e.failed()).isEmpty();
-    assertThat(e.results()).hasSize(12).allMatch(r -> r.status().equals("passed"));
+    assertThat(e.results()).hasSize(Rule.values().length).hasSize(13).allMatch(r -> r.status().equals("passed"));
 
     FakeFacts f = new FakeFacts();
     f.completed = 0;
@@ -355,6 +365,79 @@ class AutoApproveEngineTest {
   }
 
   @Test
+  void R13_累计净盈利等于门槛通过_大于门槛不通过_负数通过_快照写明组成() {
+    FakeFacts f = new FakeFacts();
+    // 310 − 230 − 80 = 0 = 门槛 0：通过
+    f.fee = new BigDecimal("230");
+    Result eq = rule(eval(on, "100", f), Rule.R13);
+    assertThat(eq.status()).as("等于门槛算通过").isEqualTo("passed");
+    assertThat(eq.values()).containsExactly(java.util.Map.entry("net", "0"), java.util.Map.entry("realized", "310"), java.util.Map.entry("fee", "230"),
+        java.util.Map.entry("swap", "80"), java.util.Map.entry("limit", "0"));
+    // 310 − 229.99 − 80 = 0.01 > 0：不通过
+    f.fee = new BigDecimal("229.99");
+    Evaluation over = eval(on, "100", f);
+    assertThat(rule(over, Rule.R13).status()).as("大于门槛不通过").isEqualTo("failed");
+    assertThat(rule(over, Rule.R13).values()).containsEntry("net", "0.01");
+    assertThat(over.outcome()).isEqualTo("MANUAL");
+    assertThat(over.failed()).containsExactly("R13");
+    // 亏损客户：净盈利是负数，通过
+    f.realized = new BigDecimal("-500");
+    f.fee = new BigDecimal("12.5");
+    assertThat(rule(eval(on, "100", f), Rule.R13).values()).containsEntry("net", "-592.5").containsEntry("realized", "-500");
+    assertThat(status(on, "100", f, Rule.R13)).as("负数通过").isEqualTo("passed");
+    // 门槛可以调：门槛 1000，净盈利 1000 通过、1000.01 不通过
+    Settings t1000 = with(on, Rule.R13, null, "maxNetProfit", "1000");
+    f.realized = new BigDecimal("1330");
+    f.fee = new BigDecimal("250");
+    assertThat(status(t1000, "100", f, Rule.R13)).isEqualTo("passed");
+    assertThat(rule(eval(t1000, "100", f), Rule.R13).values()).containsEntry("net", "1000").containsEntry("limit", "1000");
+    f.realized = new BigDecimal("1330.01");
+    assertThat(status(t1000, "100", f, Rule.R13)).isEqualTo("failed");
+    // 关闭时不参与
+    assertThat(eval(with(on, Rule.R13, false, null, null), "100", f).outcome()).isEqualTo("AUTO_APPROVED");
+  }
+
+  @Test
+  void R13_手续费和隔夜费都扣_收到的隔夜费是负数会加回来() {
+    FakeFacts f = new FakeFacts();
+    f.realized = new BigDecimal("100");
+    f.fee = BigDecimal.ZERO;
+    f.swap = BigDecimal.ZERO;
+    assertThat(status(on, "100", f, Rule.R13)).as("不扣手续费、隔夜费就是盈利 100").isEqualTo("failed");
+    f.fee = new BigDecimal("60");
+    assertThat(status(on, "100", f, Rule.R13)).as("扣了手续费还盈利 40").isEqualTo("failed");
+    f.swap = new BigDecimal("40");
+    assertThat(status(on, "100", f, Rule.R13)).as("再扣隔夜费 40 正好 0").isEqualTo("passed");
+    f.swap = new BigDecimal("-5");
+    assertThat(rule(eval(on, "100", f), Rule.R13).values()).as("客户收到的隔夜费多于付出的").containsEntry("swap", "-5").containsEntry("net", "45");
+    assertThat(status(on, "100", f, Rule.R13)).isEqualTo("failed");
+  }
+
+  @Test
+  void R13_读不到账本记无法判定_整笔转人工_门槛不合法也是无法判定() {
+    FakeFacts f = new FakeFacts();
+    f.broken = "profit";
+    Evaluation e = eval(on, "100", f);
+    assertThat(rule(e, Rule.R13).status()).isEqualTo("unknown");
+    assertThat(rule(e, Rule.R13).values()).containsEntry("why", "数据读取失败");
+    assertThat(e.outcome()).isEqualTo("ERROR");
+    assertThat(e.failed()).containsExactly("R13");
+    Evaluation bad = eval(with(on, Rule.R13, null, "maxNetProfit", "-1"), "100", new FakeFacts());
+    assertThat(rule(bad, Rule.R13).values()).containsEntry("why", "配置值不合法");
+    assertThat(bad.outcome()).isEqualTo("ERROR");
+    // 保存前校验：0 可以（默认），负数、3 位小数、超过 1,000,000 不行
+    for (String ok : List.of("0", "0.00", "1000000", "12.5")) {
+      List<AutoApprove.Problem> ps = new ArrayList<>();
+      assertThat(AutoApprove.normalize(true, with(on, Rule.R13, null, "maxNetProfit", ok).rules(), ps)).as(ok).isNotNull();
+    }
+    for (String no : List.of("-1", "0.001", "1000000.01", "")) {
+      List<AutoApprove.Problem> ps = new ArrayList<>();
+      assertThat(AutoApprove.normalize(true, with(on, Rule.R13, null, "maxNetProfit", no).rules(), ps)).as(no).isNull();
+      assertThat(ps).containsExactly(new AutoApprove.Problem("rules.R13.maxNetProfit", "invalid"));
+    }
+  }
+
+  @Test
   void 规则关闭时不参与_数据读不到和配置值不合法记无法判定_整笔转人工() {
     FakeFacts f = new FakeFacts();
     f.completed = 0;
@@ -395,7 +478,8 @@ class AutoApproveEngineTest {
     List<AutoApprove.Problem> ps = new ArrayList<>();
     Settings ok = AutoApprove.normalize(true, on.rules(), ps);
     assertThat(ps).isEmpty();
-    assertThat(ok.toConfig()).containsEntry("withdraw.autoApprove.R1.maxAmount", "500").containsEntry(AutoApprove.MASTER_KEY, "true").hasSize(22);
+    assertThat(ok.toConfig()).containsEntry("withdraw.autoApprove.R1.maxAmount", "500").containsEntry(AutoApprove.MASTER_KEY, "true")
+        .containsEntry("withdraw.autoApprove.R13.enabled", "true").containsEntry("withdraw.autoApprove.R13.maxNetProfit", "0").hasSize(24);
 
     ps.clear();
     Settings s = with(with(with(on, Rule.R1, null, "maxAmount", "500.123"), Rule.R11, null, "maxCount", "2.5"), Rule.R6, null, "hours", "721");
@@ -409,7 +493,7 @@ class AutoApproveEngineTest {
 
     ps.clear();
     assertThat(AutoApprove.normalize(true, on.rules().subList(0, 11), ps)).isNull();
-    assertThat(ps).containsExactly(new AutoApprove.Problem("rules.R12", "missing"));
+    assertThat(ps).containsExactly(new AutoApprove.Problem("rules.R12", "missing"), new AutoApprove.Problem("rules.R13", "missing"));
 
     ps.clear();
     Settings norm = AutoApprove.normalize(false, with(on, Rule.R8, null, "multiple", "1.50").rules(), ps);

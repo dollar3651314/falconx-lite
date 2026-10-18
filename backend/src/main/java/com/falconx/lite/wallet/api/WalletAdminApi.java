@@ -45,7 +45,7 @@ public interface WalletAdminApi {
   }
 
   /**
-   * autoReview（v2 自动审批，按最近一次判定筛选）：AUTO_APPROVED / MANUAL（含 ERROR）/ MASTER_OFF / NONE（没有判定记录）/ R1…R12（触发了这条规则）；为空不筛选。
+   * autoReview（v2 自动审批，按最近一次判定筛选）：AUTO_APPROVED / MANUAL（含 ERROR）/ MASTER_OFF / NONE（没有判定记录）/ R1…R13（触发了这条规则）；为空不筛选。
    */
   Page<Withdrawal> withdrawals(Collection<String> statuses, String chain, BigDecimal minAmount, BigDecimal maxAmount, Collection<Long> userIds, Long no,
       String autoReview, int offset, int limit);

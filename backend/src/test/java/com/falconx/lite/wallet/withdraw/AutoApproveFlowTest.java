@@ -43,7 +43,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * 提现自动审批（技术方案/v2-提现自动审批.md 第 3、5、10 节），真实 MySQL（C37）：总开关关闭照常判定、自动通过的两条事件和后续流程、大额延迟、
- * 预判和复判不同、冷静期内改规则、快照、判定出错转人工、并发不超 R3（多线程，每笔两个"节点"同时推进）、R8 的数据来源、R11 不算客户自己撤销的。
+ * 预判和复判不同、冷静期内改规则、快照、判定出错转人工、并发不超 R3（多线程，每笔两个"节点"同时推进）、R8 的数据来源、R11 不算客户自己撤销的、
+ * R13 盈利客户（账本的已实现 − 手续费 − 隔夜费，浮盈不计）。
  * 热钱包余额用替身（判定读热钱包余额告警定时查好的值）；广播用 {@link WithdrawFlowTest.FakeSender}；时间用可以往前拨的测试时钟。
  */
 @SpringBootTest
@@ -217,7 +218,7 @@ class AutoApproveFlowTest {
     assertThat(notices(w.id)).as("和人工通过发的是同一条").containsExactly("APPROVED", "BROADCASTING");
     AutoApproveAdminApi.Detail d = admin.detail(w.id).orElseThrow();
     assertThat(d.configVersion()).isEqualTo(version);
-    assertThat(d.rules()).hasSize(12);
+    assertThat(d.rules()).hasSize(13);
     assertThat(d.rules().stream().filter(x -> x.code().equals("R8")).findFirst().orElseThrow().status()).isEqualTo("disabled");
     assertThat(rule(w.id, "R4").values()).containsEntry("count", "1");
     assertThat(rule(w.id, "R12").values()).containsEntry("balance", "10000000");
@@ -365,5 +366,59 @@ class AutoApproveFlowTest {
     assertThat(rule(w4.id, "R11").values()).as("撤销的那笔不算").containsEntry("count", "3");
     assertThat(rule(w4.id, "R11").status()).isEqualTo("passed");
     assertThat(rule(w4.id, "R9").values()).as("撤销的不算累计提现").containsEntry("withdrawn", "250");
+  }
+
+  void pnl(long uid, LedgerEntryType type, String amount, String tag) {
+    ledger.apply(new LedgerCommand(uid, Bucket.BALANCE, new BigDecimal(amount), type, "TEST", "aa-" + tag + "-" + uid, "测试 " + type));
+  }
+
+  @Test
+  void R13_盈利客户转人工_账本的已实现减手续费减隔夜费_持仓浮盈不计_按R13筛选() {
+    save(true, Map.of("R8.enabled", "false"));
+    long[] c = customer("1000");
+    // 已实现 +120、手续费 −70、隔夜费 −50：累计净盈利正好 0 = 门槛，通过
+    pnl(c[0], LedgerEntryType.REALIZED_PNL, "120", "pnl1");
+    pnl(c[0], LedgerEntryType.TRADE_FEE, "-70", "fee1");
+    pnl(c[0], LedgerEntryType.SWAP, "-50", "swap1");
+    // 还有一个没平仓的持仓：开仓价 1、ETHUSD 现在几千，浮盈很大，但浮盈不进账本，R13 不算
+    long orderNo = Snowflake.shared(1).next();
+    jdbc.update("INSERT INTO trading_order (public_no, user_id, client_order_id, symbol, order_type, side, lots, leverage, notional_usd, status, created_at) "
+        + "VALUES (?, ?, ?, 'ETHUSD', 'MARKET', 'BUY', 1, 100, 1, 'FILLED', ?)", orderNo, c[0], "aa-" + orderNo, NOW.minusDays(1));
+    long oid = jdbc.queryForObject("SELECT id FROM trading_order WHERE public_no = ?", Long.class, orderNo);
+    jdbc.update("""
+        INSERT INTO trading_position (public_no, user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
+          margin, fee, maintenance_margin_rate, liquidation_price, status, opened_at)
+        VALUES (?, ?, ?, 'ETHUSD', 'BUY', 1, 100, 1, 1, 'USD', 1, 1, 0.01, 0, 0.005, 0.5, 'OPEN', ?)""", Snowflake.shared(1).next(), c[0], oid, NOW.minusDays(1));
+
+    WithdrawalRow w1 = submit(c, "100");
+    coolDown();
+    withdraws.advance();
+    assertThat(checks(w1.id)).containsExactly("PRECHECK AUTO_APPROVED", "FINAL AUTO_APPROVED");
+    assertThat(rule(w1.id, "R13").status()).isEqualTo("passed");
+    assertThat(rule(w1.id, "R13").values()).containsEntry("net", "0").containsEntry("realized", "120").containsEntry("fee", "70").containsEntry("swap", "50")
+        .containsEntry("limit", "0");
+
+    // 又平了一笔赚 0.01：累计净盈利 0.01 > 0，复判只触发 R13，转人工；触发的规则表里有 R13
+    pnl(c[0], LedgerEntryType.REALIZED_PNL, "0.01", "pnl2");
+    WithdrawalRow w2 = submit(c, "100");
+    coolDown();
+    withdraws.advance();
+    assertThat(status(w2.id)).isEqualTo("REVIEWING");
+    assertThat(checks(w2.id)).containsExactly("PRECHECK MANUAL R13", "FINAL MANUAL R13");
+    assertThat(hits(w2.id)).containsExactly("R13");
+    assertThat(row(w2.id).get("review_mode")).isNull();
+    assertThat(rule(w2.id, "R13").values()).containsEntry("net", "0.01").containsEntry("realized", "120.01");
+    String cfg = jdbc.queryForObject("SELECT config_json FROM wallet_withdraw_rule_check WHERE id = ?", String.class, row(w2.id).get("last_check_id"));
+    assertThat(cfg.replace(" ", "")).as("快照里有 R13 的门槛").contains("\"maxNetProfit\":\"0\"");
+
+    // 门槛调到 0.01：再提一笔，等于门槛算通过
+    save(true, Map.of("R8.enabled", "false", "R13.maxNetProfit", "0.01"));
+    WithdrawalRow w3 = submit(c, "100");
+    assertThat(rule(w3.id, "R13").status()).isEqualTo("passed");
+    assertThat(rule(w3.id, "R13").values()).containsEntry("limit", "0.01");
+    // R13 关掉：不参与
+    save(true, Map.of("R8.enabled", "false", "R13.enabled", "false"));
+    WithdrawalRow w4 = submit(c, "50");
+    assertThat(rule(w4.id, "R13").status()).isEqualTo("disabled");
   }
 }

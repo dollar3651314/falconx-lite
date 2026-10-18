@@ -41,7 +41,7 @@ describe('规则判定的模拟数据', () => {
     all.filter((w) => w.autoReview?.outcome === 'auto_approved' && w.autoReview.phase === 'final').forEach((w) => expect(w.reviewer).toBeNull());
   });
 
-  it('按"触发了某条规则"和判定结果筛选', async () => {
+  it('按"触发了某条规则"和判定结果筛选（包括 R13）', async () => {
     const r6 = (await listWithdrawals({ page: 1, pageSize: 100, autoReview: 'R6' })).items;
     expect(r6.length).toBeGreaterThan(0);
     r6.forEach((w) => expect(w.autoReview?.failed).toContain('R6'));
@@ -76,6 +76,77 @@ describe('判定说明的文字', () => {
   });
 });
 
+describe('R13 盈利客户（v1.2，Amos 2026-10-18）', () => {
+  const r = (status: AutoRuleResult['status'], values: Record<string, string> = {}): AutoRuleResult => ({ code: 'R13', status, values });
+  it('判定说明写明累计净盈利 = 已实现 − 手续费 − 隔夜费，以及门槛', () => {
+    expect(ruleLine(t, r('failed', { net: '1600', realized: '1860', fee: '212.4', swap: '47.6', limit: '0' }))).toBe(
+      '累计净盈利 1,600 = 已实现 1,860 − 手续费 212.40 − 隔夜费 47.60，门槛 0（超过，转人工）',
+    );
+    expect(ruleLine(t, r('passed', { net: '-12.25', realized: '310', fee: '236.8', swap: '85.45', limit: '0' }))).toBe(
+      '累计净盈利 -12.25 = 已实现 310 − 手续费 236.80 − 隔夜费 85.45，门槛 0（未超过）',
+    );
+    expect(ruleLine(t, r('unknown', { why: '数据读取失败' }))).toBe('无法判定：数据读取失败（按未通过处理）');
+    expect(t('autoRule.R13.name')).toBe('盈利客户');
+  });
+
+  it('门槛：单位 USDT、默认 0、可以填 0，不能是负数、最多 2 位小数', () => {
+    const def = AUTO_RULES.find((x) => x.code === 'R13')!;
+    expect(def.params).toEqual([{ key: 'maxNetProfit', unit: 'usdt', defaultValue: '0', min: 0, max: 1_000_000, decimals: 2 }]);
+    expect(ruleParamProblem(def.params[0], '0')).toBeNull();
+    expect(ruleParamProblem(def.params[0], '1000.5')).toBeNull();
+    expect(ruleParamProblem(def.params[0], '-1')?.key).toBe('autoApprove.errDecimals');
+    expect(ruleParamProblem(def.params[0], '0.001')?.key).toBe('autoApprove.errDecimals');
+    expect(ruleParamProblem(def.params[0], '1000000.01')?.key).toBe('autoApprove.errRange');
+  });
+
+  it('模拟数据：默认开启、门槛 0；有只触发 R13 的待审核出金；R13 的数值自洽（净盈利 = 已实现 − 手续费 − 隔夜费，R9 的盈亏 = 已实现）', async () => {
+    const s = await getAutoApproveSettings();
+    expect(s.rules.find((x) => x.code === 'R13')).toEqual({ code: 'R13', enabled: true, params: { maxNetProfit: '0' } });
+    const hit = (await listWithdrawals({ page: 1, pageSize: 100, autoReview: 'R13' })).items;
+    expect(hit.length).toBeGreaterThanOrEqual(2);
+    hit.forEach((w) => expect(w.autoReview?.failed).toContain('R13'));
+    const only = hit.find((w) => w.status === 'pending' && w.autoReview?.failed.join(',') === 'R13');
+    expect(only).toBeDefined();
+    const all = (await listWithdrawals({ page: 1, pageSize: 200 })).items.filter((w) => w.autoReview);
+    for (const w of all) {
+      const d = (await getWithdrawal(w.id)).autoReviewDetail!;
+      const r13 = d.rules.find((x) => x.code === 'R13')!;
+      expect(r13).toBeDefined();
+      if (r13.status === 'disabled') continue;
+      const v = r13.values;
+      const net = Number(v.realized) - Number(v.fee) - Number(v.swap);
+      expect(Number(v.net)).toBeCloseTo(net, 2);
+      expect(r13.status).toBe(Number(v.net) > Number(v.limit) ? 'failed' : 'passed');
+      expect(d.failed.includes('R13')).toBe(r13.status === 'failed');
+      const r9 = d.rules.find((x) => x.code === 'R9')!;
+      if (r9.status !== 'disabled' && Number(r9.values.deposit) > 0) expect(r9.values.pnl).toBe(v.realized);
+    }
+  });
+
+  it('详情卡片：只触发 R13 时标红排在最上面；设置页有 R13 一行（默认开、默认 0 USDT）', async () => {
+    const only = (await listWithdrawals({ page: 1, pageSize: 100, autoReview: 'R13' })).items.find((w) => w.autoReview?.failed.join(',') === 'R13')!;
+    const d = await getWithdrawal(only.id);
+    renderAs(<AutoReviewCard detail={d.autoReviewDetail} />);
+    expect(screen.getByText('触发 1 条规则，转人工审核')).toBeInTheDocument();
+    const first = document.querySelector('li.ar-row')!;
+    expect(first).toHaveClass('failed');
+    expect(first.querySelector('.ar-code')?.textContent).toBe('R13');
+    expect(within(first as HTMLElement).getByText(/累计净盈利 1,600 = 已实现 1,860 − 手续费 212.40 − 隔夜费 47.60，门槛 0/)).toBeInTheDocument();
+  });
+
+  it('设置页 R13 一行：开关默认开、门槛 0 USDT；改成负数标红不能保存', async () => {
+    renderAs(<AutoApprovePage />);
+    expect(await screen.findByRole('switch', { name: '启用 R13 盈利客户' })).toBeChecked();
+    const row = document.querySelector('.aa-row[data-rule="R13"]') as HTMLElement;
+    expect(within(row).getByText('默认 0 USDT')).toBeInTheDocument();
+    const input = within(row).getByLabelText('门槛');
+    expect(input).toHaveValue('0');
+    fireEvent.change(input, { target: { value: '-5' } });
+    expect(await within(row).findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /保存修改/ })).toBeDisabled();
+  });
+});
+
 describe('规则数值校验', () => {
   it('整数、小数位、范围；单笔 ≤ 客户 24 小时 ≤ 全平台 24 小时', () => {
     const r1 = AUTO_RULES[0].params[0];
@@ -100,7 +171,7 @@ describe('出金审核页：规则判定列和卡片', () => {
     const card = await screen.findByRole('region', { name: '规则判定' });
     expect(within(card).getByText('触发 3 条规则，转人工审核')).toBeInTheDocument();
     const rows = card.querySelectorAll('li.ar-row');
-    expect(rows).toHaveLength(12);
+    expect(rows).toHaveLength(AUTO_RULES.length);
     expect([...rows].slice(0, 3).map((li) => li.querySelector('.ar-code')?.textContent)).toEqual(['R1', 'R2', 'R5']);
     expect(rows[0]).toHaveClass('failed');
     expect(within(card).getByText('单笔 5,000 > 上限 500')).toBeInTheDocument();
@@ -130,11 +201,13 @@ describe('出金审核页：规则判定列和卡片', () => {
 });
 
 describe('自动审批规则设置页', () => {
-  it('显示总开关（默认关闭的说明）、12 条规则、最近修改记录', async () => {
+  it('显示总开关（默认关闭的说明）、全部规则（条数按实际，现在 13 条）、最近修改记录', async () => {
     renderAs(<AutoApprovePage />);
     expect(await screen.findByRole('switch', { name: '自动审批总开关' })).toBeChecked();
     expect(screen.getByText('默认：关闭')).toBeInTheDocument();
-    expect(document.querySelectorAll('.aa-row')).toHaveLength(12);
+    expect(AUTO_RULES).toHaveLength(13);
+    expect(document.querySelectorAll('.aa-row')).toHaveLength(AUTO_RULES.length);
+    expect(screen.getByRole('heading', { name: '13 条规则' })).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: '启用 R8 充值后的交易量' })).not.toBeChecked();
     expect(await screen.findByText('R1 单笔金额 · 单笔上限：1,000 USDT → 500 USDT')).toBeInTheDocument();
   });

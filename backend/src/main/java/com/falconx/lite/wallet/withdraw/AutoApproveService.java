@@ -124,7 +124,7 @@ public class AutoApproveService implements AutoApproveAdminApi {
     mapper.setAutoApproved(withdrawalId, at, delayEndsAt);
   }
 
-  /** 复判整个出错（例如写库失败）以后的兜底：记一条 ERROR（12 条都是"无法判定"），调用方随后转人工 */
+  /** 复判整个出错（例如写库失败）以后的兜底：记一条 ERROR（每条规则都是"无法判定"），调用方随后转人工 */
   void recordError(WithdrawalRow w, Settings s, String why) {
     List<AutoApproveEngine.Result> rs = Arrays.stream(AutoApprove.Rule.values()).map(r -> new AutoApproveEngine.Result(r.name(), AutoApproveEngine.UNKNOWN,
         Map.of("why", why))).toList();
@@ -217,6 +217,11 @@ public class AutoApproveService implements AutoApproveAdminApi {
     @Override
     public BigDecimal realizedPnl(long userId, LocalDateTime since) {
       return flows.realizedPnl(userId, since);
+    }
+
+    @Override
+    public CustomerFlowApi.NetProfit netProfit(long userId) {
+      return flows.netProfit(userId);
     }
 
     @Override
