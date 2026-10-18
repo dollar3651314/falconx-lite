@@ -29,11 +29,11 @@ public interface AutoApproveAdminApi {
   record RuleResult(String code, String status, Map<String, String> values) {}
 
   /**
-   * 完整的判定记录：最近一次判定（冷静期中是预判，之后是复判）和 12 条逐条结果；复判时附带提交时的预判摘要。
+   * 完整的判定记录：最近一次判定（冷静期中是预判，之后是复判）和逐条结果（判定时有几条就是几条：R13 上线前的记录只有 12 条）；复判时附带提交时的预判摘要。
    */
   record Detail(Summary summary, boolean masterEnabled, long configVersion, List<RuleResult> rules, Summary precheck) {}
 
-  /** 当前配置（总开关、12 条规则、版本号） */
+  /** 当前配置（总开关、13 条规则、版本号） */
   AutoApprove.Settings settings();
 
   /** 这些提现最近一次判定的摘要；没有判定记录的不在结果里 */

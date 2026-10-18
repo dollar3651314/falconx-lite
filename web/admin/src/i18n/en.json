@@ -1454,6 +1454,15 @@
         "hotWallet": "Hot wallet {{balance}} < needed {{need}}",
         "hotWalletUnknown": "Hot-wallet balance unavailable (no successful check in 10 minutes); treated as failed"
       }
+    },
+    "R13": {
+      "name": "Profitable customer",
+      "desc": "Cumulative net profit since account opening (realized P&L − trading fees − swaps; floating P&L of open positions not counted) must not exceed the threshold; equal passes",
+      "param": {
+        "maxNetProfit": "Threshold"
+      },
+      "pass": "Net profit {{net}} = realized {{realized}} − fees {{fee}} − swaps {{swap}}, threshold {{limit}} (not exceeded)",
+      "fail": "Net profit {{net}} = realized {{realized}} − fees {{fee}} − swaps {{swap}}, threshold {{limit}} (exceeded, manual review)"
     }
   },
   "autoReview": {
@@ -1523,7 +1532,7 @@
     "versionLine": "Version {{version}} · changed by {{by}} at {{time}}",
     "notLoosen": "Rules only decide whether a person reviews; no limit is relaxed",
     "notLoosenDesc": "The 2-hour cooling period stays (auto-approved withdrawals are paid only after it); ≥ 3,000 USDT still waits 6 hours after approval; whitelist 24-hour activation and the 10,000 per withdrawal / 30,000 daily limits stay.",
-    "rulesTitle": "12 rules",
+    "rulesTitle": "{{n}} rules",
     "rulesSub": "{{enabled}} of {{total}} enabled; disabled rules are not checked",
     "colRule": "Rule",
     "colValue": "Value",

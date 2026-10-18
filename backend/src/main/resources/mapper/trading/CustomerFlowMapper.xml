@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- 客户资金流水、交易量的只读合计（v2 提现自动审批 R8、R9、R10）。只有 trading 模块使用；其他模块经 trading.api.CustomerFlowApi。 -->
+<!-- 客户资金流水、交易量的只读合计（v2 提现自动审批 R8、R9、R10、R13）。只有 trading 模块使用；其他模块经 trading.api.CustomerFlowApi。 -->
 <mapper namespace="com.falconx.lite.trading.order.CustomerFlowMapper">
 
   <!-- 充值 − 冲正（冲正在账本里是负数），以及最早一笔充值的入账时间 -->
@@ -16,6 +16,15 @@
     FROM trading_ledger l JOIN trading_account a ON a.id = l.account_id
     WHERE a.user_id = #{userId} AND l.bucket = 'BALANCE' AND l.entry_type = 'REALIZED_PNL'
     <if test="since != null">AND l.created_at &gt;= #{since}</if>
+  </select>
+
+  <!-- R13 累计净盈利的三个组成（开户到现在，账本原值：手续费 TRADE_FEE 是负数，隔夜费 SWAP 付出是负数、收到是正数）。持仓浮动盈亏不进账本，所以不算 -->
+  <select id="netProfit" resultType="com.falconx.lite.trading.order.CustomerFlowMapper$ProfitRow">
+    SELECT COALESCE(SUM(CASE WHEN l.entry_type = 'REALIZED_PNL' THEN l.amount END), 0) AS realized,
+           COALESCE(SUM(CASE WHEN l.entry_type = 'TRADE_FEE' THEN l.amount END), 0) AS fee,
+           COALESCE(SUM(CASE WHEN l.entry_type = 'SWAP' THEN l.amount END), 0) AS swap
+    FROM trading_ledger l JOIN trading_account a ON a.id = l.account_id
+    WHERE a.user_id = #{userId} AND l.bucket = 'BALANCE' AND l.entry_type IN ('REALIZED_PNL', 'TRADE_FEE', 'SWAP')
   </select>
 
   <!-- 成交的开仓订单（每笔成交的订单对应一个持仓，成交时间是持仓的开仓时间）按下单时的 USD 名义价值合计 -->

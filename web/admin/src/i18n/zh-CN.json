@@ -1454,6 +1454,15 @@
         "hotWallet": "热钱包余额 {{balance}} < 需要 {{need}}",
         "hotWalletUnknown": "查不到热钱包余额（超过 10 分钟没查成功），按不通过处理"
       }
+    },
+    "R13": {
+      "name": "盈利客户",
+      "desc": "从开户到现在的累计净盈利（已实现盈亏 − 手续费 − 隔夜费，不算持仓浮动盈亏）不超过门槛；超过就人工，等于门槛算通过",
+      "param": {
+        "maxNetProfit": "门槛"
+      },
+      "pass": "累计净盈利 {{net}} = 已实现 {{realized}} − 手续费 {{fee}} − 隔夜费 {{swap}}，门槛 {{limit}}（未超过）",
+      "fail": "累计净盈利 {{net}} = 已实现 {{realized}} − 手续费 {{fee}} − 隔夜费 {{swap}}，门槛 {{limit}}（超过，转人工）"
     }
   },
   "autoReview": {
@@ -1523,7 +1532,7 @@
     "versionLine": "当前第 {{version}} 版 · {{by}} {{time}} 修改",
     "notLoosen": "规则只决定“要不要人工看”，不放宽任何限额",
     "notLoosenDesc": "2 小时冷静期照旧（自动通过也要等冷静期结束才放款）；≥3,000 USDT 通过后延迟 6 小时照旧；白名单 24 小时生效、单笔 10,000 / 每日 30,000 限额照旧。",
-    "rulesTitle": "12 条规则",
+    "rulesTitle": "{{n}} 条规则",
     "rulesSub": "已启用 {{enabled}} / {{total}} 条；关闭的规则不参与判定",
     "colRule": "规则和说明",
     "colValue": "数值",

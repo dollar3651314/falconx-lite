@@ -10,6 +10,8 @@
  * 冷静期中的出金只有提交时的预判；冷静期结束时的复判才决定自动通过还是转人工。
  * 字段和真实接口一致（后端 admin/ops/AutoApproveOps.java、wallet/withdraw/AutoApproveEngine.java 的数值键）。
  * R4、R5、R7、R9 的数值按模拟数据里这个客户的出金、入金、注册时长、KYC 算（和出金详情一致）；R2、R3、R8、R10、R12 的数值是演示用的。
+ * R13 盈利客户（v1.2）：每个客户有一组累计的已实现盈亏、手续费、隔夜费（默认 310 − 236.80 − 85.45 = −12.25，不盈利），R9 的"盈亏"用同一个已实现盈亏；
+ * 累计净盈利超过当时那一版的门槛就自动算 R13 未通过（和 R4、R5 一样不用在计划里手写）。为了演示简单，R13 在模拟的 4 个版本里都有（真实系统是 2026-10-18 迁移 V27 加的）。
  */
 import type { AutoApproveChange, AutoApproveSettings, AutoReviewDetail, AutoReviewOutcome, AutoRuleCode, AutoRuleResult, Withdrawal } from '../../api/types';
 import { AUTO_RULES } from '../../config/autoApprove';
@@ -112,7 +114,17 @@ interface Ctx {
   doneSum: number;
   /** 累计提现：不是驳回、撤销、失败已退回的出金合计，含本笔 */
   withdrawn: number;
+  /** R13：累计已实现盈亏、付的手续费、付的隔夜费（R9 的"盈亏"也用 realized） */
+  profit: Profit;
 }
+interface Profit {
+  realized: number;
+  fee: number;
+  swap: number;
+}
+/** 默认：不盈利（310 − 236.80 − 85.45 = −12.25） */
+const NO_PROFIT: Profit = { realized: 310, fee: 236.8, swap: 85.45 };
+const netOf = (p: Profit) => Math.round((p.realized - p.fee - p.swap) * 100) / 100;
 type Fail = Record<string, string> | ((c: Ctx) => Record<string, string>);
 type Fails = Partial<Record<AutoRuleCode, Fail>>;
 
@@ -130,21 +142,23 @@ function passValues(c: Ctx): Record<AutoRuleCode, Record<string, string>> {
     R6: { hours: p.R6.hours },
     R7: { days: String(c.regDays), limit: p.R7.days, kyc: c.kyc },
     R8: { volume: n2(dep * 2.4), deposit: n2(dep), ratio: '2.4', limit: p.R8.multiple },
-    R9: { withdrawn: n2(c.withdrawn), deposit: n2(dep), pnl: '310.00', cap: n2(dep + 310) },
+    R9: { withdrawn: n2(c.withdrawn), deposit: n2(dep), pnl: n2(c.profit.realized), cap: n2(dep + c.profit.realized) },
     R10: { profit: '820.00', principal: n2(principal), pct: principal ? ((820 / principal) * 100).toFixed(1) : '—', limitAbs: p.R10.maxProfit7d, limitPct: p.R10.maxProfitPct },
     R11: { count: '1', limit: p.R11.maxCount },
     R12: { balance: '38500.00', need: n2(c.amt - Number(c.w.fee)) },
+    R13: { net: n2(netOf(c.profit)), realized: n2(c.profit.realized), fee: n2(c.profit.fee), swap: n2(c.profit.swap), limit: p.R13.maxNetProfit },
   };
 }
 
-/** 客户本身的情况决定的未通过（第一笔、新地址、注册不满、KYC 没过、提现超过入金 + 盈亏），不用在下面的计划里手写 */
+/** 客户本身的情况决定的未通过（第一笔、新地址、注册不满、KYC 没过、提现超过入金 + 盈亏、盈利客户），不用在下面的计划里手写 */
 function implied(c: Ctx): Fails {
   const f: Fails = {};
   if (c.done === 0) f.R4 = {};
   if (c.sameAddr === 0) f.R5 = {};
   if (c.regDays < Number(c.v.params.R7.days) || c.kyc !== 'approved') f.R7 = {};
   if (c.deposit === 0) f.R9 = { withdrawn: n2(c.withdrawn), deposit: '0.00', pnl: '0.00', cap: '0.00' };
-  else if (c.withdrawn > c.deposit + 310) f.R9 = {};
+  else if (c.withdrawn > c.deposit + c.profit.realized) f.R9 = {};
+  if (netOf(c.profit) > Number(c.v.params.R13.maxNetProfit)) f.R13 = {};
   return f;
 }
 
@@ -165,8 +179,9 @@ const R2_OVER: Fail = {};
 const R5_NEW: Fail = {};
 const R6_PWD: Fail = { event: 'password_change', ago: '1.5' };
 const R8_LOW: Fail = (c) => ({ volume: n2(c.deposit * 0.35), ratio: '0.35' });
+const r10Profit = (c: Pick<Ctx, 'v' | 'deposit'>) => Math.max(Number(c.v.params.R10.maxProfit7d), (c.deposit * Number(c.v.params.R10.maxProfitPct)) / 100) + 1380;
 const R10_HIGH: Fail = (c) => {
-  const profit = Math.max(Number(c.v.params.R10.maxProfit7d), (c.deposit * Number(c.v.params.R10.maxProfitPct)) / 100) + 1380;
+  const profit = r10Profit(c);
   return { profit: n2(profit), pct: c.deposit ? ((profit / c.deposit) * 100).toFixed(1) : '—' };
 };
 
@@ -180,6 +195,8 @@ interface Plan {
   preFails?: Fails;
   /** 功能上线前的出金：没有判定记录 */
   none?: boolean;
+  /** R13 用的累计盈亏（不写 = 不盈利的默认值） */
+  profit?: (c: Pick<Ctx, 'v' | 'deposit'>) => Profit;
 }
 
 const PLANS: Plan[] = [
@@ -195,7 +212,8 @@ const PLANS: Plan[] = [
   { ci: 8, fails: { R1: {}, R7: { days: '3' } } },
   { ci: 9, fails: { R1: {} } },
   { ci: 10, fails: { R1: {}, R12: (c) => ({ issues: 'hotWallet', balance: '820.00', need: n2(c.amt - Number(c.w.fee)) }) } },
-  { ci: 11, fails: { R1: {}, R10: R10_HIGH } },
+  // 盈利客户：近 7 天盈利超过上限（R10），累计净盈利也 > 0（R13 自动算出来）
+  { ci: 11, fails: { R1: {}, R10: R10_HIGH }, profit: (c) => ({ realized: r10Profit(c) + 640, fee: 486.2, swap: 133.8 }) },
   { ci: 12, fails: { R1: {}, R8: R8_LOW } },
   // 只触发 1 条且不是 R1：提交时预判可以自动通过，冷静期里改了密码，复判转人工
   { ci: 13, fails: { R6: R6_PWD }, preFails: {} },
@@ -224,6 +242,8 @@ const PLANS: Plan[] = [
   { x: 3, fails: {} },
   { x: 4, fails: {} },
   { x: 5, fails: {} },
+  // R13（v1.2）：只触发 R13 的盈利客户——金额 300、老地址、规则都满足，但累计净盈利 1,860 − 212.40 − 47.60 = 1,600 > 门槛 0，转人工
+  { x: 6, fails: {}, profit: () => ({ realized: 1860, fee: 212.4, swap: 47.6 }) },
 ];
 
 function outcomeOf(master: boolean, rules: AutoRuleResult[]): AutoReviewOutcome {
@@ -261,6 +281,7 @@ for (const plan of PLANS) {
     w,
     v,
     amt,
+    profit: plan.profit ? plan.profit({ v, deposit: depositOf(cust.id) }) : NO_PROFIT,
     deposit: depositOf(cust.id),
     regDays: registeredDaysOf(cust),
     kyc: cust.kycStatus,

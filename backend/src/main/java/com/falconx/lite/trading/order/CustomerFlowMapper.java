@@ -14,10 +14,19 @@ interface CustomerFlowMapper {
     LocalDateTime firstAt;
   }
 
+  /** 账本原值（手续费、付出的隔夜费是负数） */
+  class ProfitRow {
+    BigDecimal realized;
+    BigDecimal fee;
+    BigDecimal swap;
+  }
+
   /** since 为空表示全部时间 */
   DepositRow depositsSince(@Param("userId") long userId, @Param("since") LocalDateTime since);
 
   BigDecimal realizedPnl(@Param("userId") long userId, @Param("since") LocalDateTime since);
+
+  ProfitRow netProfit(@Param("userId") long userId);
 
   BigDecimal openedNotionalSince(@Param("userId") long userId, @Param("since") LocalDateTime since);
 }

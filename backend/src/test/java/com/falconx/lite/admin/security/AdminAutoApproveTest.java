@@ -75,7 +75,9 @@ class AdminAutoApproveTest extends AdminTestSupport {
     Admin s = superAdmin();
     JsonNode cur = body(call(get("/api/admin/withdraw-auto-approve"), s.cookie(), null));
     assertThat(cur.get("masterEnabled").asBoolean()).isFalse();
-    assertThat(cur.get("rules")).hasSize(12);
+    assertThat(cur.get("rules")).hasSize(13);
+    // R13 盈利客户（Amos 2026-10-18）：默认开启、门槛 0（迁移 V27）
+    assertThat(cur.get("rules").get(12).toString()).isEqualTo("{\"code\":\"R13\",\"enabled\":true,\"params\":{\"maxNetProfit\":\"0\"}}");
     assertThat(cur.get("rules").get(0).get("code").asString()).isEqualTo("R1");
     long v = cur.get("version").asLong();
 
@@ -94,6 +96,13 @@ class AdminAutoApproveTest extends AdminTestSupport {
     MockHttpServletResponse noReason = call(put("/api/admin/withdraw-auto-approve"), editor.cookie(), saveBody(cur, null, " ", v, Map.of("R1.maxAmount", "800")));
     assertThat(noReason.getStatus()).isEqualTo(400);
     assertThat(noReason.getContentAsString()).contains("\"field\":\"reason\",\"code\":\"required\"");
+
+    // R13 门槛不能是负数、最多 2 位小数
+    MockHttpServletResponse neg = call(put("/api/admin/withdraw-auto-approve"), editor.cookie(), saveBody(cur, null, "门槛", v, Map.of("R13.maxNetProfit", "-1")));
+    assertThat(neg.getStatus()).isEqualTo(400);
+    assertThat(neg.getContentAsString()).contains("\"field\":\"rules.R13.maxNetProfit\",\"code\":\"invalid\"");
+    assertThat(call(put("/api/admin/withdraw-auto-approve"), editor.cookie(), saveBody(cur, null, "门槛", v, Map.of("R13.maxNetProfit", "0.001"))).getStatus())
+        .isEqualTo(400);
 
     MockHttpServletResponse stale = call(put("/api/admin/withdraw-auto-approve"), editor.cookie(), saveBody(cur, null, "放宽单笔", v - 1, Map.of("R1.maxAmount", "800")));
     assertThat(stale.getStatus()).isEqualTo(409);
@@ -196,7 +205,8 @@ class AdminAutoApproveTest extends AdminTestSupport {
     assertThat(body(call(get("/api/admin/withdrawals?autoReview=R5" + kw), s.cookie(), null)).get("total").asLong()).isZero();
     assertThat(body(call(get("/api/admin/withdrawals?autoReview=auto_approved" + kw), s.cookie(), null)).get("total").asLong()).as("预判通过不算，看最近一次").isZero();
     assertThat(body(call(get("/api/admin/withdrawals?autoReview=none" + kw), s.cookie(), null)).get("total").asLong()).isZero();
-    assertThat(call(get("/api/admin/withdrawals?autoReview=R13"), s.cookie(), null).getStatus()).isEqualTo(400);
+    assertThat(call(get("/api/admin/withdrawals?autoReview=R14"), s.cookie(), null).getStatus()).isEqualTo(400);
+    assertThat(body(call(get("/api/admin/withdrawals?autoReview=R13" + kw), s.cookie(), null)).get("total").asLong()).isZero();
     // 全部触发了 R6 的都真的触发了 R6
     JsonNode r6 = body(call(get("/api/admin/withdrawals?autoReview=R6&pageSize=100"), s.cookie(), null));
     for (JsonNode x : r6.get("items")) assertThat(x.get("autoReview").get("failed").toString()).contains("R6");
@@ -221,5 +231,24 @@ class AdminAutoApproveTest extends AdminTestSupport {
     assertThat(d2.get("autoReviewDetail").isNull()).isTrue();
     assertThat(d2.get("withdrawal").get("autoReview").isNull()).isTrue();
     assertThat(body(call(get("/api/admin/withdrawals?autoReview=none&keyword=" + no2), s.cookie(), null)).get("total").asLong()).isEqualTo(1);
+
+    // R13 盈利客户：只触发 R13 的，按 R13 筛选能找到，详情里有累计净盈利的组成
+    long no3 = Snowflake.shared(1).next();
+    jdbc.update("INSERT INTO wallet_withdrawal (public_no, user_id, network, address, amount, fee, status, cooling_ends_at, created_at) "
+        + "VALUES (?, ?, 'TRC20', 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', 300, 1, 'REVIEWING', '2026-10-14 08:00:00', '2026-10-14 06:00:00')", no3, uid);
+    long id3 = jdbc.queryForObject("SELECT id FROM wallet_withdrawal WHERE public_no = ?", Long.class, no3);
+    jdbc.update("INSERT INTO wallet_withdraw_rule_check (withdrawal_id, phase, outcome, master_enabled, failed_rules, config_version, config_json, results_json, decided_at) "
+        + "VALUES (?, 'FINAL', 'MANUAL', 1, 'R13', 0, '{}', ?, '2026-10-14 08:00:00')", id3,
+        "[{\"code\":\"R13\",\"status\":\"failed\",\"values\":{\"net\":\"1600\",\"realized\":\"1860\",\"fee\":\"212.4\",\"swap\":\"47.6\",\"limit\":\"0\"}}]");
+    long check3 = jdbc.queryForObject("SELECT MAX(id) FROM wallet_withdraw_rule_check WHERE withdrawal_id = ?", Long.class, id3);
+    jdbc.update("INSERT INTO wallet_withdraw_rule_hit (check_id, withdrawal_id, rule_code) VALUES (?, ?, 'R13')", check3, id3);
+    jdbc.update("UPDATE wallet_withdrawal SET last_check_id = ? WHERE id = ?", check3, id3);
+    JsonNode r13 = body(call(get("/api/admin/withdrawals?autoReview=R13&keyword=" + no3), s.cookie(), null));
+    assertThat(r13.get("total").asLong()).isEqualTo(1);
+    assertThat(r13.get("items").get(0).get("autoReview").get("failed").toString()).isEqualTo("[\"R13\"]");
+    assertThat(body(call(get("/api/admin/withdrawals?autoReview=R1&keyword=" + no3), s.cookie(), null)).get("total").asLong()).isZero();
+    JsonNode d3 = body(call(get("/api/admin/withdrawals/" + no3), s.cookie(), null)).get("autoReviewDetail");
+    assertThat(d3.get("rules").get(0).get("values").get("net").asString()).isEqualTo("1600");
+    assertThat(d3.get("rules").get(0).get("values").get("swap").asString()).isEqualTo("47.6");
   }
 }

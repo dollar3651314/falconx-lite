@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * 提现自动审批的规则定义（技术方案/v2-提现自动审批.md 第 2、7 节）：12 条规则的编号、数值参数、单位、默认值、取值范围，配置的读取和保存前的校验。
+ * 提现自动审批的规则定义（技术方案/v2-提现自动审批.md 第 2、7 节）：13 条规则（{@link Rule}）的编号、数值参数、单位、默认值、取值范围，配置的读取和保存前的校验。
  * 和后台前端 {@code web/admin/src/config/autoApprove.ts} 一致。配置存在系统配置表（{@code common_config}，键都以 {@code withdraw.autoApprove.} 开头）。
  * 规则只决定"要不要人工看"，不放宽任何限额。
  */
@@ -53,7 +53,7 @@ public final class AutoApprove {
     return new Param(key, unit, def, BigDecimal.valueOf(min), BigDecimal.valueOf(max), 0);
   }
 
-  /** 12 条规则（默认值是 Amos 2026-10-17 确认的规则表） */
+  /** 13 条规则（R1～R12 的默认值是 Amos 2026-10-17 确认的规则表；R13 是 Amos 2026-10-18 加的） */
   public enum Rule {
     /** 单笔金额 ≤ 上限 */
     R1(usdt("maxAmount", "500", "1000000")),
@@ -78,7 +78,12 @@ public final class AutoApprove {
     /** 当天提现次数（含本笔）≤ N */
     R11(integer("maxCount", Unit.TIMES, "3", 1, 50)),
     /** 系统状态正常：无报价偏差告警、无全局暂停、热钱包余额够 */
-    R12;
+    R12,
+    /**
+     * 盈利客户转人工（Amos 2026-10-18："对于盈利客户需要人工审核"）：累计净盈利 ≤ 门槛才通过，等于门槛算通过。
+     * 累计净盈利 = 开户到现在的已实现盈亏 − 手续费 − 隔夜费（账本），不算持仓浮动盈亏。门槛默认 0，可以是 0
+     */
+    R13(new Param("maxNetProfit", Unit.USDT, "0", BigDecimal.ZERO, BigDecimal.valueOf(1_000_000), 2));
 
     public final List<Param> params;
 
@@ -163,7 +168,7 @@ public final class AutoApprove {
   public record Problem(String field, String code) {}
 
   /**
-   * 保存前校验并规范化：12 条规则都要有、每个数值在范围内且小数位不超、R1 ≤ R2 ≤ R3（否则后面的规则没有意义）。
+   * 保存前校验并规范化：每条规则都要有、每个数值在范围内且小数位不超、R1 ≤ R2 ≤ R3（否则后面的规则没有意义）。
    *
    * @return 规范化后的配置（version 沿用 0，由调用方决定）；有问题时 problems 不为空
    */

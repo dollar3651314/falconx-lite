@@ -21,8 +21,8 @@ export function fmtUsdt(v: string | undefined): string {
   return formatAmount(v).replace(/\.00$/, '');
 }
 
-const AMOUNT_KEYS = new Set(['amount', 'used', 'total', 'volume', 'deposit', 'withdrawn', 'pnl', 'cap', 'profit', 'limitAbs', 'principal', 'balance', 'need']);
-const AMOUNT_LIMIT: AutoRuleCode[] = ['R1', 'R2', 'R3'];
+const AMOUNT_KEYS = new Set(['amount', 'used', 'total', 'volume', 'deposit', 'withdrawn', 'pnl', 'cap', 'profit', 'limitAbs', 'principal', 'balance', 'need', 'net', 'realized', 'fee', 'swap']);
+const AMOUNT_LIMIT: AutoRuleCode[] = ['R1', 'R2', 'R3', 'R13'];
 
 /** 一条规则的判定说明，例如"单笔 800 > 上限 500" */
 export function ruleLine(t: TFunction, r: AutoRuleResult): string {

@@ -276,7 +276,7 @@ export interface Withdrawal {
 }
 
 // ---------- v2 提现自动审批（技术方案/v2-提现自动审批.md 第 7.2 节；后端 admin/ops/AutoApproveOps.java） ----------
-export type AutoRuleCode = 'R1' | 'R2' | 'R3' | 'R4' | 'R5' | 'R6' | 'R7' | 'R8' | 'R9' | 'R10' | 'R11' | 'R12';
+export type AutoRuleCode = 'R1' | 'R2' | 'R3' | 'R4' | 'R5' | 'R6' | 'R7' | 'R8' | 'R9' | 'R10' | 'R11' | 'R12' | 'R13';
 /** 判定结果：自动通过 / 转人工（有规则没通过）/ 总开关关闭（全部人工，规则照常判定做参考）/ 判定出错（按转人工处理） */
 export type AutoReviewOutcome = 'auto_approved' | 'manual' | 'master_off' | 'error';
 /** 判定时机：提交时预判（只做参考，不占额度）/ 冷静期结束时复判（以这次为准） */
@@ -349,7 +349,7 @@ export interface AutoApproveChange {
 }
 
 export interface WithdrawalDetail extends Withdrawal {
-  /** v2 自动审批：规则判定卡片的数据（12 条逐条结果） */
+  /** v2 自动审批：规则判定卡片的数据（逐条结果；判定时有几条就是几条，R13 上线前的记录只有 12 条） */
   autoReviewDetail?: AutoReviewDetail | null;
   kycStatus: KycStatus;
   registeredDays: number;

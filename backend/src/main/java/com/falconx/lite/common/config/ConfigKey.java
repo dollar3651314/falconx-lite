@@ -47,7 +47,7 @@ public enum ConfigKey {
   /** 追保线（保证金水平 %，100 即 100%）：在交易参数页改（权限 params:edit），不在系统配置页 */
   TRADING_MARGIN_CALL_LEVEL("trading.marginCallLevel", Unit.PERCENT, "trading", BigDecimal.ONE, false),
   /**
-   * 提现自动审批（v2，技术方案/v2-提现自动审批.md 第 7 节）：总开关（<b>默认 false</b>，迁移 V26）、12 条规则的开关和 9 个数值、配置版本号。
+   * 提现自动审批（v2，技术方案/v2-提现自动审批.md 第 7 节）：总开关（<b>默认 false</b>，迁移 V26）、13 条规则的开关和 10 个数值、配置版本号（R13 的两个键在迁移 V27）。
    * 在"出金审核 → 自动审批规则"页一次保存（权限 withdrawal:auto_rule_edit，高危），不在系统配置页；取值范围和 R1 ≤ R2 ≤ R3 的校验在 wallet.api.AutoApprove
    */
   AUTO_APPROVE_ENABLED("withdraw.autoApprove.enabled", Unit.BOOL, "autoApprove", null, false),
@@ -64,6 +64,7 @@ public enum ConfigKey {
   AUTO_APPROVE_R10_ENABLED("withdraw.autoApprove.R10.enabled", Unit.BOOL, "autoApprove", null, false),
   AUTO_APPROVE_R11_ENABLED("withdraw.autoApprove.R11.enabled", Unit.BOOL, "autoApprove", null, false),
   AUTO_APPROVE_R12_ENABLED("withdraw.autoApprove.R12.enabled", Unit.BOOL, "autoApprove", null, false),
+  AUTO_APPROVE_R13_ENABLED("withdraw.autoApprove.R13.enabled", Unit.BOOL, "autoApprove", null, false),
   AUTO_APPROVE_R1_MAX_AMOUNT("withdraw.autoApprove.R1.maxAmount", Unit.USDT, "autoApprove", BigDecimal.ZERO, false),
   AUTO_APPROVE_R2_MAX_USER24H("withdraw.autoApprove.R2.maxUser24h", Unit.USDT, "autoApprove", BigDecimal.ZERO, false),
   AUTO_APPROVE_R3_MAX_PLATFORM24H("withdraw.autoApprove.R3.maxPlatform24h", Unit.USDT, "autoApprove", BigDecimal.ZERO, false),
@@ -72,7 +73,9 @@ public enum ConfigKey {
   AUTO_APPROVE_R8_MULTIPLE("withdraw.autoApprove.R8.multiple", Unit.MULTIPLE, "autoApprove", BigDecimal.ZERO, false),
   AUTO_APPROVE_R10_MAX_PROFIT7D("withdraw.autoApprove.R10.maxProfit7d", Unit.USDT, "autoApprove", BigDecimal.ZERO, false),
   AUTO_APPROVE_R10_MAX_PROFIT_PCT("withdraw.autoApprove.R10.maxProfitPct", Unit.PERCENT, "autoApprove", BigDecimal.ZERO, false),
-  AUTO_APPROVE_R11_MAX_COUNT("withdraw.autoApprove.R11.maxCount", Unit.COUNT, "autoApprove", BigDecimal.ZERO, false);
+  AUTO_APPROVE_R11_MAX_COUNT("withdraw.autoApprove.R11.maxCount", Unit.COUNT, "autoApprove", BigDecimal.ZERO, false),
+  /** R13 盈利客户的门槛（累计净盈利 &gt; 它就转人工），默认 0，可以是 0 */
+  AUTO_APPROVE_R13_MAX_NET_PROFIT("withdraw.autoApprove.R13.maxNetProfit", Unit.USDT, "autoApprove", BigDecimal.ZERO, false);
 
   /** 单位，和原型一致 */
   public enum Unit {

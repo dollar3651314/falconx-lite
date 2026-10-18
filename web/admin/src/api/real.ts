@@ -210,7 +210,7 @@ export function listAutoApproveChanges(): Promise<AutoApproveChange[]> {
   return request('/withdraw-auto-approve/changes');
 }
 
-/** 一次保存总开关和 12 条规则；原因必填，expectedVersion 不对返回 409 CONFIG_CHANGED，没有变化返回 NO_CHANGE */
+/** 一次保存总开关和全部规则；原因必填，expectedVersion 不对返回 409 CONFIG_CHANGED，没有变化返回 NO_CHANGE */
 export function updateAutoApproveSettings(input: AutoApproveSettingsInput): Promise<AutoApproveSettings> {
   return request('/withdraw-auto-approve', { method: 'PUT', body: input });
 }

@@ -1,5 +1,5 @@
 /**
- * v2 提现自动审批的规则定义（技术方案/v2-提现自动审批.md 第 2 节）：12 条规则的编号、数值参数、单位、默认值和取值范围。
+ * v2 提现自动审批的规则定义（技术方案/v2-提现自动审批.md 第 2 节）：规则（现在 13 条，条数以 AUTO_RULES 为准）的编号、数值参数、单位、默认值和取值范围。
  * 和后端 backend/.../wallet/api/AutoApprove.java 一致（后端保存时再校验一遍）。规则名称、说明、判定结果的文字在翻译文件的 autoRule 下（中英文）。
  *
  * Auto-approval rule definitions; mirrors the backend's AutoApprove.java.
@@ -14,7 +14,7 @@ export type RuleParamUnit = 'usdt' | 'hours' | 'days' | 'times' | 'multiple' | '
 export interface RuleParamDef {
   key: string;
   unit: RuleParamUnit;
-  /** 默认值（Amos 2026-10-17 确认的规则表） */
+  /** 默认值（Amos 2026-10-17 确认的规则表；R13 是 Amos 2026-10-18 定的） */
   defaultValue: string;
   min: number;
   max: number;
@@ -42,6 +42,8 @@ export const AUTO_RULES: AutoRuleDef[] = [
   { code: 'R10', params: [usdt('maxProfit7d', '5000'), { key: 'maxProfitPct', unit: 'percent', defaultValue: '50', min: 1, max: 1000, decimals: 0 }] },
   { code: 'R11', params: [{ key: 'maxCount', unit: 'times', defaultValue: '3', min: 1, max: 50, decimals: 0 }] },
   { code: 'R12', params: [] },
+  // R13 盈利客户（Amos 2026-10-18）：累计净盈利（已实现 − 手续费 − 隔夜费，不算浮盈）> 门槛转人工；门槛默认 0，可以填 0
+  { code: 'R13', params: [{ key: 'maxNetProfit', unit: 'usdt', defaultValue: '0', min: 0, max: 1_000_000, decimals: 2 }] },
 ];
 
 export const AUTO_RULE_CODES: AutoRuleCode[] = AUTO_RULES.map((r) => r.code);

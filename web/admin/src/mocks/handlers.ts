@@ -600,7 +600,7 @@ export function listAutoApproveChanges(): Promise<AutoApproveChange[]> {
 }
 
 /**
- * PUT /api/admin/withdraw-auto-approve（高危，权限 withdrawal:auto_rule_edit）：一次保存总开关和 12 条规则，必须填原因，写审计。
+ * PUT /api/admin/withdraw-auto-approve（高危，权限 withdrawal:auto_rule_edit）：一次保存总开关和全部规则，必须填原因，写审计。
  * expectedVersion 不是当前版本时和后端一样返回 409 CONFIG_CHANGED；没有变化返回 NO_CHANGE。
  */
 export function updateAutoApproveSettings(input: AutoApproveSettingsInput): Promise<AutoApproveSettings> {

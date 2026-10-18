@@ -1,5 +1,5 @@
 /**
- * v2 提现自动审批规则设置（技术方案/v2-提现自动审批.md 第 7、9 节）：总开关（默认关闭）、12 条规则（开关 + 数值 + 说明 + 默认值）、
+ * v2 提现自动审批规则设置（技术方案/v2-提现自动审批.md 第 7、9 节）：总开关（默认关闭）、全部规则（条数按 AUTO_RULES，现在 13 条；开关 + 数值 + 说明 + 默认值）、
  * 保存时高危确认（必须填原因，写审计 withdrawal.auto_rule_update；权限 withdrawal:auto_rule_edit）、最近修改记录。从出金审核页进入（菜单归在"出金审核"下）。
  * 保存带上打开页面时的版本号：别人先改了会返回 409 CONFIG_CHANGED，这时重新读取最新配置。
  */
@@ -192,9 +192,9 @@ function AutoApproveEditor({ back }: { back: ReactNode }) {
 
       <Alert type="info" showIcon message={t('autoApprove.notLoosen')} description={t('autoApprove.notLoosenDesc')} />
 
-      <section className="card aa-rules" aria-label={t('autoApprove.rulesTitle')}>
+      <section className="card aa-rules" aria-label={t('autoApprove.rulesTitle', { n: draft.rules.length })}>
         <div className="aa-rules-head">
-          <h2>{t('autoApprove.rulesTitle')}</h2>
+          <h2>{t('autoApprove.rulesTitle', { n: draft.rules.length })}</h2>
           <span className="muted">{t('autoApprove.rulesSub', { enabled: enabledCount, total: draft.rules.length })}</span>
         </div>
         <div className="aa-grid-head" aria-hidden>

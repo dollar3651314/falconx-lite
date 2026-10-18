@@ -244,7 +244,7 @@ const autoSeeds: Omit<WdSeed, 'ci'>[] = [
   { amount: '500.00', chain: 'TRC20', status: 'cooling', ago: 52 },
   { amount: '260.00', chain: 'BSC', status: 'failed', ago: 1880 },
 ];
-/** 这几笔出金的客户 ID（顺序同 autoSeeds） */
+/** 这几笔出金的客户 ID（顺序同 autoSeeds；第 7 个是下面 R13 那笔的客户） */
 export const autoSeedCustomerIds: number[] = [];
 autoSeeds.forEach((s, i) => {
   const c = autoCustomers[i];
@@ -269,6 +269,34 @@ autoSeeds.forEach((s, i) => {
     txHash: s.status === 'completed' ? autoRng.hex(64) : null,
   });
 });
+
+// v1.2 R13 盈利客户（Amos 2026-10-18）补的 1 笔：待审核 300 USDT，只触发 R13（判定记录在 ./autoApprove.ts 的 x: 6）。
+// 上面挑客户的条件（注册满 14 天）已经没有剩下的客户，这里放宽到注册满 7 天（R7 的默认值），仍然要 KYC 已通过、有入金、还没有出金。
+// 放在上面 6 笔之后、用同一个随机数接着取，不影响前面已有数据的生成。
+const r13Customer = customers.find(
+  (c) => c.kycStatus === 'approved' && registeredDaysOf(c) >= 7 && deposits.some((d) => d.customerId === c.id && d.status === 'credited') && !withdrawals.some((w) => w.customerId === c.id),
+);
+if (r13Customer) {
+  autoSeedCustomerIds.push(r13Customer.id);
+  withdrawals.push({
+    id: mockNo(503, 3006),
+    customerId: r13Customer.id,
+    customerName: r13Customer.name,
+    email: r13Customer.email,
+    amount: '300.00',
+    fee: '1.00',
+    chain: 'TRC20',
+    address: tronAddress(autoRng),
+    firstUse: false,
+    whitelistAddedAt: minutesAgo(60 * 24 * 6),
+    status: 'pending',
+    delayRemainingMinutes: null,
+    submittedAt: minutesAgo(500),
+    reviewer: null,
+    reason: null,
+    txHash: null,
+  });
+}
 
 // 以前已完成的出金（2026-10-17 补，修正原型演示数据前后不一致）：firstUse = false 表示这个客户以前往这个地址成功提现过（和后端 first_use 同一口径），
 // 以前没有这几笔，规则判定 R4"此前已完成提现 N 笔"和出金详情的"最近出金：无"对不上。这里补上：

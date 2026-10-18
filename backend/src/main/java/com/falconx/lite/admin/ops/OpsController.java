@@ -156,7 +156,7 @@ class OpsController {
     return autoApprove.settings();
   }
 
-  /** 一次保存总开关和 12 条规则（高危）：必须填原因，expectedVersion 不对返回 409 CONFIG_CHANGED */
+  /** 一次保存总开关和 13 条规则（高危）：必须填原因，expectedVersion 不对返回 409 CONFIG_CHANGED */
   @RequiresPermission(Permission.WITHDRAWAL_AUTO_RULE_EDIT)
   @PutMapping("/api/admin/withdraw-auto-approve")
   AutoApproveOps.SettingsView saveAutoApprove(@RequestBody AutoApproveOps.SaveBody body) {
