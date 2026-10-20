@@ -1,20 +1,27 @@
 /**
- * v2 资金归集（技术方案/v2-半自动归集.md，推荐路线 (b)）：页面路径、链、归集方式、手续费币、权限点、地址格式校验。
- * - 以太坊（ERC20）、BSC：合约转发地址（BitGo ForwarderV4）+ 服务器自动批量归集，钱只能进 Safe 多签冷钱包（parent，写在合约里，后台只读）；
- * - TRON（TRC20）：普通地址 + Amos 离线签名（方案附录 B）；广播前给每个充值地址租能量（Amos 10-20：直接租能量，方案 v1.1 第 4.3 节），
- *   租不到时回退到热钱包补 TRX；冷钱包地址在后台配置、24 小时后生效。
+ * v2 资金归集（技术方案/v2-半自动归集.md v1.2，路线 (b)）：页面路径、链、归集方式、手续费币、权限点、地址格式校验。
+ * - 以太坊（ERC20）、BSC：合约转发地址（BitGo ForwarderV4）+ 服务器批量归集，钱只能进 Safe 多签冷钱包（parent，写在合约里，后台只读）；
+ * - TRON（TRC20）：普通地址 + Amos 离线签名（方案附录 B）；广播前给每个充值地址租能量（方案第 4.3 节），冷钱包地址在后台配置、24 小时后生效。
  *
- * 现在只有原型：合约、后端、离线签名工具都还没实现，真实接口模式下对账页不显示"资金归集"入口，四个归集页面显示"未上线"。
- * 原型借用已有权限点（不改前后端一致的权限点清单）：查看 recon:view，执行 / 生成 / 导入 / 广播 / 作废 recon:resolve，改设置 config:edit；
- * 正式版换成方案 SW-12 的 sweep:view、sweep:operate、sweep:config。后端上线后把 SWEEP_UI 改成 true。
+ * 第一阶段（2026-10-20，Amos："上限保留，现在就可以开始开发"）已实现以太坊、BSC 的合约和后端：真实接口模式下这两条链接后端
+ * （/api/admin/sweep/**，权限点 sweep:view / sweep:operate / sweep:config）；TRON 和自动归集是下一阶段，真实接口模式下显示"下一阶段"
+ * （SWEEP_NEXT_PHASE）。原型（模拟数据）模式照旧全部显示，方便看下一阶段的样子。
  *
- * Fund sweeping (prototype only until contracts, backend and the offline signer ship).
+ * Fund sweeping. Phase 1 (ERC20/BSC contracts + backend) is live; TRON and auto-sweep are the next phase in real mode.
  */
 import { IS_MOCK } from '../api/mode';
 import type { SweepChain, SweepMode } from '../api/types';
 
-/** 归集界面是否显示：现在只在原型（模拟数据）模式下显示 */
-export const SWEEP_UI = IS_MOCK;
+/** 归集界面是否显示（第一阶段上线后两种模式都显示；留着当总开关） */
+export const SWEEP_UI = true;
+
+/** 真实接口模式下 TRON 归集、自动归集等还没上线的部分显示"下一阶段"；原型模式下全部显示 */
+export const SWEEP_NEXT_PHASE = !IS_MOCK;
+
+/** 这条链的归集在当前模式下能不能用 */
+export function sweepChainLive(chain: SweepChain): boolean {
+  return !(SWEEP_NEXT_PHASE && chain === 'TRC20');
+}
 
 export const SWEEP_BASE = '/funds/reconciliation/sweep';
 
@@ -35,8 +42,8 @@ export const SWEEP_DEFAULTS = {
   maxFeeRatioPct: '3',
 };
 
-/** 原型借用的权限点（正式版：sweep:view / sweep:operate / sweep:config） */
-export const SWEEP_PERM = { view: 'recon:view', operate: 'recon:resolve', config: 'config:edit' } as const;
+/** 权限点（方案 SW-12，前后端清单一致）：查看、执行 / 重试（高危）、改设置（高危） */
+export const SWEEP_PERM = { view: 'sweep:view', operate: 'sweep:operate', config: 'sweep:config' } as const;
 
 const TRON_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 

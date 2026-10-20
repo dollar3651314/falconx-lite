@@ -90,38 +90,39 @@ export const updateAutoApproveSettings: typeof real.updateAutoApproveSettings = 
 export const listRecon: typeof real.listRecon = IS_MOCK ? mock.listRecon : real.listRecon;
 /** GET /api/admin/hot-wallets：热钱包余额和告警下限 */
 export const listHotWallets: typeof real.listHotWallets = IS_MOCK ? mock.listHotWallets : real.listHotWallets;
-// ---- v2 资金归集（只有原型：合约和后端没实现前，真实接口模式下直接失败，页面也不显示入口，见 config/sweep.ts） ----
-const sweepNotLive = () => Promise.reject(new ApiError('errors.sweepNotLive'));
-/** GET /api/admin/sweep/overview（计划） */
-export const getSweepOverview: typeof mock.getSweepOverview = IS_MOCK ? mock.getSweepOverview : sweepNotLive;
-/** POST /api/admin/sweep/preview（计划） */
-export const previewSweep: typeof mock.previewSweep = IS_MOCK ? mock.previewSweep : sweepNotLive;
-/** POST /api/admin/sweep/batches（计划，高危）：以太坊、BSC 执行归集；TRON 生成待签名清单 */
-export const runSweep: typeof mock.runSweep = IS_MOCK ? mock.runSweep : sweepNotLive;
-/** GET /api/admin/sweep/batches（计划） */
-export const listSweepBatches: typeof mock.listSweepBatches = IS_MOCK ? mock.listSweepBatches : sweepNotLive;
-/** GET /api/admin/sweep/batches/{no}（计划） */
-export const getSweepBatch: typeof mock.getSweepBatch = IS_MOCK ? mock.getSweepBatch : sweepNotLive;
-/** POST /api/admin/sweep/batches/{no}/retry（计划，高危） */
-export const retrySweepBatch: typeof mock.retrySweepBatch = IS_MOCK ? mock.retrySweepBatch : sweepNotLive;
-/** GET /api/admin/sweep/batches/{no}/unsigned（计划，TRON） */
-export const downloadSweepUnsigned: typeof mock.downloadSweepUnsigned = IS_MOCK ? mock.downloadSweepUnsigned : sweepNotLive;
+// ---- v2 资金归集（技术方案/v2-半自动归集.md v1.2）：第一阶段以太坊、BSC 接后端；TRON 专用的接口（待签名清单、导入签名、广播、作废、冷钱包地址）是下一阶段，
+// 真实接口模式下直接失败（页面也显示"下一阶段"，config/sweep.ts 的 SWEEP_NEXT_PHASE） ----
+const sweepNextPhase = () => Promise.reject(new ApiError('errors.sweepNextPhase'));
+/** GET /api/admin/sweep/overview */
+export const getSweepOverview: typeof mock.getSweepOverview = IS_MOCK ? mock.getSweepOverview : real.getSweepOverview;
+/** POST /api/admin/sweep/preview */
+export const previewSweep: typeof mock.previewSweep = IS_MOCK ? mock.previewSweep : real.previewSweep;
+/** POST /api/admin/sweep/batches（高危，sweep:operate）：以太坊、BSC 执行归集；TRON 生成待签名清单（下一阶段） */
+export const runSweep: typeof mock.runSweep = IS_MOCK ? mock.runSweep : real.runSweep;
+/** GET /api/admin/sweep/batches */
+export const listSweepBatches: typeof mock.listSweepBatches = IS_MOCK ? mock.listSweepBatches : real.listSweepBatches;
+/** GET /api/admin/sweep/batches/{no} */
+export const getSweepBatch: typeof mock.getSweepBatch = IS_MOCK ? mock.getSweepBatch : real.getSweepBatch;
+/** POST /api/admin/sweep/batches/{no}/retry（高危） */
+export const retrySweepBatch: typeof mock.retrySweepBatch = IS_MOCK ? mock.retrySweepBatch : real.retrySweepBatch;
+/** GET /api/admin/sweep/batches/{no}/unsigned（TRON，下一阶段） */
+export const downloadSweepUnsigned: typeof mock.downloadSweepUnsigned = IS_MOCK ? mock.downloadSweepUnsigned : sweepNextPhase;
 /** 原型专用：演示用的签名文件（正式版没有这个接口） */
-export const demoSweepSignedFile: typeof mock.demoSweepSignedFile = IS_MOCK ? mock.demoSweepSignedFile : sweepNotLive;
-/** POST /api/admin/sweep/batches/{no}/signed（计划，TRON，高危） */
-export const importSweepSigned: typeof mock.importSweepSigned = IS_MOCK ? mock.importSweepSigned : sweepNotLive;
-/** POST /api/admin/sweep/batches/{no}/broadcast（计划，TRON，高危） */
-export const broadcastSweep: typeof mock.broadcastSweep = IS_MOCK ? mock.broadcastSweep : sweepNotLive;
-/** POST /api/admin/sweep/batches/{no}/cancel（计划，TRON，高危） */
-export const cancelSweepBatch: typeof mock.cancelSweepBatch = IS_MOCK ? mock.cancelSweepBatch : sweepNotLive;
-/** GET /api/admin/sweep/settings（计划） */
-export const getSweepSettings: typeof mock.getSweepSettings = IS_MOCK ? mock.getSweepSettings : sweepNotLive;
-/** PUT /api/admin/sweep/settings（计划，高危） */
-export const updateSweepSettings: typeof mock.updateSweepSettings = IS_MOCK ? mock.updateSweepSettings : sweepNotLive;
-/** POST /api/admin/sweep/targets（计划，TRON 冷钱包地址，24 小时后生效，高危） */
-export const requestTronSweepTarget: typeof mock.requestTronSweepTarget = IS_MOCK ? mock.requestTronSweepTarget : sweepNotLive;
-/** POST /api/admin/sweep/targets/cancel（计划，高危） */
-export const cancelTronSweepTarget: typeof mock.cancelTronSweepTarget = IS_MOCK ? mock.cancelTronSweepTarget : sweepNotLive;
+export const demoSweepSignedFile: typeof mock.demoSweepSignedFile = IS_MOCK ? mock.demoSweepSignedFile : sweepNextPhase;
+/** POST /api/admin/sweep/batches/{no}/signed（TRON，下一阶段，高危） */
+export const importSweepSigned: typeof mock.importSweepSigned = IS_MOCK ? mock.importSweepSigned : sweepNextPhase;
+/** POST /api/admin/sweep/batches/{no}/broadcast（TRON，下一阶段，高危） */
+export const broadcastSweep: typeof mock.broadcastSweep = IS_MOCK ? mock.broadcastSweep : sweepNextPhase;
+/** POST /api/admin/sweep/batches/{no}/cancel（TRON，下一阶段，高危） */
+export const cancelSweepBatch: typeof mock.cancelSweepBatch = IS_MOCK ? mock.cancelSweepBatch : sweepNextPhase;
+/** GET /api/admin/sweep/settings */
+export const getSweepSettings: typeof mock.getSweepSettings = IS_MOCK ? mock.getSweepSettings : real.getSweepSettings;
+/** PUT /api/admin/sweep/settings（高危，sweep:config） */
+export const updateSweepSettings: typeof mock.updateSweepSettings = IS_MOCK ? mock.updateSweepSettings : real.updateSweepSettings;
+/** POST /api/admin/sweep/targets（TRON 冷钱包地址，24 小时后生效，下一阶段，高危） */
+export const requestTronSweepTarget: typeof mock.requestTronSweepTarget = IS_MOCK ? mock.requestTronSweepTarget : sweepNextPhase;
+/** POST /api/admin/sweep/targets/cancel（下一阶段，高危） */
+export const cancelTronSweepTarget: typeof mock.cancelTronSweepTarget = IS_MOCK ? mock.cancelTronSweepTarget : sweepNextPhase;
 /** POST /api/admin/recon/{id}/resolve */
 export const resolveRecon: typeof real.resolveRecon = IS_MOCK ? mock.resolveRecon : real.resolveRecon;
 /** GET /api/admin/tasks */

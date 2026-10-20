@@ -378,8 +378,11 @@ export interface WithdrawalSummary {
   completedToday: { count: number; amount: string };
 }
 
-/** 对账问题类型：按后端的 7 种（数据库设计第 16 节、后台方案第 8 节），不再用原型的 4 种 */
+/** 对账问题类型：按后端的 7 种（数据库设计第 16 节、后台方案第 8 节），不再用原型的 4 种；v2 资金归集加 3 种（方案第 4.8 节） */
 export type ReconType =
+  | 'sweep_unknown_outflow'
+  | 'sweep_dest_mismatch'
+  | 'sweep_amount_mismatch'
   | 'deposit_ledger_mismatch'
   | 'deposit_unknown_credit'
   | 'deposit_reversal_mismatch'
@@ -852,6 +855,8 @@ export type SweepChain = 'ERC20' | 'BSC' | 'TRC20';
 /** 归集方式：以太坊、BSC 是合约转发地址 + 服务器自动归集；TRON 是普通地址 + Amos 离线签名 */
 export type SweepMode = 'contract' | 'offline';
 export type SweepBatchStatus =
+  /** 真实接口：已建批次、交易还没发出 */
+  | 'pending'
   | 'sent'
   | 'confirmed'
   | 'partial'
@@ -865,7 +870,18 @@ export type SweepBatchStatus =
   | 'expired';
 export type SweepItemStatus = 'pending' | 'swept' | 'failed' | 'topup_sent' | 'ready' | 'signed' | 'sign_rejected' | 'broadcast' | 'expired' | 'cancelled';
 /** 预览里这个地址这次为什么不归集 */
-export type SweepSkipReason = 'pendingDeposit' | 'recentCredit' | 'inBatch' | 'feeRatio' | 'belowThreshold' | 'overAddressCap' | 'overBatchCap';
+export type SweepSkipReason =
+  | 'pendingDeposit'
+  | 'recentCredit'
+  | 'inBatch'
+  | 'feeRatio'
+  | 'belowThreshold'
+  | 'overAddressCap'
+  | 'overBatchCap'
+  /** 真实接口：超过每批地址数（100） */
+  | 'batchFull'
+  /** 真实接口：旧一套合约参数的地址（换过工厂 / parent / 批量合约），这一批不处理 */
+  | 'otherScheme';
 /** TRON 租能量的状态（方案 v1.1 第 4.3 节）：广播前给每个充值地址租能量，确认到账再广播 */
 export type SweepRentStatus = 'none' | 'ordered' | 'delivered' | 'fallbackBurn' | 'notDelivered' | 'expired';
 export interface SweepRent {
@@ -894,6 +910,11 @@ export interface SweepOverview {
   lastSweepAt: string | null;
   /** 进行中的批次号 */
   activeBatch: string | null;
+  /** 真实接口：这条链现在能不能执行归集；不能时 unavailable 是原因（例如没配合约地址、TRON 下一阶段） */
+  available?: boolean;
+  unavailable?: string | null;
+  /** 真实接口：待归集金额的查询时间（每 5 分钟或打开预览时） */
+  checkedAt?: string | null;
 }
 
 export interface SweepCandidate {
@@ -930,6 +951,8 @@ export interface SweepPreview {
   totals: { count: number; usdt: string; fee: string; feeUsd: string; feePct: string; topup: string; rent: string; skipped: number };
   /** TRON：租能量的报价（以太坊、BSC 为空） */
   tronRent: { mode: SweepTronEnergyMode; provider: string; priceSun: string; energyPerItem: number; durationMin: number; burnSun: string } | null;
+  /** 真实接口：提示，例如 priceMissing（查不到 ETH / BNB 价格，没有检查手续费占比） */
+  warnings?: string[];
 }
 
 export interface SweepBatch {
@@ -963,14 +986,18 @@ export interface SweepItem {
   topup: string;
   status: SweepItemStatus;
   txHash: string | null;
-  /** 失败或核对不通过的原因（翻译键 sweepFail.* 的后缀） */
+  /** 失败或核对不通过的原因：原型是翻译键 sweepFail.* 的后缀；真实接口是后端给的中文说明 */
   failReason: string | null;
+  /** 真实接口：执行前查到的余额（amount 是链上实际转走的金额） */
+  balanceBefore?: string;
   /** TRON：这个地址的能量租赁（以太坊、BSC 为空） */
   rent: SweepRent | null;
 }
 
 export interface SweepBatchDetail extends SweepBatch {
   reason: string;
+  /** 真实接口：批次失败或部分成功的原因 */
+  failReason?: string | null;
   items: SweepItem[];
   unsignedSha256: string | null;
   signedSha256: string | null;
@@ -1013,6 +1040,12 @@ export interface SweepSettings {
     operator: string;
     operatorBalances: { ERC20: string; BSC: string };
     readAt: string;
+    /** 真实接口：合约地址参数配齐并检查通过；problem 是配置问题 */
+    configured?: boolean;
+    problem?: string | null;
+    /** 真实接口：发起账户私钥和地址都配了并且对得上；operatorProblem 是原因 */
+    operatorReady?: boolean;
+    operatorProblem?: string | null;
   };
   tronTarget: SweepTronTarget;
   version: number;

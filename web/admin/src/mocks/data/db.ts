@@ -634,7 +634,7 @@ export const notifyRecords: NotifyRecord[] = Array.from({ length: 52 }, (_, i) =
 // ---------------- 角色、管理员 ----------------
 const opsPerms: PermissionCode[] = [
   'dashboard:view', 'customer:view', 'customer:freeze', 'kyc:view', 'kyc:review',
-  'deposit:view', 'withdrawal:view', 'withdrawal:review', 'recon:view', 'recon:resolve', 'task:view', 'task:retry',
+  'deposit:view', 'withdrawal:view', 'withdrawal:review', 'recon:view', 'recon:resolve', 'sweep:view', 'sweep:operate', 'task:view', 'task:retry',
   'order:view', 'notify_template:view', 'notify:send', 'notify_record:view', 'admin:view', 'admin:edit', 'audit:view',
 ];
 const riskPerms: PermissionCode[] = [
@@ -648,7 +648,7 @@ export const roles: Role[] = [
   { id: 'R-1', code: 'super_admin', nameZh: '超级管理员', nameEn: 'Super admin', description: '拥有全部权限；只有超级管理员能分配本角色', permissions: [...ALL_PERMISSION_CODES], builtIn: true, memberCount: 1 },
   { id: 'R-2', code: 'operations', nameZh: '运营', nameEn: 'Operations', description: 'KYC 审核、出金审核、客户服务、通知', permissions: opsPerms, builtIn: false, memberCount: 4 },
   { id: 'R-3', code: 'risk', nameZh: '风控', nameEn: 'Risk', description: '风控看板、手动强平、强制撤单、紧急取消出金', permissions: riskPerms, builtIn: false, memberCount: 2 },
-  { id: 'R-4', code: 'finance_viewer', nameZh: '财务只读', nameEn: 'Finance (read-only)', description: '只能查看入金、出金和对账', permissions: ['dashboard:view', 'deposit:view', 'withdrawal:view', 'recon:view'], builtIn: false, memberCount: 1 },
+  { id: 'R-4', code: 'finance_viewer', nameZh: '财务只读', nameEn: 'Finance (read-only)', description: '只能查看入金、出金和对账', permissions: ['dashboard:view', 'deposit:view', 'withdrawal:view', 'recon:view', 'sweep:view'], builtIn: false, memberCount: 1 },
 ];
 
 export const admins: AdminUser[] = [

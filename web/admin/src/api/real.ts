@@ -55,6 +55,14 @@ import type {
   SymbolPatch,
   SymbolQuery,
   SystemConfig,
+  SweepBatch,
+  SweepBatchDetail,
+  SweepBatchQuery,
+  SweepChain,
+  SweepOverview,
+  SweepPreview,
+  SweepSettings,
+  SweepSettingsInput,
   TaskItem,
   TaskQuery,
   TemporaryPassword,
@@ -223,6 +231,139 @@ export function listRecon(q: ReconQuery): Promise<Page<ReconItem>> {
 /** 热钱包当前余额和告警下限（对账页上方）；下限在系统配置页改 */
 export function listHotWallets(): Promise<HotWalletBalance[]> {
   return request('/hot-wallets');
+}
+
+// ---------- v2 资金归集第一阶段（以太坊、BSC；技术方案/v2-半自动归集.md v1.2 第 4.9 节，后端 admin/ops/SweepOps） ----------
+// TRON 专用的字段（激活、租能量、离线签名）后端这一阶段不返回，这里补成"没有"，页面在真实接口模式下把 TRON 显示成"下一阶段"。
+
+const DASH = '—';
+
+/** GET /api/admin/sweep/overview：三条链，TRC20 的 available 为 false（下一阶段） */
+export function getSweepOverview(): Promise<SweepOverview[]> {
+  return request('/sweep/overview');
+}
+
+interface RealPreview extends Omit<SweepPreview, 'candidates' | 'totals' | 'tronRent'> {
+  candidates: { userId: number; customerName: string | null; address: string; usdt: string; deploy: boolean; estFee: string; estFeeUsd: string | null; skip: SweepPreview['candidates'][number]['skip'] }[];
+  totals: { count: number; usdt: string; fee: string; feeUsd: string | null; feePct: string | null; skipped: number };
+}
+
+/** POST /api/admin/sweep/preview：实时查链上余额 */
+export async function previewSweep(chain: SweepChain): Promise<SweepPreview> {
+  const p = await request<RealPreview>('/sweep/preview', { method: 'POST', body: { chain } });
+  return {
+    ...p,
+    candidates: p.candidates.map((c) => ({ ...c, customerName: c.customerName ?? DASH, index: 0, topup: '0', activate: false, rentTrx: '0', estFeeUsd: c.estFeeUsd ?? DASH })),
+    totals: { ...p.totals, feeUsd: p.totals.feeUsd ?? DASH, feePct: p.totals.feePct ?? DASH, topup: '0', rent: '0' },
+    tronRent: null,
+  };
+}
+
+/** POST /api/admin/sweep/batches（高危，sweep:operate）：以太坊、BSC 执行归集，返回批次号 */
+export function runSweep(chain: SweepChain, reason: string): Promise<{ no: string }> {
+  return request('/sweep/batches', { method: 'POST', body: { chain, reason } });
+}
+
+/** GET /api/admin/sweep/batches */
+export function listSweepBatches(q: SweepBatchQuery): Promise<Page<SweepBatch>> {
+  return request('/sweep/batches', { query: { chain: q.chain, page: q.page, pageSize: q.pageSize } });
+}
+
+/** GET /api/admin/sweep/batches/{no} */
+export async function getSweepBatch(no: string): Promise<SweepBatchDetail> {
+  const d = await request<SweepBatchDetail>(`/sweep/batches/${enc(no)}`);
+  return {
+    ...d,
+    reason: d.reason ?? '',
+    items: d.items.map((i) => ({ ...i, customerName: i.customerName ?? DASH, topup: '0', rent: null })),
+    unsignedSha256: null,
+    signedSha256: null,
+  };
+}
+
+/** POST /api/admin/sweep/batches/{no}/retry（高危）：没成功的地址重新执行，返回新批次号 */
+export function retrySweepBatch(no: string, reason: string): Promise<{ no: string }> {
+  return request(`/sweep/batches/${enc(no)}/retry`, { method: 'POST', body: { reason } });
+}
+
+interface RealSweepSettings {
+  thresholds: Record<SweepChain, string>;
+  maxFeeRatioPct: string;
+  evmCaps: { perAddress: string; perBatch: string };
+  operatorMin: { ERC20: string; BSC: string };
+  evm: {
+    configured: boolean;
+    problem: string | null;
+    parent: string | null;
+    factory: string | null;
+    implementation: string | null;
+    batcher: string | null;
+    operator: string | null;
+    operatorReady: boolean;
+    operatorProblem: string | null;
+    operatorBalances: Partial<Record<'ERC20' | 'BSC', string>>;
+    readAt: string | null;
+  };
+  version: number;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+/** 后端只有第一阶段的设置；TRON、自动归集等下一阶段的项补成默认值（页面在真实接口模式下不显示它们） */
+function toSweepSettings(s: RealSweepSettings): SweepSettings {
+  return {
+    thresholds: s.thresholds,
+    maxFeeRatioPct: s.maxFeeRatioPct,
+    evmCaps: s.evmCaps,
+    operatorMin: s.operatorMin,
+    autoEnabled: false,
+    autoHourUtc: 18,
+    ethMaxBaseFeeGwei: '2',
+    remind: { ERC20: '0', BSC: '0', TRC20: '0' },
+    tronTopupPerItem: '0',
+    tronTopupPerDay: '0',
+    tronExpireHours: 20,
+    tronTargetDelayHours: 24,
+    tronEnergy: { mode: 'rent', provider: 'TronSave', maxPriceSun: '90', perDayTrx: '500', fallbackBurn: true, durationMin: 60, providerBalance: '0', providerBalanceMin: '0', spentTodayTrx: '0' },
+    tronTarget: { address: null, pending: null },
+    evm: {
+      parent: s.evm.parent ?? DASH,
+      safeThreshold: '',
+      factory: s.evm.factory ?? DASH,
+      implementation: s.evm.implementation ?? DASH,
+      batcher: s.evm.batcher ?? DASH,
+      operator: s.evm.operator ?? DASH,
+      operatorBalances: { ERC20: s.evm.operatorBalances.ERC20 ?? DASH, BSC: s.evm.operatorBalances.BSC ?? DASH },
+      readAt: s.evm.readAt ?? '',
+      configured: s.evm.configured,
+      problem: s.evm.problem,
+      operatorReady: s.evm.operatorReady,
+      operatorProblem: s.evm.operatorProblem,
+    },
+    version: s.version,
+    updatedAt: s.updatedAt,
+    updatedBy: s.updatedBy,
+  };
+}
+
+/** GET /api/admin/sweep/settings */
+export async function getSweepSettings(): Promise<SweepSettings> {
+  return toSweepSettings(await request<RealSweepSettings>('/sweep/settings'));
+}
+
+/** PUT /api/admin/sweep/settings（高危，sweep:config；版本不对 409）：只提交第一阶段的项 */
+export async function updateSweepSettings(input: SweepSettingsInput): Promise<void> {
+  await request('/sweep/settings', {
+    method: 'PUT',
+    body: {
+      thresholds: input.thresholds,
+      maxFeeRatioPct: input.maxFeeRatioPct,
+      evmCaps: input.evmCaps,
+      operatorMin: input.operatorMin,
+      reason: input.reason,
+      expectedVersion: input.expectedVersion,
+    },
+  });
 }
 
 /** 标记已处理：说明字段是 note（F5） */

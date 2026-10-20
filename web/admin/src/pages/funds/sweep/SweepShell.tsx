@@ -1,6 +1,6 @@
 /**
  * v2 资金归集（技术方案/v2-半自动归集.md 第 6 节）四个页面共用的外壳：标题、页内导航（归集记录 / 生成·执行归集 / 归集设置）、返回对账页。
- * 真实接口模式下（SWEEP_UI = false）只显示"未上线"，不调用任何接口。
+ * SWEEP_UI = false（总开关）时只显示"未上线"，不调用任何接口；原型说明只在原型模式显示。
  */
 import type { ReactNode } from 'react';
 import { Button, Segmented } from 'antd';
@@ -10,11 +10,13 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../../components/PageHeader';
 import { Pill, type PillTone } from '../../../components/Pill';
 import { SWEEP_BASE, SWEEP_UI } from '../../../config/sweep';
+import { IS_MOCK } from '../../../api/mode';
 import type { SweepBatchStatus, SweepItemStatus } from '../../../api/types';
 
 export type SweepTab = 'records' | 'new' | 'settings';
 
 export const BATCH_TONE: Record<SweepBatchStatus, PillTone> = {
+  pending: 'pend',
   sent: 'pend',
   confirmed: 'ok',
   partial: 'warn',
@@ -85,7 +87,7 @@ export function SweepShell({ tab, title, sub, extra, children }: { tab: SweepTab
           onChange={(v) => navigate(paths[v as SweepTab])}
           options={(['records', 'new', 'settings'] as const).map((k) => ({ value: k, label: t(`sweep.tab.${k}`) }))}
         />
-        <span className="muted sweep-proto-note">{t('sweep.protoNote')}</span>
+        {IS_MOCK ? <span className="muted sweep-proto-note">{t('sweep.protoNote')}</span> : null}
       </div>
       {children}
     </>

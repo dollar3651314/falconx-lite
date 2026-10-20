@@ -545,7 +545,6 @@
     "autoApproveInvalid": "规则数值不合法，请检查后重新保存",
     "autoApproveNoChange": "没有修改，不需要保存",
     "configChanged": "规则已被别人修改（版本变了），已刷新为最新的配置，请核对后重新修改",
-    "sweepNotLive": "资金归集还没有上线。",
     "sweepBatchActive": "这条链已经有进行中的批次，先处理完再生成新的。",
     "sweepNoTarget": "还没有配置冷钱包地址。",
     "sweepNothing": "没有可以归集的地址。",
@@ -556,7 +555,9 @@
     "sweepNoChange": "没有修改。",
     "sweepAddressInvalid": "冷钱包地址格式不对。",
     "sweepAddressForbidden": "不能用我们的充值地址、热钱包地址或合约地址做冷钱包。",
-    "sweepTargetPending": "已经有待生效的修改，先取消再提交新的。"
+    "sweepTargetPending": "已经有待生效的修改，先取消再提交新的。",
+    "sweepNextPhase": "TRON 归集是下一阶段，现在还不能用。",
+    "sweepUnavailable": "这条链现在不能执行归集（原因见\"归集记录\"页这条链的卡片）。"
   },
   "exposureStatus": {
     "auto_blocked": "自动禁开",
@@ -892,7 +893,10 @@
     "deposit_unknown_credit": "账本有入账但没有对应充值",
     "suspense_open": "冲正挂账未处理",
     "withdraw_frozen_mismatch": "提现冻结和进行中提现不一致",
-    "withdraw_ledger_mismatch": "提现账本和状态不一致"
+    "withdraw_ledger_mismatch": "提现账本和状态不一致",
+    "sweep_unknown_outflow": "充值地址有不是归集的转出（去了冷钱包）",
+    "sweep_dest_mismatch": "充值地址的钱转去了不是冷钱包的地方",
+    "sweep_amount_mismatch": "归集金额和链上转出不一致"
   },
   "records": {
     "channel": "渠道",
@@ -1609,8 +1613,8 @@
     "sub": "充值地址 → 冷钱包。以太坊、BSC：合约转发地址，服务器自动归集；TRON：离线签名",
     "backRecon": "返回入金对账",
     "notLive": "未上线",
-    "notLiveDesc": "资金归集还在方案审核中（技术方案/v2-半自动归集.md），合约和后端都没有实现。",
-    "protoNote": "原型：数据是演示用的；权限暂借用入金对账和系统配置的权限点",
+    "notLiveDesc": "资金归集界面已关闭。",
+    "protoNote": "原型：数据是演示用的",
     "tab": {
       "records": "归集记录",
       "new": "生成 / 执行归集",
@@ -1788,7 +1792,16 @@
     "rentSummaryValue": "{{rent}} TRX / {{burn}} TRX",
     "rentCol": "能量",
     "rentPaid": "租金 {{trx}} TRX · {{energy}} 能量",
-    "burnPaid": "热钱包补 {{trx}} TRX"
+    "burnPaid": "热钱包补 {{trx}} TRX",
+    "nextPhase": "下一阶段",
+    "nextPhaseTron": "TRON 归集（离线签名 + 租能量）是下一阶段，现在还不能用；TRON 充值照常入账。",
+    "nextPhaseSettings": "TRON 冷钱包地址、能量租赁、自动归集、以太坊 gas 上限、提醒下限是下一阶段，这里先不显示。",
+    "priceMissing": "查不到 ETH / BNB 的价格：这次没有检查手续费占比上限。",
+    "checkedAt": "金额查询时间",
+    "contractsProblem": "合约地址配置有问题，充值地址仍用 xpub 派生：{{problem}}",
+    "contractsMissing": "还没有配置归集合约地址（FX_SWEEP_EVM_*）：充值地址仍用 xpub 派生，不能执行归集。部署见 部署方案/v2-归集合约部署.md。",
+    "operatorProblem": "发起账户不能用：{{problem}}",
+    "batchFailReason": "原因"
   },
   "sweepMode": {
     "contract": "合约自动",
@@ -1809,7 +1822,8 @@
     "signed": "已导入签名",
     "broadcasting": "广播中",
     "cancelled": "已作废",
-    "expired": "已过期"
+    "expired": "已过期",
+    "pending": "待发送"
   },
   "sweepItem": {
     "pending": "待归集",
@@ -1830,7 +1844,9 @@
     "feeRatio": "手续费占比过高",
     "belowThreshold": "没到门槛",
     "overAddressCap": "超过单地址上限，Safe 手动归集",
-    "overBatchCap": "超过每批上限，下一批"
+    "overBatchCap": "超过每批上限，下一批",
+    "batchFull": "超过每批地址数，下一批",
+    "otherScheme": "旧合约参数的地址，单独处理"
   },
   "sweepFail": {
     "outOfEnergy": "链上执行失败：能量不够",

@@ -81,8 +81,15 @@ function saveFile(name: string, content: string) {
   }
 }
 
+/** 原型给的是翻译键的后缀；真实接口给的是后端写好的中文说明，原样显示 */
+function useLabel() {
+  const { t, i18n } = useTranslation();
+  return (prefix: string, v: string) => (/^[A-Za-z_]+$/.test(v) && i18n.exists(`${prefix}.${v}`) ? t(`${prefix}.${v}`) : v);
+}
+
 function Batch({ no }: { no: string }) {
   const { t } = useTranslation();
+  const label = useLabel();
   const navigate = useNavigate();
   const fetcher = useCallback(() => getSweepBatch(no), [no]);
   const { data: d, loading, error, reload } = useApi(fetcher);
@@ -217,6 +224,7 @@ function Batch({ no }: { no: string }) {
             style={{ margin: '4px 0 12px' }}
           />
         ) : null}
+        {d.failReason ? <Alert type={d.status === 'partial' ? 'warning' : 'error'} showIcon style={{ marginBottom: 12 }} message={`${t('sweep.batchFailReason')}：${d.failReason}`} /> : null}
         {offline && canSign && d.expiresAt ? <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={t('sweep.expiresHint', { time: fullTime(d.expiresAt) })} /> : null}
         {offline && d.status === 'signed' ? <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('sweep.rentBeforeBroadcast')} /> : null}
         {importError ? <Alert type="error" showIcon style={{ marginBottom: 12 }} message={t('sweep.importFailed')} description={errorText(t, importError)} /> : null}
@@ -317,7 +325,7 @@ function Batch({ no }: { no: string }) {
               render: (v: SweepItem['status'], r) => (
                 <span>
                   <Pill tone={ITEM_TONE[v]}>{t(`sweepItem.${v}`)}</Pill>
-                  {r.failReason ? <small style={{ display: 'block', color: 'var(--danger)' }}>{t(`sweepFail.${r.failReason}`)}</small> : null}
+                  {r.failReason ? <small style={{ display: 'block', color: 'var(--danger)' }}>{label('sweepFail', r.failReason)}</small> : null}
                 </span>
               ),
             },
@@ -330,7 +338,7 @@ function Batch({ no }: { no: string }) {
         <ul className="sweep-events">
           {d.events.map((e, i) => (
             <li key={i}>
-              <Num className="muted">{shortTime(e.time)}</Num> <b>{e.actor === 'system' ? t('sweep.system') : e.actor}</b> {t(`sweepEvent.${e.text}`)}
+              <Num className="muted">{shortTime(e.time)}</Num> <b>{e.actor === 'system' ? t('sweep.system') : e.actor}</b> {label('sweepEvent', e.text)}
             </li>
           ))}
         </ul>
