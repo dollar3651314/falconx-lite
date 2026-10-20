@@ -846,3 +846,162 @@ export interface SystemConfig {
   /** 从没改过时为空 */
   updatedAt: string | null;
 }
+
+// ---------- v2 资金归集（原型，技术方案/v2-半自动归集.md 路线 (b)；真实接口上线前只有模拟层提供） ----------
+export type SweepChain = 'ERC20' | 'BSC' | 'TRC20';
+/** 归集方式：以太坊、BSC 是合约转发地址 + 服务器自动归集；TRON 是普通地址 + Amos 离线签名 */
+export type SweepMode = 'contract' | 'offline';
+export type SweepBatchStatus =
+  | 'sent'
+  | 'confirmed'
+  | 'partial'
+  | 'failed'
+  | 'deferred'
+  | 'topping_up'
+  | 'awaiting_signature'
+  | 'signed'
+  | 'broadcasting'
+  | 'cancelled'
+  | 'expired';
+export type SweepItemStatus = 'pending' | 'swept' | 'failed' | 'topup_sent' | 'ready' | 'signed' | 'sign_rejected' | 'broadcast' | 'expired' | 'cancelled';
+/** 预览里这个地址这次为什么不归集 */
+export type SweepSkipReason = 'pendingDeposit' | 'recentCredit' | 'inBatch' | 'feeRatio' | 'belowThreshold';
+
+export interface SweepOverview {
+  chain: SweepChain;
+  mode: SweepMode;
+  /** 达到门槛的地址的 USDT 合计 */
+  pendingUsdt: string;
+  eligibleCount: number;
+  /** 有余额但没到门槛的地址数 */
+  belowCount: number;
+  /** 冷钱包地址（以太坊、BSC 是合约里的 parent，TRON 是后台配置的） */
+  destination: string | null;
+  /** 以太坊、BSC 发起账户的手续费币余额；TRON 为空 */
+  operatorBalance: string | null;
+  gasAsset: string;
+  lastSweepAt: string | null;
+  /** 进行中的批次号 */
+  activeBatch: string | null;
+}
+
+export interface SweepCandidate {
+  userId: number;
+  customerName: string;
+  address: string;
+  /** TRON：派生序号（= 用户 ID） */
+  index: number;
+  usdt: string;
+  /** 以太坊、BSC：这次是否要顺便部署转发合约 */
+  deploy: boolean;
+  /** TRON：要补的 TRX；以太坊、BSC 为 "0" */
+  topup: string;
+  /** 预估手续费（手续费币） */
+  estFee: string;
+  estFeeUsd: string;
+  skip: SweepSkipReason | null;
+}
+
+export interface SweepPreview {
+  chain: SweepChain;
+  mode: SweepMode;
+  destination: string | null;
+  threshold: string;
+  maxFeeRatioPct: string;
+  /** 当前 gas 价格（显示用文字） */
+  gasPrice: string;
+  gasAsset: string;
+  candidates: SweepCandidate[];
+  totals: { count: number; usdt: string; fee: string; feeUsd: string; feePct: string; topup: string; skipped: number };
+}
+
+export interface SweepBatch {
+  no: string;
+  chain: SweepChain;
+  mode: SweepMode;
+  status: SweepBatchStatus;
+  trigger: 'manual' | 'auto';
+  addressCount: number;
+  expectedUsdt: string;
+  sweptUsdt: string;
+  fee: string;
+  gasAsset: string;
+  destination: string;
+  createdBy: string;
+  createdAt: string;
+  finishedAt: string | null;
+  /** TRON：待签名清单的有效期 */
+  expiresAt: string | null;
+  /** 以太坊、BSC：批量交易的哈希 */
+  txHash: string | null;
+}
+
+export interface SweepItem {
+  itemNo: number;
+  userId: number;
+  customerName: string;
+  address: string;
+  amount: string;
+  deploy: boolean;
+  topup: string;
+  status: SweepItemStatus;
+  txHash: string | null;
+  /** 失败或核对不通过的原因（翻译键 sweepFail.* 的后缀） */
+  failReason: string | null;
+}
+
+export interface SweepBatchDetail extends SweepBatch {
+  reason: string;
+  items: SweepItem[];
+  unsignedSha256: string | null;
+  signedSha256: string | null;
+  events: { time: string; actor: string; text: string }[];
+}
+
+export interface SweepImportResult {
+  accepted: number;
+  rejected: { itemNo: number; reason: string }[];
+}
+
+export interface SweepTronTarget {
+  address: string | null;
+  pending: { address: string; requestedAt: string; effectiveAt: string; requestedBy: string; reason: string } | null;
+}
+
+export interface SweepSettings {
+  thresholds: Record<SweepChain, string>;
+  maxFeeRatioPct: string;
+  autoEnabled: boolean;
+  autoHourUtc: number;
+  ethMaxBaseFeeGwei: string;
+  operatorMin: { ERC20: string; BSC: string };
+  remind: Record<SweepChain, string>;
+  tronTopupPerItem: string;
+  tronTopupPerDay: string;
+  tronExpireHours: number;
+  tronTargetDelayHours: number;
+  /** 以太坊、BSC 的合约和冷钱包（从链上读，只读） */
+  evm: {
+    parent: string;
+    safeThreshold: string;
+    factory: string;
+    implementation: string;
+    batcher: string;
+    operator: string;
+    operatorBalances: { ERC20: string; BSC: string };
+    readAt: string;
+  };
+  tronTarget: SweepTronTarget;
+  version: number;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export type SweepSettingsInput = Pick<
+  SweepSettings,
+  'thresholds' | 'maxFeeRatioPct' | 'autoEnabled' | 'autoHourUtc' | 'ethMaxBaseFeeGwei' | 'operatorMin' | 'remind' | 'tronTopupPerItem' | 'tronTopupPerDay' | 'tronExpireHours'
+> & { reason: string; expectedVersion: number };
+
+export interface SweepBatchQuery extends PageQuery {
+  chain?: SweepChain;
+}

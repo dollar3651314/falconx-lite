@@ -1,10 +1,13 @@
 /**
  * 对账：列出钱包记录、账本、链上三方不一致的问题，标记已处理（必填说明）。修复 fxsystem F5。
  * 页面上方是热钱包余额（HotWalletCard，2026-10-17 热钱包余额告警）。
+ * v2 资金归集（原型）：右上角"资金归集"入口，只在原型模式显示（config/sweep.ts 的 SWEEP_UI）。
  * 问题类型和字段按后端（后台方案第 8 节）：7 种类型，字段 type、ref、expected、actual、diff、detail；后端只支持按状态筛选。
  */
 import { useState } from 'react';
-import { Alert, Select } from 'antd';
+import { Alert, Button, Select } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { SWEEP_BASE, SWEEP_UI } from '../../config/sweep';
 import { useTranslation } from 'react-i18next';
 import { listRecon, resolveRecon } from '../../api';
 import type { ReconItem, ReconQuery } from '../../api/types';
@@ -29,10 +32,15 @@ export function ReconPage() {
   const [draft, setDraft] = useState<Filters>(INITIAL);
   const note = useNoteDialog();
   const typeLabel = (v: string) => (i18n.exists(`reconType.${v}`) ? t(`reconType.${v}`) : v);
+  const navigate = useNavigate();
 
   return (
     <>
-      <PageHeader title={t('recon.title')} sub={t('recon.sub')} />
+      <PageHeader
+        title={t('recon.title')}
+        sub={t('recon.sub')}
+        extra={SWEEP_UI ? <Button onClick={() => navigate(SWEEP_BASE)}>{t('sweep.entry')}</Button> : undefined}
+      />
       <HotWalletCard />
       <Alert type="info" showIcon message={t('recon.hint')} />
       <FilterBar onSearch={() => list.setFilters(draft)} onReset={() => { setDraft(INITIAL); list.setFilters(INITIAL); }}>

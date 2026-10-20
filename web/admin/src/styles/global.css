@@ -469,3 +469,24 @@ body { overflow-x: hidden; }
   --ar-info-bg: #0f2f3d; --ar-info-bd: #155e75; --ar-info-fg: #a5f3fc;
   --ar-muted-bg: #1a2538; --ar-muted-bd: #334155; --ar-muted-fg: #cbd5e1;
 }
+
+/* ---------- v2 资金归集（原型，pages/funds/sweep/）：只用已有变量，深浅色共用 ---------- */
+.sweep-nav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.sweep-proto-note { font-size: 12px; }
+.sweep-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+@media (max-width: 1100px) { .sweep-cards { grid-template-columns: 1fr; } }
+.sweep-big { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.sweep-big small { width: 100%; }
+.sweep-big .num { font-size: 22px; }
+.sweep-kv4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .sweep-kv4 { grid-template-columns: 1fr 1fr; } }
+.sweep-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.sweep-total .sweep-actions { display: flex; margin-top: 12px; }
+.sweep-row-skip td { opacity: 0.6; }
+.sweep-events { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.9; }
+.sweep-form { display: grid; gap: 12px; }
+.sweep-form-row { display: grid; grid-template-columns: 180px 1fr; gap: 12px; align-items: center; }
+.sweep-form-row > label { color: var(--subtle); font-size: 13px; }
+.sweep-form-fields { display: flex; gap: 10px 16px; flex-wrap: wrap; align-items: center; }
+@media (max-width: 700px) { .sweep-form-row { grid-template-columns: 1fr; } }
+.sweep-notlive { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
