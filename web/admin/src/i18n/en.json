@@ -545,7 +545,6 @@
     "autoApproveInvalid": "Some rule values are invalid; check and save again",
     "autoApproveNoChange": "Nothing changed",
     "configChanged": "The rules were changed by someone else (new version). The latest rules are loaded; please review and edit again.",
-    "sweepNotLive": "Fund sweeping is not live yet.",
     "sweepBatchActive": "This chain already has a batch in progress; finish it first.",
     "sweepNoTarget": "No cold wallet address is configured.",
     "sweepNothing": "Nothing to sweep.",
@@ -556,7 +555,9 @@
     "sweepNoChange": "Nothing changed.",
     "sweepAddressInvalid": "Invalid cold wallet address.",
     "sweepAddressForbidden": "A deposit address, the hot wallet or a contract address cannot be the cold wallet.",
-    "sweepTargetPending": "A change is already pending; cancel it before submitting another."
+    "sweepTargetPending": "A change is already pending; cancel it before submitting another.",
+    "sweepNextPhase": "TRON sweeping is the next phase and is not available yet.",
+    "sweepUnavailable": "Sweeping is not available on this chain right now (see the chain card on the Sweep records page)."
   },
   "exposureStatus": {
     "auto_blocked": "Auto-blocked",
@@ -892,7 +893,10 @@
     "deposit_unknown_credit": "Ledger credit without deposit",
     "suspense_open": "Open reversal shortfall",
     "withdraw_frozen_mismatch": "Withdrawal frozen mismatch",
-    "withdraw_ledger_mismatch": "Withdrawal ledger mismatch"
+    "withdraw_ledger_mismatch": "Withdrawal ledger mismatch",
+    "sweep_unknown_outflow": "Non-sweep outflow from a deposit address (to the cold wallet)",
+    "sweep_dest_mismatch": "Deposit address funds moved somewhere other than the cold wallet",
+    "sweep_amount_mismatch": "Sweep amount differs from the on-chain outflow"
   },
   "records": {
     "channel": "Channel",
@@ -1609,8 +1613,8 @@
     "sub": "Deposit addresses → cold wallet. Ethereum, BSC: contract forwarders swept by the server; TRON: offline signing",
     "backRecon": "Back to reconciliation",
     "notLive": "Not live",
-    "notLiveDesc": "Fund sweeping is still under review (see the v2 sweep plan); contracts and backend are not built yet.",
-    "protoNote": "Prototype: demo data; permissions temporarily reuse reconciliation and system config codes",
+    "notLiveDesc": "The fund sweep pages are switched off.",
+    "protoNote": "Prototype: demo data",
     "tab": {
       "records": "Sweep history",
       "new": "Prepare / run",
@@ -1788,7 +1792,16 @@
     "rentSummaryValue": "{{rent}} TRX / {{burn}} TRX",
     "rentCol": "Energy",
     "rentPaid": "Rent {{trx}} TRX · {{energy}} energy",
-    "burnPaid": "Hot wallet sent {{trx}} TRX"
+    "burnPaid": "Hot wallet sent {{trx}} TRX",
+    "nextPhase": "Next phase",
+    "nextPhaseTron": "TRON sweeping (offline signing + energy rental) is the next phase and is not available yet. TRON deposits are credited as usual.",
+    "nextPhaseSettings": "TRON cold wallet, energy rental, auto-sweep, Ethereum gas cap and reminders are the next phase and are hidden for now.",
+    "priceMissing": "No ETH / BNB price available: the fee-ratio cap was not checked this time.",
+    "checkedAt": "Balances checked at",
+    "contractsProblem": "Contract address configuration problem; deposit addresses still use xpub derivation: {{problem}}",
+    "contractsMissing": "Sweep contract addresses are not configured (FX_SWEEP_EVM_*): deposit addresses still use xpub derivation and sweeping is unavailable.",
+    "operatorProblem": "Operator account unavailable: {{problem}}",
+    "batchFailReason": "Reason"
   },
   "sweepMode": {
     "contract": "Contract (auto)",
@@ -1809,7 +1822,8 @@
     "signed": "Signed file imported",
     "broadcasting": "Broadcasting",
     "cancelled": "Cancelled",
-    "expired": "Expired"
+    "expired": "Expired",
+    "pending": "Pending"
   },
   "sweepItem": {
     "pending": "Pending",
@@ -1830,7 +1844,9 @@
     "feeRatio": "Fee ratio too high",
     "belowThreshold": "Below threshold",
     "overAddressCap": "Over per-address cap, sweep from Safe",
-    "overBatchCap": "Over batch cap, next batch"
+    "overBatchCap": "Over batch cap, next batch",
+    "batchFull": "Batch is full; next batch",
+    "otherScheme": "Old contract parameters; handled separately"
   },
   "sweepFail": {
     "outOfEnergy": "Failed on chain: out of energy",

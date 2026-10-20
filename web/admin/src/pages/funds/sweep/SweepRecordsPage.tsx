@@ -1,8 +1,9 @@
 /**
  * 资金归集 · 归集记录（方案第 6 节）：每条链一张卡片（方式、待归集金额、达到门槛的地址数、冷钱包、发起账户余额、上次归集），下面是批次列表。
+ * 真实接口模式：TRON 卡片显示"下一阶段"；以太坊、BSC 不能执行时（没配合约地址、发起账户等）卡片上写原因。
  */
 import { useCallback, useState } from 'react';
-import { Button, Select } from 'antd';
+import { Alert, Button, Select } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { getSweepOverview, listSweepBatches } from '../../../api';
@@ -15,7 +16,7 @@ import { FilterBar, FilterItem } from '../../../components/FilterBar';
 import { Amount, Num } from '../../../components/Num';
 import { ChainTag, Pill } from '../../../components/Pill';
 import { shortHash, shortTime } from '../../../utils/display';
-import { SWEEP_BASE, SWEEP_CHAINS, SWEEP_UI } from '../../../config/sweep';
+import { SWEEP_BASE, SWEEP_CHAINS, SWEEP_UI, sweepChainLive } from '../../../config/sweep';
 import { BatchStatus, SweepShell } from './SweepShell';
 
 type Filters = Omit<SweepBatchQuery, 'page' | 'pageSize'>;
@@ -27,6 +28,21 @@ export function SweepRecordsPage() {
 function ChainCard({ o }: { o: SweepOverview }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  if (!sweepChainLive(o.chain)) {
+    return (
+      <section className="card card-pad sweep-chain-card" aria-label={o.chain}>
+        <div className="card-title">
+          <span>
+            <ChainTag chain={o.chain} /> <Pill tone="admin">{t(`sweepMode.${o.mode}`)}</Pill>
+          </span>
+          <Pill tone="muted">{t('sweep.nextPhase')}</Pill>
+        </div>
+        <p className="muted" style={{ margin: 0 }}>
+          {t('sweep.nextPhaseTron')}
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="card card-pad sweep-chain-card" aria-label={o.chain}>
       <div className="card-title">
@@ -39,6 +55,7 @@ function ChainCard({ o }: { o: SweepOverview }) {
           </Button>
         ) : null}
       </div>
+      {o.available === false && o.unavailable ? <Alert type="warning" showIcon style={{ marginBottom: 8 }} message={o.unavailable} /> : null}
       <div className="sweep-big">
         <small className="muted">{t('sweep.pendingUsdt')}</small>
         <Amount value={o.pendingUsdt} strong />
@@ -61,12 +78,18 @@ function ChainCard({ o }: { o: SweepOverview }) {
         </div>
         <div>
           {o.mode === 'contract' ? t('sweep.operatorBalance') : t('sweep.gasPayer')}
-          <Num>{o.operatorBalance !== null ? `${o.operatorBalance} ${o.gasAsset}` : t('sweep.hotWalletTopup')}</Num>
+          <Num>{o.operatorBalance !== null ? `${o.operatorBalance} ${o.gasAsset}` : o.mode === 'contract' ? '—' : t('sweep.hotWalletTopup')}</Num>
         </div>
         <div>
           {t('sweep.lastSweep')}
           <Num>{shortTime(o.lastSweepAt)}</Num>
         </div>
+        {o.checkedAt !== undefined ? (
+          <div>
+            {t('sweep.checkedAt')}
+            <Num>{shortTime(o.checkedAt ?? null)}</Num>
+          </div>
+        ) : null}
       </div>
       <Button block style={{ marginTop: 10 }} onClick={() => navigate(`${SWEEP_BASE}/new?chain=${o.chain}`)}>
         {o.mode === 'contract' ? t('sweep.goRun') : t('sweep.goPrepare')}

@@ -69,9 +69,12 @@ class ReconService implements WalletReconApi {
     List<Finding> found = new ArrayList<>();
     checkDeposits(found);
     checkWithdrawals(found);
+    checkSweeps(found);
     int fresh = 0;
     for (Finding f : found) {
-      if (mapper.openIssueCount(f.kind(), f.refId()) > 0) continue;
+      // 归集的三类是链上已经发生的事实，处理过（RESOLVED）以后不再重复列出；其他类型只看有没有待处理的
+      boolean permanent = f.kind().startsWith("SWEEP_");
+      if ((permanent ? mapper.issueCount(f.kind(), f.refId()) : mapper.openIssueCount(f.kind(), f.refId())) > 0) continue;
       mapper.insertIssue(f.kind(), f.refId(), f.userId(), f.expected(), f.actual(), f.detail());
       fresh++;
     }
@@ -129,6 +132,34 @@ class ReconService implements WalletReconApi {
       }
     } catch (NodeException | IllegalStateException e) {
       log.warn("对账时查不到链上区块 {}：{}", key, e.getMessage());
+    }
+  }
+
+  /**
+   * v2 资金归集（技术方案/v2-半自动归集.md 第 4.8 节）：归集不写账本、不改客户余额，这里只核对链上事实。
+   * <ul>
+   *   <li>{@code SWEEP_UNKNOWN_OUTFLOW}：合约充值地址转出的 USDT 去了冷钱包，但交易不是系统发起的归集（例如 Safe 手动 flushTokens）。</li>
+   *   <li>{@code SWEEP_DEST_MISMATCH}：合约充值地址转出的 USDT 去了不是冷钱包的地方（合约不应该允许）。</li>
+   *   <li>{@code SWEEP_AMOUNT_MISMATCH}：归集批次记的金额和扫块看到的 Transfer 事件对不上（扫块已经扫过那个区块以后才比）。</li>
+   * </ul>
+   * 正常的归集转出（{@code wallet_sweep_outflow.kind = SWEEP}）不是问题。
+   */
+  private void checkSweeps(List<Finding> out) {
+    for (ReconMapper.OutflowRow o : mapper.sweepOutflows()) {
+      String ref = o.chain() + ":" + o.txHash() + ":" + o.logIndex();
+      if ("DEST_MISMATCH".equals(o.kind())) {
+        out.add(new Finding("SWEEP_DEST_MISMATCH", ref, o.userId(), BigDecimal.ZERO, o.amount(), "充值地址 " + o.fromAddress() + " 的 USDT 转去了不是冷钱包的地址 " + o.toAddress()));
+      } else {
+        out.add(new Finding("SWEEP_UNKNOWN_OUTFLOW", ref, o.userId(), BigDecimal.ZERO, o.amount(),
+            "充值地址 " + o.fromAddress() + " 的 USDT 转到冷钱包，但不是系统发起的归集（可能是 Safe 手动归集）"));
+      }
+    }
+    for (ReconMapper.SweptRow r : mapper.sweptItems()) {
+      BigDecimal seen = r.outflow() == null ? BigDecimal.ZERO : r.outflow();
+      if (seen.compareTo(r.swept()) != 0) {
+        out.add(new Finding("SWEEP_AMOUNT_MISMATCH", r.chain() + ":" + r.batchNo() + ":" + r.itemNo(), r.userId(), r.swept(), seen,
+            "归集批次 " + r.batchNo() + " 第 " + r.itemNo() + " 个地址记的金额和扫块看到的转出不一致"));
+      }
     }
   }
 

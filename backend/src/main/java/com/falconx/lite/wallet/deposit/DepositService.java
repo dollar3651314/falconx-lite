@@ -15,6 +15,7 @@ import com.falconx.lite.wallet.Confirmations;
 import com.falconx.lite.wallet.WalletProperties;
 import com.falconx.lite.wallet.address.AddressService;
 import com.falconx.lite.wallet.chain.NodeException;
+import com.falconx.lite.wallet.sweep.SweepOutflows;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -59,17 +60,20 @@ public class DepositService {
   private final UserEventsApi events;
   private final ChainMonitor monitor;
   private final Snowflake ids;
+  /** v2 归集：从我们的充值地址转出的 USDT 交给它区分"归集"和"不是归集的转出"；测试里可以为空 */
+  private final SweepOutflows outflows;
 
   /** 测试用：不关心告警和对外编号的生成器时（用默认参数各建一个） */
   DepositService(DepositMapper mapper, ChainClients clients, AddressService addresses, LedgerApi ledger, WalletProperties props, TransactionTemplate tx,
       FundsApi funds, RiskApi risk, NotifyApi notify, Confirmations confirmations, UserEventsApi events) {
     this(mapper, clients, addresses, ledger, props, tx, funds, risk, notify, confirmations, events,
-        new ChainMonitor(props, clients, AlertProperties.defaults(), Clock.systemUTC(), null), Snowflake.shared(1));
+        new ChainMonitor(props, clients, AlertProperties.defaults(), Clock.systemUTC(), null), Snowflake.shared(1), null);
   }
 
   @Autowired
   DepositService(DepositMapper mapper, ChainClients clients, AddressService addresses, LedgerApi ledger, WalletProperties props, TransactionTemplate tx,
-      FundsApi funds, RiskApi risk, NotifyApi notify, Confirmations confirmations, UserEventsApi events, ChainMonitor monitor, Snowflake ids) {
+      FundsApi funds, RiskApi risk, NotifyApi notify, Confirmations confirmations, UserEventsApi events, ChainMonitor monitor, Snowflake ids,
+      SweepOutflows outflows) {
     this.mapper = mapper;
     this.clients = clients;
     this.addresses = addresses;
@@ -83,6 +87,7 @@ public class DepositService {
     this.events = events;
     this.monitor = monitor;
     this.ids = ids;
+    this.outflows = outflows;
   }
 
   /** 每 15 秒：每条链先扫块再确认 */
@@ -177,8 +182,18 @@ public class DepositService {
         log.warn("忽略非配置的代币合约 chain={} contract={} tx={}", chain, t.contract(), t.txHash());
         continue;
       }
-      Optional<Long> user = addresses.userOf(chain, t.to());
-      if (user.isEmpty()) continue;
+      // v2 归集：从我们的地址转出（归集，或者不是归集的异常转出），交给 SweepOutflows 区分、记录、告警；不影响入账
+      if (outflows != null) {
+        addresses.owner(chain, t.from()).ifPresent(o -> outflows.record(chain, o, t.txHash(), t.logIndex(), t.blockNumber(), t.to(), t.rawAmount(), cfg.usdtDecimals()));
+      }
+      Optional<AddressService.OwnAddress> dest = addresses.owner(chain, t.to());
+      if (dest.isEmpty()) continue;
+      if (!addresses.accepts(dest.get())) {
+        log.warn("停用超过期限的老充值地址收到 USDT，不入账，需要人工处理 chain={} address={} user={} tx={}", chain, dest.get().address(), dest.get().userId(),
+            t.txHash());
+        continue;
+      }
+      Optional<Long> user = Optional.of(dest.get().userId());
       BigDecimal amount = new BigDecimal(t.rawAmount()).movePointLeft(cfg.usdtDecimals()).setScale(8, RoundingMode.DOWN);
       String status = amount.compareTo(props.minDeposit()) < 0 ? "BELOW_MIN" : "PENDING";
       if (mapper.insertIgnore(ids.next(), chain.name(), t.txHash(), t.logIndex(), t.blockNumber(), t.blockHash(), t.from(), t.to(), user.get(), amount,

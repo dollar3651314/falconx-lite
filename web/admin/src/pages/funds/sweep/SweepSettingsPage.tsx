@@ -5,6 +5,8 @@
  * - 参数：门槛、手续费占比上限（Amos 10-20：后台可改，默认按方案建议，页面上显示默认值）、以太坊 / BSC 上线初期的金额上限、自动归集、以太坊 gas 上限、
  *   发起账户余额告警下限、TRON 能量（租能量 / 烧 TRX、最高单价、每天租金上限、租不到时回退、平台余额告警）、TRON 补 TRX 上限和清单有效期、提醒下限。
  *   保存走高危确认（原因必填、审计），带版本号防覆盖。
+ * 真实接口模式（第一阶段）：只显示以太坊、BSC 的合约和冷钱包（含配置问题、发起账户核对结果）、门槛、手续费占比上限、上线初期上限、发起账户余额告警下限；
+ * TRON 冷钱包、能量、自动归集、gas 上限、提醒下限是下一阶段，不显示。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Form, Input, InputNumber, Segmented, Switch } from 'antd';
@@ -18,7 +20,7 @@ import { PermButton, useCan } from '../../../components/PermButton';
 import { Num } from '../../../components/Num';
 import { ChainTag, Pill } from '../../../components/Pill';
 import { fullTime } from '../../../utils/display';
-import { SWEEP_CHAINS, SWEEP_DEFAULTS, SWEEP_PERM, SWEEP_UI, isSweepNumber, isTronAddress } from '../../../config/sweep';
+import { SWEEP_CHAINS, SWEEP_DEFAULTS, SWEEP_NEXT_PHASE, SWEEP_PERM, SWEEP_UI, isSweepNumber, isTronAddress } from '../../../config/sweep';
 import { SweepShell } from './SweepShell';
 
 export function SweepSettingsPage() {
@@ -96,15 +98,23 @@ function Settings() {
           <Pill tone="muted">{t('sweep.readOnly')}</Pill>
         </div>
         <Alert type="info" showIcon style={{ marginBottom: 10 }} message={t('sweep.evmParentHint')} />
+        {s.evm.configured === false ? (
+          <Alert type="warning" showIcon style={{ marginBottom: 10 }} message={s.evm.problem ? t('sweep.contractsProblem', { problem: s.evm.problem }) : t('sweep.contractsMissing')} />
+        ) : null}
+        {s.evm.operatorReady === false && s.evm.operatorProblem ? (
+          <Alert type="warning" showIcon style={{ marginBottom: 10 }} message={t('sweep.operatorProblem', { problem: s.evm.operatorProblem })} />
+        ) : null}
         <div className="kv-grid sweep-kv4">
           <div>
             {t('sweep.parent')}
             <Num strong>{s.evm.parent}</Num>
           </div>
-          <div>
-            {t('sweep.safeThreshold')}
-            <Num>{s.evm.safeThreshold}</Num>
-          </div>
+          {s.evm.safeThreshold ? (
+            <div>
+              {t('sweep.safeThreshold')}
+              <Num>{s.evm.safeThreshold}</Num>
+            </div>
+          ) : null}
           <div>
             {t('sweep.factory')}
             <Num>{s.evm.factory}</Num>
@@ -132,6 +142,8 @@ function Settings() {
         </div>
       </section>
 
+      {SWEEP_NEXT_PHASE ? null : (
+        <>
       <section className="card card-pad" style={{ marginBottom: 12 }} aria-label={t('sweep.tronTitle')}>
         <div className="card-title">
           <span>
@@ -200,6 +212,9 @@ function Settings() {
         <p className="muted" style={{ margin: '10px 0 0', fontSize: 12 }}>{t('sweep.tronTargetHint')}</p>
       </section>
 
+        </>
+      )}
+
       <section className="card card-pad" aria-label={t('sweep.paramsTitle')}>
         <div className="card-title">
           <span>{t('sweep.paramsTitle')}</span>
@@ -208,6 +223,7 @@ function Settings() {
           </span>
         </div>
         <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('sweep.paramsHint')} />
+        {SWEEP_NEXT_PHASE ? <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('sweep.nextPhaseSettings')} /> : null}
         <div className="sweep-form">
           <div className="sweep-form-row">
             <label>{t('sweep.threshold')}</label>
@@ -240,6 +256,8 @@ function Settings() {
               <small className="muted">{t('sweep.evmCapsHint')}</small>
             </div>
           </div>
+          {SWEEP_NEXT_PHASE ? null : (
+            <>
           <div className="sweep-form-row">
             <label>{t('sweep.autoTitle')}</label>
             <div className="sweep-form-fields">
@@ -255,6 +273,8 @@ function Settings() {
             <label>{t('sweep.ethMaxBaseFee')}</label>
             <div className="sweep-form-fields">{num(draft.ethMaxBaseFeeGwei, (v) => setDraft({ ...draft, ethMaxBaseFeeGwei: v }), t('sweep.ethMaxBaseFee'), 'gwei')}</div>
           </div>
+            </>
+          )}
           <div className="sweep-form-row">
             <label>{t('sweep.operatorMin')}</label>
             <div className="sweep-form-fields">
@@ -263,6 +283,8 @@ function Settings() {
               <small className="muted">{t('sweep.zeroOff')}</small>
             </div>
           </div>
+          {SWEEP_NEXT_PHASE ? null : (
+            <>
           <div className="sweep-form-row">
             <label>{t('sweep.tronEnergy')}</label>
             <div className="sweep-form-fields">
@@ -332,6 +354,8 @@ function Settings() {
               <small className="muted">{t('sweep.zeroOff')}</small>
             </div>
           </div>
+            </>
+          )}
         </div>
         <div className="sweep-actions" style={{ marginTop: 12 }}>
           <PermButton

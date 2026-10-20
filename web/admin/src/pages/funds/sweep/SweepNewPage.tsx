@@ -3,6 +3,7 @@
  * 以太坊、BSC："执行归集"——服务器用发起账户签一笔批量交易；TRON："生成待签名清单"——没激活的地址热钱包转 1 TRX 激活，之后在批次详情页下载、离线签名、导入；
  * 广播前系统给每个地址租能量（预览里显示租赁平台、单价和每个地址的预计租金），确认到账再广播。
  * 两种都走统一的高危确认（原因必填，审计 sweep.run）。
+ * 真实接口模式（第一阶段）：以太坊、BSC 接后端实时预览；TRON 显示"下一阶段"、不调用接口。
  */
 import { useCallback } from 'react';
 import { Alert, Segmented, Table } from 'antd';
@@ -17,7 +18,7 @@ import { PermButton } from '../../../components/PermButton';
 import { Amount, Num } from '../../../components/Num';
 import { Pill } from '../../../components/Pill';
 import { shortHash } from '../../../utils/display';
-import { SWEEP_BASE, SWEEP_CHAINS, SWEEP_MODE, SWEEP_PERM, SWEEP_UI } from '../../../config/sweep';
+import { SWEEP_BASE, SWEEP_CHAINS, SWEEP_MODE, SWEEP_NEXT_PHASE, SWEEP_PERM, SWEEP_UI, sweepChainLive } from '../../../config/sweep';
 import { SweepShell } from './SweepShell';
 
 export function SweepNewPage() {
@@ -26,10 +27,35 @@ export function SweepNewPage() {
 
 function Preview() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const raw = params.get('chain');
-  const chain: SweepChain = SWEEP_CHAINS.includes(raw as SweepChain) ? (raw as SweepChain) : 'TRC20';
+  const chain: SweepChain = SWEEP_CHAINS.includes(raw as SweepChain) ? (raw as SweepChain) : SWEEP_NEXT_PHASE ? 'ERC20' : 'TRC20';
+  const live = sweepChainLive(chain);
+  return (
+    <>
+      <div className="card card-pad" style={{ marginBottom: 12 }}>
+        <div className="card-title">
+          <Segmented
+            aria-label={t('sweep.chain')}
+            value={chain}
+            onChange={(v) => setParams({ chain: String(v) })}
+            options={SWEEP_CHAINS.map((c) => ({ value: c, label: `${c} · ${sweepChainLive(c) ? t(`sweepMode.${SWEEP_MODE[c]}`) : t('sweep.nextPhase')}` }))}
+          />
+        </div>
+        {live ? (
+          <Alert type={SWEEP_MODE[chain] === 'offline' ? 'warning' : 'info'} showIcon message={t(SWEEP_MODE[chain] === 'offline' ? 'sweep.offlineHint' : 'sweep.contractHint')} />
+        ) : (
+          <Alert type="info" showIcon message={t('sweep.nextPhaseTron')} />
+        )}
+      </div>
+      {live ? <ChainPreview key={chain} chain={chain} /> : null}
+    </>
+  );
+}
+
+function ChainPreview({ chain }: { chain: SweepChain }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   const fetcher = useCallback(() => previewSweep(chain), [chain]);
   const { data, loading, error, reload } = useApi(fetcher);
   const hr = useHighRisk();
@@ -57,17 +83,6 @@ function Preview() {
 
   return (
     <>
-      <div className="card card-pad" style={{ marginBottom: 12 }}>
-        <div className="card-title">
-          <Segmented
-            aria-label={t('sweep.chain')}
-            value={chain}
-            onChange={(v) => setParams({ chain: String(v) })}
-            options={SWEEP_CHAINS.map((c) => ({ value: c, label: `${c} · ${t(`sweepMode.${SWEEP_MODE[c]}`)}` }))}
-          />
-        </div>
-        <Alert type={offline ? 'warning' : 'info'} showIcon message={t(offline ? 'sweep.offlineHint' : 'sweep.contractHint')} />
-      </div>
       {error ? (
         <div className="card">
           <ErrorState error={error} onRetry={reload} />
@@ -93,6 +108,7 @@ function Preview() {
                 <Num>{data ? `${data.maxFeeRatioPct}%` : '—'}</Num>
               </div>
             </div>
+            {data?.warnings?.includes('priceMissing') ? <Alert type="warning" showIcon style={{ marginTop: 10 }} message={t('sweep.priceMissing')} /> : null}
             {data?.tronRent ? (
               <Alert
                 type={rentMode ? 'success' : 'warning'}
@@ -129,7 +145,7 @@ function Preview() {
                         : { title: t('sweep.topup'), dataIndex: 'topup', align: 'right' as const, render: (v: string) => <Num>{v === '0.00' ? t('sweep.noTopup') : `${v} TRX`}</Num> },
                     ]
                   : [{ title: t('sweep.deploy'), dataIndex: 'deploy', render: (v: boolean) => (v ? <Pill tone="delay">{t('sweep.firstDeploy')}</Pill> : <span className="muted">{t('sweep.deployed')}</span>) }]),
-                { title: t('sweep.estFee'), dataIndex: 'estFee', align: 'right', render: (v: string, r) => <span><Num>{`${v} ${data?.gasAsset ?? ''}`}</Num><small className="muted" style={{ display: 'block' }}>≈ ${r.estFeeUsd}</small></span> },
+                { title: t('sweep.estFee'), dataIndex: 'estFee', align: 'right', render: (v: string, r) => <span><Num>{`${v} ${data?.gasAsset ?? ''}`}</Num><small className="muted" style={{ display: 'block' }}>{r.estFeeUsd === '—' ? '—' : `≈ $${r.estFeeUsd}`}</small></span> },
                 { title: t('sweep.result'), dataIndex: 'skip', render: (v: SweepCandidate['skip']) => (v ? <Pill tone="muted">{t(`sweepSkip.${v}`)}</Pill> : <Pill tone="ok">{t('sweep.willSweep')}</Pill>) },
               ]}
             />
@@ -148,7 +164,7 @@ function Preview() {
                 </div>
                 <div>
                   {t('sweep.feeTotal')}
-                  <Num>{`${data.totals.fee} ${data.gasAsset} ≈ $${data.totals.feeUsd}（${data.totals.feePct}%）`}</Num>
+                  <Num>{data.totals.feeUsd === '—' ? `${data.totals.fee} ${data.gasAsset}` : `${data.totals.fee} ${data.gasAsset} ≈ $${data.totals.feeUsd}（${data.totals.feePct}%）`}</Num>
                 </div>
                 {offline ? (
                   <div>

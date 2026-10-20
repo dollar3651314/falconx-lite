@@ -1,5 +1,6 @@
 /**
- * v2 资金归集：后端上线前（SWEEP_UI = false，真实接口模式下就是这样），对账页不显示"资金归集"入口，四个归集页面只显示"未上线"。
+ * v2 资金归集的总开关：SWEEP_UI = false 时对账页不显示"资金归集"入口，四个归集页面只显示"未上线"、不调用接口。
+ * （第一阶段上线后默认是 true；TRON 等下一阶段的显示见 sweepNextPhase.test.tsx）
  */
 import { screen } from '@testing-library/react';
 import { renderAs } from './test/render';
@@ -10,7 +11,7 @@ import { SweepSettingsPage } from './pages/funds/sweep/SweepSettingsPage';
 
 vi.mock('./config/sweep', async (orig) => ({ ...(await orig<typeof import('./config/sweep')>()), SWEEP_UI: false }));
 
-describe('资金归集没上线时', () => {
+describe('资金归集总开关关闭时', () => {
   it('对账页没有入口', async () => {
     renderAs(<ReconPage />);
     expect(await screen.findByRole('heading', { name: '对账' })).toBeInTheDocument();

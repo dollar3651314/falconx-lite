@@ -250,6 +250,31 @@ falconx:
     hot-balance:
       enabled: true
       interval: 5m
+    # v2 资金归集第一阶段（技术方案/v2-半自动归集.md v1.2 第 4.4、4.6 节；以太坊、BSC，TRON 下一阶段）。
+    # 四个合约相关地址都是公开地址，Amos 部署合约后填（部署方案/v2-归集合约部署.md）：都配了 → 新的以太坊体系充值地址用 CREATE2 合约地址，老的 xpub 地址停用、继续扫块 30 天；
+    # 一个都没配 → 照旧 xpub 派生（测试环境不中断）。发起账户私钥只由 Amos 填，启动时和地址核对；没配或对不上只是不能执行归集，不影响启动和健康检查
+    sweep:
+      evm:
+        factory: ${FX_SWEEP_EVM_FACTORY:}
+        implementation: ${FX_SWEEP_EVM_IMPLEMENTATION:}
+        parent: ${FX_SWEEP_EVM_PARENT:}
+        batcher: ${FX_SWEEP_EVM_BATCHER:}
+        operator-address: ${FX_SWEEP_EVM_OPERATOR_ADDRESS:}
+        operator-key: ${FX_SWEEP_EVM_OPERATOR_KEY:}
+        # 和提现共用 chainId
+        erc20-chain-id: ${FX_WALLET_ERC20_CHAIN_ID:}
+        bsc-chain-id: ${FX_WALLET_BSC_CHAIN_ID:}
+        retired-scan-days: 30
+        migrate-on-start: true
+        max-batch-size: 100
+        # 预估手续费用的 gas（Foundry 和 anvil 本地链实测见 contracts/README.md 第 5 节，取整往上留了余量）
+        deploy-gas: 160000
+        flush-gas: 45000
+        base-gas: 40000
+        priority-fee-gwei: 0.05
+        stuck-after: 30m
+        max-replacements: 3
+        balance-interval: 5m
     chains:
       ERC20:
         rpc-url: ${FX_WALLET_ETH_RPC_URL:}

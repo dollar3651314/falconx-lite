@@ -75,7 +75,21 @@ public enum ConfigKey {
   AUTO_APPROVE_R10_MAX_PROFIT_PCT("withdraw.autoApprove.R10.maxProfitPct", Unit.PERCENT, "autoApprove", BigDecimal.ZERO, false),
   AUTO_APPROVE_R11_MAX_COUNT("withdraw.autoApprove.R11.maxCount", Unit.COUNT, "autoApprove", BigDecimal.ZERO, false),
   /** R13 盈利客户的门槛（累计净盈利 &gt; 它就转人工），默认 0，可以是 0 */
-  AUTO_APPROVE_R13_MAX_NET_PROFIT("withdraw.autoApprove.R13.maxNetProfit", Unit.USDT, "autoApprove", BigDecimal.ZERO, false);
+  AUTO_APPROVE_R13_MAX_NET_PROFIT("withdraw.autoApprove.R13.maxNetProfit", Unit.USDT, "autoApprove", BigDecimal.ZERO, false),
+  /**
+   * 资金归集（v2，技术方案/v2-半自动归集.md 第 4.5、4.9、4.14 节，迁移 V28）：门槛、手续费占比上限（Amos 10-20 SW-6：后台可改，默认 100 / 10 / 100 USDT、3%）、
+   * 以太坊 / BSC 上线初期金额上限（每个地址 5,000、每批 20,000 USDT，0 = 不限；Amos 10-20 保留）、发起账户余额告警下限（0 = 不告警）、版本号。
+   * 在"资金归集 → 归集设置"页一次保存（权限 sweep:config，高危），不在系统配置页；取值范围在 wallet.api.SweepSettings
+   */
+  SWEEP_VERSION("sweep.version", Unit.COUNT, "sweep", BigDecimal.ZERO, false),
+  SWEEP_THRESHOLD_ERC20("sweep.threshold.ERC20", Unit.USDT, "sweep", BigDecimal.ZERO, false),
+  SWEEP_THRESHOLD_BSC("sweep.threshold.BSC", Unit.USDT, "sweep", BigDecimal.ZERO, false),
+  SWEEP_THRESHOLD_TRC20("sweep.threshold.TRC20", Unit.USDT, "sweep", BigDecimal.ZERO, false),
+  SWEEP_MAX_FEE_RATIO_PCT("sweep.maxFeeRatioPct", Unit.PERCENT, "sweep", BigDecimal.ZERO, false),
+  SWEEP_CAP_PER_ADDRESS("sweep.evmCap.perAddress", Unit.USDT, "sweep", BigDecimal.ZERO, false),
+  SWEEP_CAP_PER_BATCH("sweep.evmCap.perBatch", Unit.USDT, "sweep", BigDecimal.ZERO, false),
+  SWEEP_OPERATOR_MIN_ERC20("sweep.operatorMin.ERC20", Unit.ETH, "sweep", BigDecimal.ZERO, false),
+  SWEEP_OPERATOR_MIN_BSC("sweep.operatorMin.BSC", Unit.BNB, "sweep", BigDecimal.ZERO, false);
 
   /** 单位，和原型一致 */
   public enum Unit {

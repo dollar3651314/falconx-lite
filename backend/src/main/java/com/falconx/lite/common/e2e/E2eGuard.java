@@ -34,7 +34,7 @@ public class E2eGuard implements BeanFactoryPostProcessor, EnvironmentAware {
 
   private static final Logger log = LoggerFactory.getLogger(E2eGuard.class);
   private static final List<String> REAL_ONLY = List.of(
-      "falconx.wallet.hot.eth-private-key", "falconx.wallet.hot.tron-private-key",
+      "falconx.wallet.hot.eth-private-key", "falconx.wallet.hot.tron-private-key", "falconx.wallet.sweep.evm.operator-key",
       "falconx.wallet.chains.ERC20.rpc-url", "falconx.wallet.chains.BSC.rpc-url", "falconx.wallet.chains.TRC20.rpc-url",
       "falconx.notify.mail.host");
 
