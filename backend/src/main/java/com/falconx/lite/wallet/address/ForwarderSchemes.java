@@ -10,6 +10,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 当前生效的合约地址参数（方案第 4.13 节）。四个地址都配了、格式对、parent 不是我们自己的地址时，第一次用到就登记进 {@code wallet_address_scheme}
@@ -26,15 +29,24 @@ public class ForwarderSchemes {
   private final SweepEvmProperties props;
   private final WalletProperties wallet;
   private final String hotEthAddress;
+  /** 登记一套参数用独立事务：第一次用到时可能在别的事务里（例如注册），那个事务回滚不能把登记也回滚掉（内存里已经记住了套号） */
+  private final TransactionTemplate own;
   private volatile ForwarderScheme current;
   private volatile String problem;
   private volatile boolean resolved;
 
-  ForwarderSchemes(AddressMapper mapper, SweepEvmProperties props, WalletProperties wallet, @Value("${falconx.wallet.hot.eth-address:}") String hotEthAddress) {
+  ForwarderSchemes(AddressMapper mapper, SweepEvmProperties props, WalletProperties wallet, @Value("${falconx.wallet.hot.eth-address:}") String hotEthAddress,
+      PlatformTransactionManager tm) {
     this.mapper = mapper;
     this.props = props;
     this.wallet = wallet;
     this.hotEthAddress = hotEthAddress;
+    if (tm == null) {
+      this.own = null;
+    } else {
+      this.own = new TransactionTemplate(tm);
+      this.own.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
   }
 
   /** 合约地址参数配齐并且检查通过时的当前一套；否则为空（用 xpub） */
@@ -88,8 +100,11 @@ public class ForwarderSchemes {
       return;
     }
     String key = String.join("|", props.factory().strip(), props.implementation().strip(), parent, props.batcher().strip()).toLowerCase();
-    mapper.insertSchemeIgnore(Chain.Family.ETH.name(), props.factory().strip(), props.implementation().strip(), parent, props.batcher().strip(), key);
-    AddressMapper.SchemeRow row = mapper.schemeByKey(key);
+    java.util.function.Supplier<AddressMapper.SchemeRow> register = () -> {
+      mapper.insertSchemeIgnore(Chain.Family.ETH.name(), props.factory().strip(), props.implementation().strip(), parent, props.batcher().strip(), key);
+      return mapper.schemeByKey(key);
+    };
+    AddressMapper.SchemeRow row = own == null ? register.get() : own.execute(st -> register.get());
     current = row.toScheme();
     problem = null;
     resolved = true;

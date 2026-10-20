@@ -69,31 +69,31 @@ class Create2Test {
 
   @Test
   void 没配合约地址_用xpub_没有问题() {
-    ForwarderSchemes s = new ForwarderSchemes(mock(AddressMapper.class), props(null, "", null, null), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), "");
+    ForwarderSchemes s = new ForwarderSchemes(mock(AddressMapper.class), props(null, "", null, null), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), "", null);
     assertThat(s.current()).isEmpty();
     assertThat(s.problem()).isEmpty();
   }
 
   @Test
   void 只配了一部分或格式不对_当作没配_报出问题() {
-    ForwarderSchemes s = new ForwarderSchemes(mock(AddressMapper.class), props(F, I, null, null), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), "");
+    ForwarderSchemes s = new ForwarderSchemes(mock(AddressMapper.class), props(F, I, null, null), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), "", null);
     assertThat(s.current()).isEmpty();
     assertThat(s.problem()).get().asString().contains("只配了 2 个");
-    s = new ForwarderSchemes(mock(AddressMapper.class), props(F, I, "TXYZ", B), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), "");
+    s = new ForwarderSchemes(mock(AddressMapper.class), props(F, I, "TXYZ", B), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), "", null);
     assertThat(s.problem()).get().asString().contains("FX_SWEEP_EVM_PARENT 不是以太坊地址");
-    s = new ForwarderSchemes(mock(AddressMapper.class), props(F, I, B, B), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), "");
+    s = new ForwarderSchemes(mock(AddressMapper.class), props(F, I, B, B), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), "", null);
     assertThat(s.problem()).get().asString().contains("不能等于");
   }
 
   @Test
   void parent不能是USDT合约_热钱包_我们的充值地址() {
     AddressMapper m = mock(AddressMapper.class);
-    ForwarderSchemes s = new ForwarderSchemes(m, props(F, I, P, B), wallet(P.toUpperCase().replace("0X", "0x")), "");
+    ForwarderSchemes s = new ForwarderSchemes(m, props(F, I, P, B), wallet(P.toUpperCase().replace("0X", "0x")), "", null);
     assertThat(s.problem()).get().asString().contains("USDT 合约");
-    s = new ForwarderSchemes(m, props(F, I, P, B), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), P);
+    s = new ForwarderSchemes(m, props(F, I, P, B), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), P, null);
     assertThat(s.problem()).get().asString().contains("热钱包");
     when(m.ownerOf(anyString(), anyString())).thenReturn(new AddressMapper.AddressRow(1, 1, "ETH", "XPUB", 0, 1, P, null, "ACTIVE", null, null));
-    s = new ForwarderSchemes(m, props(F, I, P, B), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), "");
+    s = new ForwarderSchemes(m, props(F, I, P, B), wallet("0xdAC17F958D2ee523a2206206994597C13D831ec7"), "", null);
     assertThat(s.problem()).get().asString().contains("充值地址");
     assertThat(s.current()).isEmpty();
   }
