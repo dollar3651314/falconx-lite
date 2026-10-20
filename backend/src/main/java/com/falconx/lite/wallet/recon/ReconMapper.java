@@ -18,6 +18,19 @@ interface ReconMapper {
 
   record WithdrawalRow(long id, long userId, BigDecimal amount, String status) {}
 
+  /** v2 归集：不是归集的转出（UNKNOWN / DEST_MISMATCH） */
+  record OutflowRow(String chain, String txHash, int logIndex, long userId, String fromAddress, String toAddress, BigDecimal amount, String kind) {}
+
+  /** v2 归集：已归集成功的明细，和扫块看到的同一笔交易、同一个地址转出的合计（扫块已经扫过那个区块的才列出） */
+  record SweptRow(String chain, long batchNo, int itemNo, long userId, BigDecimal swept, BigDecimal outflow) {}
+
+  List<OutflowRow> sweepOutflows();
+
+  List<SweptRow> sweptItems();
+
+  /** 不管状态（归集的问题处理过以后不再重复列出） */
+  int issueCount(@Param("kind") String kind, @Param("refId") String refId);
+
   /** 已入账和已冲正的充值（入过账的） */
   List<DepositRow> creditedDeposits();
 

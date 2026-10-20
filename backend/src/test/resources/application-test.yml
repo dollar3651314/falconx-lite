@@ -48,6 +48,10 @@ falconx:
     # 对账不定时跑，测试里直接调用
     recon:
       enabled: false
+    # 资金归集不定时推进，测试里直接调用（SweepFlowTest 另起一个配置了合约地址的上下文）
+    sweep:
+      evm:
+        scheduler-enabled: false
     eth-xpub: xpub6DCoCpSuQZB2jawqnGMEPS63ePKWkwWPH4TU45Q7LPXWuNd8TMtVxRrgjtEshuqpK3mdhaWHPFsBngh5GFZaM6si3yZdUsT8ddYM3PwnATt
     tron-xpub: xpub6D1AabNHCupeiLM65ZR9UStMhJ1vCpyV4XbZdyhMZBiJXALQtmn9p42VTQckoHVn8WNqS7dqnJokZHAHcHGoaQgmv8D45oNUKx6DZMNZBCd
     chains:

@@ -135,8 +135,9 @@ class BrandTextTest {
         String src = Files.readString(f, StandardCharsets.UTF_8);
         Matcher m = literal.matcher(src);
         while (m.find()) {
-          // 配置项前缀（falconx.xxx）是内部名字，客户看不到
-          String s = m.group(1).replaceAll("falconx\\.", "");
+          // 配置项前缀（falconx.xxx）是内部名字，客户看不到；合约充值地址 CREATE2 盐的前缀 falconx-deposit 是地址算法的一部分
+          // （和合约 contracts/src/DepositSalt.sol 一致，改了所有合约地址都会变，技术方案/v2-半自动归集.md 第 4.13.1 节），客户也看不到
+          String s = m.group(1).replaceAll("falconx\\.", "").replace("falconx-deposit", "");
           if (OLD_BRAND.matcher(s).find()) hits.add(f + "：" + m.group());
         }
       }

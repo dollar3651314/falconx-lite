@@ -37,7 +37,12 @@ public final class JsonRpc {
     }
     if (r.statusCode() != 200) throw new NodeException.Unreachable("节点返回 HTTP " + r.statusCode() + "（" + method + "）", null);
     JsonNode n = json.readTree(r.body());
-    if (n.has("error")) throw new NodeException.Rejected("节点返回错误（" + method + "）：" + n.path("error").path("message").asString());
+    if (n.has("error")) {
+      // 合约回滚时节点会在 error.data 里带回滚数据（自定义错误的选择器等），一起放进错误信息方便排查
+      JsonNode data = n.path("error").path("data");
+      String extra = data.isString() && data.asString().startsWith("0x") ? " data=" + data.asString() : "";
+      throw new NodeException.Rejected("节点返回错误（" + method + "）：" + n.path("error").path("message").asString() + extra);
+    }
     return n.path("result");
   }
 

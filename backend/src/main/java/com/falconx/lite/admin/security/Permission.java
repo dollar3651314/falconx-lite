@@ -27,6 +27,12 @@ public enum Permission {
   WITHDRAWAL_AUTO_RULE_EDIT("withdrawal:auto_rule_edit", "funds", true),
   RECON_VIEW("recon:view", "funds", false),
   RECON_RESOLVE("recon:resolve", "funds", false),
+  /** v2 资金归集（技术方案/v2-半自动归集.md SW-12）：查看归集记录、预览、设置 */
+  SWEEP_VIEW("sweep:view", "funds", false),
+  /** v2 资金归集：执行归集、重试（高危，原因必填）；TRON 下一阶段的生成清单 / 导入签名 / 广播 / 作废也用它 */
+  SWEEP_OPERATE("sweep:operate", "funds", true),
+  /** v2 资金归集：改门槛、手续费占比上限、上线初期金额上限、发起账户余额告警下限（高危，原因必填）。以太坊、BSC 的冷钱包写在合约里，后台改不了 */
+  SWEEP_CONFIG("sweep:config", "funds", true),
   TASK_VIEW("task:view", "funds", false),
   TASK_RETRY("task:retry", "funds", false),
 

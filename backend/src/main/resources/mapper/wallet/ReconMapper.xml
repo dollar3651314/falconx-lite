@@ -69,6 +69,50 @@
     SELECT id, user_id, amount, status FROM wallet_withdrawal
   </select>
 
+  <resultMap id="outflow" type="com.falconx.lite.wallet.recon.ReconMapper$OutflowRow">
+    <constructor>
+      <arg column="chain" javaType="string"/>
+      <arg column="tx_hash" javaType="string"/>
+      <arg column="log_index" javaType="_int"/>
+      <arg column="user_id" javaType="_long"/>
+      <arg column="from_address" javaType="string"/>
+      <arg column="to_address" javaType="string"/>
+      <arg column="amount" javaType="java.math.BigDecimal"/>
+      <arg column="kind" javaType="string"/>
+    </constructor>
+  </resultMap>
+
+  <resultMap id="swept" type="com.falconx.lite.wallet.recon.ReconMapper$SweptRow">
+    <constructor>
+      <arg column="chain" javaType="string"/>
+      <arg column="public_no" javaType="_long"/>
+      <arg column="item_no" javaType="_int"/>
+      <arg column="user_id" javaType="_long"/>
+      <arg column="swept" javaType="java.math.BigDecimal"/>
+      <arg column="outflow" javaType="java.math.BigDecimal"/>
+    </constructor>
+  </resultMap>
+
+  <select id="sweepOutflows" resultMap="outflow">
+    SELECT chain, tx_hash, log_index, user_id, from_address, to_address, amount, kind FROM wallet_sweep_outflow WHERE kind &lt;&gt; 'SWEEP' ORDER BY id
+  </select>
+
+  <!-- 最近 30 天完成的批次；扫块进度已经过了批次所在区块 -->
+  <select id="sweptItems" resultMap="swept">
+    SELECT b.chain, b.public_no, i.item_no, i.user_id, i.swept,
+      (SELECT SUM(o.amount) FROM wallet_sweep_outflow o
+        WHERE o.chain = b.chain AND o.tx_hash = b.tx_hash AND LOWER(o.from_address) = LOWER(i.address)) AS outflow
+    FROM wallet_sweep_item i
+    JOIN wallet_sweep_batch b ON b.id = i.batch_id
+    JOIN wallet_chain_cursor c ON c.chain = b.chain
+    WHERE i.status = 'SWEPT' AND b.block_number IS NOT NULL AND c.last_block &gt;= b.block_number
+      AND b.finished_at &gt;= UTC_TIMESTAMP(3) - INTERVAL 30 DAY
+  </select>
+
+  <select id="issueCount" resultType="int">
+    SELECT COUNT(*) FROM wallet_recon_issue WHERE kind = #{kind} AND ref_id = #{refId}
+  </select>
+
   <select id="openIssueCount" resultType="int">
     SELECT COUNT(*) FROM wallet_recon_issue WHERE kind = #{kind} AND ref_id = #{refId} AND status = 'OPEN'
   </select>
