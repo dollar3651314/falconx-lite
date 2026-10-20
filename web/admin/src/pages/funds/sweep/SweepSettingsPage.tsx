@@ -2,10 +2,12 @@
  * 资金归集 · 归集设置（方案第 4.7、4.9 节和附录 B.7）。
  * - 以太坊、BSC：冷钱包（parent，Safe 多签）、合约地址、发起账户——从链上读，**只读**（写在合约里，后台改不了）；
  * - TRON：冷钱包地址可以改，高危、原因必填，**24 小时后生效**，待生效期间可以取消；
- * - 参数：门槛、手续费占比上限、自动归集、以太坊 gas 上限、发起账户余额告警下限、TRON 补 TRX 上限和清单有效期、提醒下限。保存走高危确认，带版本号防覆盖。
+ * - 参数：门槛、手续费占比上限（Amos 10-20：后台可改，默认按方案建议，页面上显示默认值）、以太坊 / BSC 上线初期的金额上限、自动归集、以太坊 gas 上限、
+ *   发起账户余额告警下限、TRON 能量（租能量 / 烧 TRX、最高单价、每天租金上限、租不到时回退、平台余额告警）、TRON 补 TRX 上限和清单有效期、提醒下限。
+ *   保存走高危确认（原因必填、审计），带版本号防覆盖。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Form, Input, InputNumber, Switch } from 'antd';
+import { Alert, Form, Input, InputNumber, Segmented, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { cancelTronSweepTarget, getSweepSettings, requestTronSweepTarget, updateSweepSettings } from '../../../api';
 import type { SweepChain, SweepSettings, SweepSettingsInput } from '../../../api/types';
@@ -16,7 +18,7 @@ import { PermButton, useCan } from '../../../components/PermButton';
 import { Num } from '../../../components/Num';
 import { ChainTag, Pill } from '../../../components/Pill';
 import { fullTime } from '../../../utils/display';
-import { SWEEP_CHAINS, SWEEP_PERM, SWEEP_UI, isSweepNumber, isTronAddress } from '../../../config/sweep';
+import { SWEEP_CHAINS, SWEEP_DEFAULTS, SWEEP_PERM, SWEEP_UI, isSweepNumber, isTronAddress } from '../../../config/sweep';
 import { SweepShell } from './SweepShell';
 
 export function SweepSettingsPage() {
@@ -36,6 +38,15 @@ const toDraft = (s: SweepSettings): Draft => ({
   tronTopupPerItem: s.tronTopupPerItem,
   tronTopupPerDay: s.tronTopupPerDay,
   tronExpireHours: s.tronExpireHours,
+  evmCaps: { ...s.evmCaps },
+  tronEnergy: {
+    mode: s.tronEnergy.mode,
+    maxPriceSun: s.tronEnergy.maxPriceSun,
+    perDayTrx: s.tronEnergy.perDayTrx,
+    fallbackBurn: s.tronEnergy.fallbackBurn,
+    durationMin: s.tronEnergy.durationMin,
+    providerBalanceMin: s.tronEnergy.providerBalanceMin,
+  },
 });
 
 function Settings() {
@@ -52,8 +63,8 @@ function Settings() {
   const changed = useMemo(() => (s && draft ? JSON.stringify(toDraft(s)) !== JSON.stringify(draft) : false), [s, draft]);
   const invalid = useMemo(() => {
     if (!draft) return true;
-    const nums = [...SWEEP_CHAINS.map((c) => draft.thresholds[c]), ...SWEEP_CHAINS.map((c) => draft.remind[c]), draft.operatorMin.ERC20, draft.operatorMin.BSC, draft.maxFeeRatioPct, draft.ethMaxBaseFeeGwei, draft.tronTopupPerItem, draft.tronTopupPerDay];
-    return nums.some((v) => !isSweepNumber(v));
+    const nums = [...SWEEP_CHAINS.map((c) => draft.thresholds[c]), ...SWEEP_CHAINS.map((c) => draft.remind[c]), draft.operatorMin.ERC20, draft.operatorMin.BSC, draft.maxFeeRatioPct, draft.ethMaxBaseFeeGwei, draft.tronTopupPerItem, draft.tronTopupPerDay, draft.evmCaps.perAddress, draft.evmCaps.perBatch, draft.tronEnergy.maxPriceSun, draft.tronEnergy.perDayTrx, draft.tronEnergy.providerBalanceMin];
+    return nums.some((v) => !isSweepNumber(v)) || Number(draft.maxFeeRatioPct) > 100 || Number(draft.tronEnergy.maxPriceSun) > 100;
   }, [draft]);
 
   if (error) {
@@ -71,6 +82,9 @@ function Settings() {
   const setThreshold = (c: SweepChain, v: string) => setDraft({ ...draft, thresholds: { ...draft.thresholds, [c]: v } });
   const setRemind = (c: SweepChain, v: string) => setDraft({ ...draft, remind: { ...draft.remind, [c]: v } });
   const pending = s.tronTarget.pending;
+  const te = draft.tronEnergy;
+  const setTe = (patch: Partial<Draft['tronEnergy']>) => setDraft({ ...draft, tronEnergy: { ...te, ...patch } });
+  const dflt = (v: string) => <small className="muted sweep-default">{t('sweep.defaultIs', { v })}</small>;
 
   return (
     <>
@@ -193,20 +207,38 @@ function Settings() {
             {t('sweep.version', { v: s.version, who: s.updatedBy ?? '—', at: fullTime(s.updatedAt) })}
           </span>
         </div>
+        <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('sweep.paramsHint')} />
         <div className="sweep-form">
           <div className="sweep-form-row">
             <label>{t('sweep.threshold')}</label>
             <div className="sweep-form-fields">
               {SWEEP_CHAINS.map((c) => (
-                <span key={c}>
-                  <ChainTag chain={c} /> {num(draft.thresholds[c], (v) => setThreshold(c, v), `${t('sweep.threshold')} ${c}`, 'USDT')}
+                <span key={c} className="sweep-field">
+                  <span>
+                    <ChainTag chain={c} /> {num(draft.thresholds[c], (v) => setThreshold(c, v), `${t('sweep.threshold')} ${c}`, 'USDT')}
+                  </span>
+                  {dflt(`${SWEEP_DEFAULTS.thresholds[c]} USDT`)}
                 </span>
               ))}
             </div>
           </div>
           <div className="sweep-form-row">
             <label>{t('sweep.maxFeeRatio')}</label>
-            <div className="sweep-form-fields">{num(draft.maxFeeRatioPct, (v) => setDraft({ ...draft, maxFeeRatioPct: v }), t('sweep.maxFeeRatio'), '%')}</div>
+            <div className="sweep-form-fields">
+              <span className="sweep-field">
+                {num(draft.maxFeeRatioPct, (v) => setDraft({ ...draft, maxFeeRatioPct: v }), t('sweep.maxFeeRatio'), '%')}
+                {dflt(`${SWEEP_DEFAULTS.maxFeeRatioPct}%`)}
+              </span>
+              <small className="muted">{t('sweep.maxFeeRatioHint')}</small>
+            </div>
+          </div>
+          <div className="sweep-form-row">
+            <label>{t('sweep.evmCaps')}</label>
+            <div className="sweep-form-fields">
+              {num(draft.evmCaps.perAddress, (v) => setDraft({ ...draft, evmCaps: { ...draft.evmCaps, perAddress: v } }), t('sweep.capPerAddress'), t('sweep.usdtPerAddress'))}
+              {num(draft.evmCaps.perBatch, (v) => setDraft({ ...draft, evmCaps: { ...draft.evmCaps, perBatch: v } }), t('sweep.capPerBatch'), t('sweep.usdtPerBatch'))}
+              <small className="muted">{t('sweep.evmCapsHint')}</small>
+            </div>
           </div>
           <div className="sweep-form-row">
             <label>{t('sweep.autoTitle')}</label>
@@ -232,10 +264,54 @@ function Settings() {
             </div>
           </div>
           <div className="sweep-form-row">
+            <label>{t('sweep.tronEnergy')}</label>
+            <div className="sweep-form-fields">
+              <Segmented
+                aria-label={t('sweep.tronEnergy')}
+                disabled={!editable}
+                value={te.mode}
+                onChange={(v) => setTe({ mode: v as Draft['tronEnergy']['mode'] })}
+                options={[
+                  { value: 'rent', label: t('sweep.energyRent') },
+                  { value: 'burn', label: t('sweep.energyBurn') },
+                ]}
+              />
+              <small className="muted">{t('sweep.energyHint', { provider: s.tronEnergy.provider })}</small>
+            </div>
+          </div>
+          <div className="sweep-form-row">
+            <label>{t('sweep.rentLimits')}</label>
+            <div className="sweep-form-fields">
+              {num(te.maxPriceSun, (v) => setTe({ maxPriceSun: v }), t('sweep.rentMaxPrice'), t('sweep.sunPerEnergy'))}
+              {num(te.perDayTrx, (v) => setTe({ perDayTrx: v }), t('sweep.rentPerDay'), t('sweep.trxPerDay'))}
+              <span>
+                {t('sweep.rentDuration')}{' '}
+                <InputNumber aria-label={t('sweep.rentDuration')} min={10} max={1440} value={te.durationMin} disabled={!editable} onChange={(v) => setTe({ durationMin: Number(v ?? 60) })} />
+              </span>
+              <span>
+                <Switch aria-label={t('sweep.fallbackBurn')} checked={te.fallbackBurn} disabled={!editable} onChange={(v) => setTe({ fallbackBurn: v })} /> {t('sweep.fallbackBurn')}
+              </span>
+            </div>
+          </div>
+          <div className="sweep-form-row">
+            <label>{t('sweep.rentAccount')}</label>
+            <div className="sweep-form-fields">
+              <span>
+                {t('sweep.rentBalance')} <Num strong>{`${s.tronEnergy.providerBalance} TRX`}</Num>
+              </span>
+              <span>
+                {t('sweep.rentSpentToday')} <Num>{`${s.tronEnergy.spentTodayTrx} / ${s.tronEnergy.perDayTrx} TRX`}</Num>
+              </span>
+              {num(te.providerBalanceMin, (v) => setTe({ providerBalanceMin: v }), t('sweep.rentBalanceMin'), 'TRX')}
+              <small className="muted">{t('sweep.rentBalanceMinHint')}</small>
+            </div>
+          </div>
+          <div className="sweep-form-row">
             <label>{t('sweep.tronTopup')}</label>
             <div className="sweep-form-fields">
               {num(draft.tronTopupPerItem, (v) => setDraft({ ...draft, tronTopupPerItem: v }), t('sweep.perItem'), t('sweep.trxPerItem'))}
               {num(draft.tronTopupPerDay, (v) => setDraft({ ...draft, tronTopupPerDay: v }), t('sweep.perDay'), t('sweep.trxPerDay'))}
+              <small className="muted">{t('sweep.tronTopupHint')}</small>
             </div>
           </div>
           <div className="sweep-form-row">

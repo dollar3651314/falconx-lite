@@ -865,7 +865,18 @@ export type SweepBatchStatus =
   | 'expired';
 export type SweepItemStatus = 'pending' | 'swept' | 'failed' | 'topup_sent' | 'ready' | 'signed' | 'sign_rejected' | 'broadcast' | 'expired' | 'cancelled';
 /** 预览里这个地址这次为什么不归集 */
-export type SweepSkipReason = 'pendingDeposit' | 'recentCredit' | 'inBatch' | 'feeRatio' | 'belowThreshold';
+export type SweepSkipReason = 'pendingDeposit' | 'recentCredit' | 'inBatch' | 'feeRatio' | 'belowThreshold' | 'overAddressCap' | 'overBatchCap';
+/** TRON 租能量的状态（方案 v1.1 第 4.3 节）：广播前给每个充值地址租能量，确认到账再广播 */
+export type SweepRentStatus = 'none' | 'ordered' | 'delivered' | 'fallbackBurn' | 'notDelivered' | 'expired';
+export interface SweepRent {
+  status: SweepRentStatus;
+  /** 租的能量 */
+  energy: number;
+  /** 租金（TRX）；回退烧 TRX 时是热钱包补的 TRX */
+  trx: string;
+  /** 租赁到期时间 */
+  expiresAt: string | null;
+}
 
 export interface SweepOverview {
   chain: SweepChain;
@@ -894,8 +905,12 @@ export interface SweepCandidate {
   usdt: string;
   /** 以太坊、BSC：这次是否要顺便部署转发合约 */
   deploy: boolean;
-  /** TRON：要补的 TRX；以太坊、BSC 为 "0" */
+  /** TRON：热钱包转入的 TRX（只有没激活的地址要转 1 TRX 激活）；以太坊、BSC 为 "0" */
   topup: string;
+  /** TRON：这个地址还没激活（只收过 TRC20 不会激活账户），要先转 TRX */
+  activate: boolean;
+  /** TRON：预计租金（TRX）；以太坊、BSC 为 "0" */
+  rentTrx: string;
   /** 预估手续费（手续费币） */
   estFee: string;
   estFeeUsd: string;
@@ -912,7 +927,9 @@ export interface SweepPreview {
   gasPrice: string;
   gasAsset: string;
   candidates: SweepCandidate[];
-  totals: { count: number; usdt: string; fee: string; feeUsd: string; feePct: string; topup: string; skipped: number };
+  totals: { count: number; usdt: string; fee: string; feeUsd: string; feePct: string; topup: string; rent: string; skipped: number };
+  /** TRON：租能量的报价（以太坊、BSC 为空） */
+  tronRent: { mode: SweepTronEnergyMode; provider: string; priceSun: string; energyPerItem: number; durationMin: number; burnSun: string } | null;
 }
 
 export interface SweepBatch {
@@ -948,6 +965,8 @@ export interface SweepItem {
   txHash: string | null;
   /** 失败或核对不通过的原因（翻译键 sweepFail.* 的后缀） */
   failReason: string | null;
+  /** TRON：这个地址的能量租赁（以太坊、BSC 为空） */
+  rent: SweepRent | null;
 }
 
 export interface SweepBatchDetail extends SweepBatch {
@@ -980,6 +999,10 @@ export interface SweepSettings {
   tronTopupPerDay: string;
   tronExpireHours: number;
   tronTargetDelayHours: number;
+  /** TRON 能量（Amos 10-20：直接租能量） */
+  tronEnergy: SweepTronEnergy;
+  /** 以太坊、BSC 上线初期的金额上限（SW-4 不审计的替代措施）；"0" = 不限 */
+  evmCaps: { perAddress: string; perBatch: string };
   /** 以太坊、BSC 的合约和冷钱包（从链上读，只读） */
   evm: {
     parent: string;
@@ -999,8 +1022,33 @@ export interface SweepSettings {
 
 export type SweepSettingsInput = Pick<
   SweepSettings,
-  'thresholds' | 'maxFeeRatioPct' | 'autoEnabled' | 'autoHourUtc' | 'ethMaxBaseFeeGwei' | 'operatorMin' | 'remind' | 'tronTopupPerItem' | 'tronTopupPerDay' | 'tronExpireHours'
-> & { reason: string; expectedVersion: number };
+  'thresholds' | 'maxFeeRatioPct' | 'autoEnabled' | 'autoHourUtc' | 'ethMaxBaseFeeGwei' | 'operatorMin' | 'remind' | 'tronTopupPerItem' | 'tronTopupPerDay' | 'tronExpireHours' | 'evmCaps'
+> & { tronEnergy: SweepTronEnergyInput; reason: string; expectedVersion: number };
+
+export type SweepTronEnergyMode = 'rent' | 'burn';
+
+export interface SweepTronEnergy {
+  /** rent = 租能量（默认）；burn = 热钱包补 TRX、烧 TRX */
+  mode: SweepTronEnergyMode;
+  /** 租赁平台（显示用，平台本身在服务器配置） */
+  provider: string;
+  /** 最高单价（sun / 能量），报价高于它就不租 */
+  maxPriceSun: string;
+  /** 每天租金上限（TRX） */
+  perDayTrx: string;
+  /** 租不到 / 没到账时回退到烧 TRX（热钱包补 TRX） */
+  fallbackBurn: boolean;
+  /** 每笔租多少分钟 */
+  durationMin: number;
+  /** 平台账户余额（只读，从平台接口读） */
+  providerBalance: string;
+  /** 平台余额告警下限，0 = 不告警 */
+  providerBalanceMin: string;
+  /** 今天已花的租金（只读） */
+  spentTodayTrx: string;
+}
+
+export type SweepTronEnergyInput = Pick<SweepTronEnergy, 'mode' | 'maxPriceSun' | 'perDayTrx' | 'fallbackBurn' | 'durationMin' | 'providerBalanceMin'>;
 
 export interface SweepBatchQuery extends PageQuery {
   chain?: SweepChain;

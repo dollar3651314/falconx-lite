@@ -1353,13 +1353,19 @@ export function previewSweep(chain: SweepChain): Promise<SweepPreview> {
     const usdt = sumAmounts(ok.map((c) => c.usdt));
     const fee = ok.reduce((s, c) => s + Number(c.estFee), 0);
     const feeUsd = ok.reduce((s, c) => s + Number(c.estFeeUsd), 0);
+    const te = sw.settings.tronEnergy;
+    const tronRent =
+      chain === 'TRC20'
+        ? { mode: te.mode, provider: te.provider, priceSun: sw.TRON_RENT.priceSun, energyPerItem: sw.TRON_RENT.energyPerItem, durationMin: te.durationMin, burnSun: sw.TRON_RENT.burnSun }
+        : null;
     return {
       chain,
       mode: SWEEP_MODE[chain],
       destination: chain === 'TRC20' ? sw.settings.tronTarget.address : sw.settings.evm.parent,
       threshold: sw.settings.thresholds[chain],
       maxFeeRatioPct: sw.settings.maxFeeRatioPct,
-      gasPrice: sw.GAS_PRICE_TEXT[chain],
+      gasPrice: tronRent?.mode === 'rent' ? `${tronRent.priceSun} sun / 能量（${tronRent.provider}，${tronRent.durationMin} 分钟）` : sw.GAS_PRICE_TEXT[chain],
+      tronRent,
       gasAsset: GAS_ASSET[chain],
       candidates,
       totals: {
@@ -1369,13 +1375,14 @@ export function previewSweep(chain: SweepChain): Promise<SweepPreview> {
         feeUsd: feeUsd.toFixed(2),
         feePct: Number(usdt) > 0 ? ((feeUsd / Number(usdt)) * 100).toFixed(2) : '0',
         topup: ok.reduce((s, c) => s + Number(c.topup), 0).toFixed(2),
+        rent: ok.reduce((s, c) => s + Number(c.rentTrx), 0).toFixed(2),
         skipped: candidates.length - ok.length,
       },
     };
   });
 }
 
-/** 以太坊、BSC：执行一批（服务器签名批量交易）；TRON：生成待签名清单（热钱包补 TRX） */
+/** 以太坊、BSC：执行一批（服务器签名批量交易）；TRON：生成待签名清单（没激活的地址热钱包转 1 TRX 激活；租能量在广播前） */
 export function runSweep(chain: SweepChain, reason: string): Promise<{ no: string }> {
   return mutate(() => {
     requirePerm(SWEEP_PERM.operate);
@@ -1398,6 +1405,7 @@ export function runSweep(chain: SweepChain, reason: string): Promise<{ no: strin
       status: offline ? 'ready' : 'swept',
       txHash: null,
       failReason: null,
+      rent: offline ? { status: 'none', energy: sw.TRON_RENT.energyPerItem, trx: '0.00', expiresAt: null } : null,
     }));
     const fee = ok.reduce((s, c) => s + Number(c.estFee), 0);
     const d: SweepBatchDetail = {
@@ -1559,9 +1567,28 @@ export function broadcastSweep(no: string, reason: string): Promise<void> {
     const signed = d.items.filter((x) => x.status === 'signed');
     if (!signed.length) throw new ApiError('errors.sweepNothing');
     const now = nowString();
+    const te = sw.settings.tronEnergy;
+    const rentTrx = sw.rentTrxOf(sw.TRON_RENT.priceSun);
+    const burnTopup = 7.72; // 64,285 能量 × 100 sun × 1.2
+    let rentSpent = 0;
+    let burnSpent = 0;
+    let fallback = 0;
     signed.forEach((it, i) => {
       it.txHash = mockHex(64, Number(no.slice(-4)) + i);
-      // 原型：第二笔演示"链上执行失败（能量不够）"
+      const expiresAt = addHours(now, te.durationMin / 60);
+      if (te.mode === 'burn') {
+        it.rent = { status: 'fallbackBurn', energy: 0, trx: burnTopup.toFixed(2), expiresAt: null };
+        burnSpent += burnTopup;
+      } else if (i === 2 && signed.length > 2 && te.fallbackBurn) {
+        // 原型：第三笔演示"能量 2 分钟内没到账 → 回退到热钱包补 TRX、烧 TRX"（平台没扣钱）
+        it.rent = { status: 'fallbackBurn', energy: sw.TRON_RENT.energyPerItem, trx: burnTopup.toFixed(2), expiresAt: null };
+        burnSpent += burnTopup;
+        fallback += 1;
+      } else {
+        it.rent = { status: 'delivered', energy: sw.TRON_RENT.energyPerItem, trx: rentTrx.toFixed(2), expiresAt };
+        rentSpent += rentTrx;
+      }
+      // 原型：第二笔演示"租到了能量，但链上执行失败（动态能量涨了，能量不够）"
       if (i === 1 && signed.length > 2) {
         it.status = 'failed';
         it.failReason = 'outOfEnergy';
@@ -1571,13 +1598,18 @@ export function broadcastSweep(no: string, reason: string): Promise<void> {
         if (h) h.usdt = '0.00';
       }
     });
+    te.spentTodayTrx = (Number(te.spentTodayTrx) + rentSpent).toFixed(2);
+    te.providerBalance = Math.max(0, Number(te.providerBalance) - rentSpent).toFixed(2);
     for (const it of d.items) if (it.status === 'ready') it.status = 'expired';
     const swept = d.items.filter((x) => x.status === 'swept');
     d.sweptUsdt = sumAmounts(swept.map((x) => x.amount));
-    d.fee = (signed.length * 6.7).toFixed(2);
+    d.fee = (rentSpent + burnSpent).toFixed(2);
     d.status = swept.length === d.items.length ? 'confirmed' : swept.length ? 'partial' : 'failed';
     d.finishedAt = now;
-    d.events.push({ time: now, actor: currentAdmin().displayName, text: 'broadcast' }, { time: now, actor: 'system', text: d.status === 'confirmed' ? 'all_swept' : 'some_failed' });
+    d.events.push({ time: now, actor: currentAdmin().displayName, text: 'broadcast' });
+    if (te.mode === 'rent') d.events.push({ time: now, actor: 'system', text: 'rent_ordered' }, { time: now, actor: 'system', text: 'rent_delivered' });
+    if (fallback) d.events.push({ time: now, actor: 'system', text: 'rent_fallback' });
+    d.events.push({ time: now, actor: 'system', text: d.status === 'confirmed' ? 'all_swept' : 'some_failed' });
     syncBatch(d);
     audit('sweep.batch_broadcast', no, true, r, null, { swept: swept.length, failed: d.items.length - swept.length });
   });
@@ -1647,6 +1679,7 @@ export function getSweepSettings(): Promise<SweepSettings> {
 }
 
 const SWEEP_FIELDS = ['maxFeeRatioPct', 'ethMaxBaseFeeGwei', 'tronTopupPerItem', 'tronTopupPerDay'] as const;
+const TRON_ENERGY_NUMS = ['maxPriceSun', 'perDayTrx', 'providerBalanceMin'] as const;
 
 export function updateSweepSettings(input: SweepSettingsInput): Promise<void> {
   return mutate(() => {
@@ -1660,7 +1693,15 @@ export function updateSweepSettings(input: SweepSettingsInput): Promise<void> {
       input.operatorMin.ERC20,
       input.operatorMin.BSC,
       ...SWEEP_FIELDS.map((k) => input[k]),
+      input.evmCaps.perAddress,
+      input.evmCaps.perBatch,
+      ...TRON_ENERGY_NUMS.map((k) => input.tronEnergy[k]),
     ];
+    const te = input.tronEnergy;
+    // 占比上限 0–100%；租能量单价不能高于烧 TRX（100 sun）；每笔租 10–1440 分钟
+    if (Number(input.maxFeeRatioPct) > 100 || Number(te.maxPriceSun) > 100 || !(te.durationMin >= 10 && te.durationMin <= 1440) || (te.mode !== 'rent' && te.mode !== 'burn')) {
+      throw new ApiError('errors.validationFailed');
+    }
     if (nums.some((v) => !isSweepNumber(v)) || !(input.autoHourUtc >= 0 && input.autoHourUtc <= 23) || !(input.tronExpireHours >= 1 && input.tronExpireHours <= 23)) {
       throw new ApiError('errors.validationFailed');
     }
@@ -1680,6 +1721,12 @@ export function updateSweepSettings(input: SweepSettingsInput): Promise<void> {
     put('autoEnabled', cur.autoEnabled, input.autoEnabled);
     put('autoHourUtc', cur.autoHourUtc, input.autoHourUtc);
     put('tronExpireHours', cur.tronExpireHours, input.tronExpireHours);
+    put('evmCaps.perAddress', cur.evmCaps.perAddress, input.evmCaps.perAddress.trim());
+    put('evmCaps.perBatch', cur.evmCaps.perBatch, input.evmCaps.perBatch.trim());
+    put('tronEnergy.mode', cur.tronEnergy.mode, te.mode);
+    for (const k of TRON_ENERGY_NUMS) put(`tronEnergy.${k}`, cur.tronEnergy[k], te[k].trim());
+    put('tronEnergy.fallbackBurn', cur.tronEnergy.fallbackBurn, te.fallbackBurn);
+    put('tronEnergy.durationMin', cur.tronEnergy.durationMin, te.durationMin);
     if (!Object.keys(after).length) throw new ApiError('errors.sweepNoChange');
     Object.assign(cur, {
       thresholds: { ...input.thresholds },
@@ -1692,6 +1739,16 @@ export function updateSweepSettings(input: SweepSettingsInput): Promise<void> {
       autoEnabled: input.autoEnabled,
       autoHourUtc: input.autoHourUtc,
       tronExpireHours: input.tronExpireHours,
+      evmCaps: { perAddress: input.evmCaps.perAddress.trim(), perBatch: input.evmCaps.perBatch.trim() },
+      tronEnergy: {
+        ...cur.tronEnergy,
+        mode: te.mode,
+        maxPriceSun: te.maxPriceSun.trim(),
+        perDayTrx: te.perDayTrx.trim(),
+        providerBalanceMin: te.providerBalanceMin.trim(),
+        fallbackBurn: te.fallbackBurn,
+        durationMin: te.durationMin,
+      },
       version: cur.version + 1,
       updatedAt: nowString(),
       updatedBy: currentAdmin().displayName,

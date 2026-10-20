@@ -1,7 +1,8 @@
 /**
  * 资金归集 · 批次详情（方案第 4.6 节和附录 B.9）。
  * - 以太坊、BSC（合约）：批量交易哈希、每个地址的结果、失败的"重试"；
- * - TRON（离线签名）：步骤（补 TRX → 等待签名 → 已导入 → 广播 → 完成）、有效期、下载待签名文件、导入签名文件（逐笔核对结果）、广播、作废。
+ * - TRON（离线签名）：步骤（激活地址 → 等待签名 → 已导入 → 租能量并广播 → 完成）、有效期、下载待签名文件、导入签名文件（逐笔核对结果）、
+ *   广播（先给每个地址租能量、确认到账再广播；没到账的回退到热钱包补 TRX）、每个地址的租赁状态和租金、作废。
  *   原型里有"使用演示签名文件"按钮（最后一笔故意改过，演示"签名内容和清单不一致"）。
  */
 import { useCallback, useRef, useState } from 'react';
@@ -19,13 +20,13 @@ import {
   IS_MOCK,
   retrySweepBatch,
 } from '../../../api';
-import type { SweepBatchDetail, SweepImportResult, SweepItem } from '../../../api/types';
+import type { SweepBatchDetail, SweepImportResult, SweepItem, SweepRent, SweepRentStatus } from '../../../api/types';
 import { useApi } from '../../../hooks/useApi';
 import { useHighRisk } from '../../../hooks/useConfirmDialogs';
 import { ErrorState } from '../../../components/ErrorState';
 import { PermButton } from '../../../components/PermButton';
 import { Amount, Num } from '../../../components/Num';
-import { ChainTag, Pill } from '../../../components/Pill';
+import { ChainTag, Pill, type PillTone } from '../../../components/Pill';
 import { fullTime, shortHash, shortTime } from '../../../utils/display';
 import { errorText } from '../../../utils/errors';
 import { SWEEP_BASE, SWEEP_PERM, SWEEP_UI } from '../../../config/sweep';
@@ -42,6 +43,15 @@ export function SweepBatchPage() {
 }
 
 const OFFLINE_STEPS = ['topup', 'awaiting', 'imported', 'broadcast', 'done'] as const;
+
+const RENT_TONE: Record<SweepRentStatus, PillTone> = {
+  none: 'muted',
+  ordered: 'pend',
+  delivered: 'ok',
+  fallbackBurn: 'warn',
+  notDelivered: 'danger',
+  expired: 'muted',
+};
 
 function offlineStep(d: SweepBatchDetail): number {
   switch (d.status) {
@@ -110,6 +120,8 @@ function Batch({ no }: { no: string }) {
   };
 
   const signedCount = d.items.filter((i) => i.status === 'signed').length;
+  const rentTotal = d.items.reduce((s, i) => s + (i.rent && i.rent.status === 'delivered' ? Number(i.rent.trx) : 0), 0);
+  const burnTotal = d.items.reduce((s, i) => s + (i.rent && i.rent.status === 'fallbackBurn' ? Number(i.rent.trx) : 0), 0);
 
   return (
     <>
@@ -206,6 +218,7 @@ function Batch({ no }: { no: string }) {
           />
         ) : null}
         {offline && canSign && d.expiresAt ? <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={t('sweep.expiresHint', { time: fullTime(d.expiresAt) })} /> : null}
+        {offline && d.status === 'signed' ? <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('sweep.rentBeforeBroadcast')} /> : null}
         {importError ? <Alert type="error" showIcon style={{ marginBottom: 12 }} message={t('sweep.importFailed')} description={errorText(t, importError)} /> : null}
         {importResult ? (
           <Alert
@@ -247,6 +260,10 @@ function Batch({ no }: { no: string }) {
                 {t('sweep.signedSha')}
                 <Num>{shortHash(d.signedSha256, 10, 8)}</Num>
               </div>
+              <div>
+                {t('sweep.rentSummary')}
+                <Num>{t('sweep.rentSummaryValue', { rent: rentTotal.toFixed(2), burn: burnTotal.toFixed(2) })}</Num>
+              </div>
             </>
           ) : (
             <div>
@@ -274,9 +291,26 @@ function Batch({ no }: { no: string }) {
             { title: t('funds.user'), dataIndex: 'customerName', render: (v: string, r) => <div className="user-cell"><b className="ellipsis" style={{ maxWidth: 180 }} title={v}>{v}</b><small>ID {r.userId}</small></div> },
             { title: t('sweep.address'), dataIndex: 'address', render: (v: string) => <Num className="muted"><span title={v}>{shortHash(v, 8, 6)}</span></Num> },
             { title: t('sweep.usdt'), dataIndex: 'amount', align: 'right', render: (v: string) => <Amount value={v} strong /> },
-            offline
-              ? { title: t('sweep.topup'), dataIndex: 'topup', align: 'right' as const, render: (v: string) => <Num>{`${v} TRX`}</Num> }
-              : { title: t('sweep.deploy'), dataIndex: 'deploy', render: (v: boolean) => (v ? <Pill tone="delay">{t('sweep.firstDeploy')}</Pill> : <span className="muted">{t('sweep.deployed')}</span>) },
+            ...(offline
+              ? [
+                  { title: t('sweep.activation'), dataIndex: 'topup', render: (v: string) => (Number(v) > 0 ? <Pill tone="delay">{t('sweep.activatedWith', { trx: v })}</Pill> : <span className="muted">{t('sweep.activated')}</span>) },
+                  {
+                    title: t('sweep.rentCol'),
+                    dataIndex: 'rent',
+                    render: (v: SweepRent | null) =>
+                      v ? (
+                        <span>
+                          <Pill tone={RENT_TONE[v.status]}>{t(`sweepRent.${v.status}`)}</Pill>
+                          {v.status === 'delivered' || v.status === 'fallbackBurn' ? (
+                            <small className="muted" style={{ display: 'block' }}>
+                              {v.status === 'delivered' ? t('sweep.rentPaid', { trx: v.trx, energy: v.energy.toLocaleString('en-US') }) : t('sweep.burnPaid', { trx: v.trx })}
+                            </small>
+                          ) : null}
+                        </span>
+                      ) : null,
+                  },
+                ]
+              : [{ title: t('sweep.deploy'), dataIndex: 'deploy', render: (v: boolean) => (v ? <Pill tone="delay">{t('sweep.firstDeploy')}</Pill> : <span className="muted">{t('sweep.deployed')}</span>) }]),
             {
               title: t('sweep.status'),
               dataIndex: 'status',

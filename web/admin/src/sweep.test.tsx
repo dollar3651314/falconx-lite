@@ -1,6 +1,7 @@
 /**
  * v2 资金归集（技术方案/v2-半自动归集.md 第 6 节，推荐路线 (b)）：模拟层口径（门槛、跳过原因、合计、TRON 导入核对、广播部分成功、
  * 冷钱包地址 24 小时延迟、参数版本号）和四个页面（原型模式）。
+ * v1.1（Amos 10-20 审核）：门槛和手续费占比上限后台可改（默认 100 / 10 / 100 USDT、3%），以太坊 / BSC 上线初期金额上限，TRON 租能量。
  */
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import {
@@ -21,7 +22,7 @@ import {
 } from './api';
 import { ApiError } from './api/types';
 import { renderAs } from './test/render';
-import { SWEEP_MODE } from './config/sweep';
+import { SWEEP_DEFAULTS, SWEEP_MODE } from './config/sweep';
 import { DEMO_TRON_BATCH } from './mocks/data/sweep';
 import { SweepRecordsPage } from './pages/funds/sweep/SweepRecordsPage';
 import { SweepNewPage } from './pages/funds/sweep/SweepNewPage';
@@ -64,11 +65,20 @@ describe('资金归集：模拟层', () => {
     const reasons = (await previewSweep('ERC20')).candidates.map((c) => c.skip);
     expect(reasons).toContain('pendingDeposit');
     expect(reasons).toContain('feeRatio');
+    // 上线初期单地址上限（默认 5,000 USDT）：超过的跳过，由 Safe 手动归集
+    expect(reasons).toContain('overAddressCap');
     // TRON：已在进行中批次里的地址跳过；以太坊体系不补手续费，TRON 要补 TRX
     const tron = await previewSweep('TRC20');
     expect(tron.candidates.map((c) => c.skip)).toContain('inBatch');
     expect((await previewSweep('BSC')).candidates.every((c) => c.topup === '0')).toBe(true);
     expect(tron.candidates.some((c) => Number(c.topup) > 0)).toBe(true);
+    // TRON 租能量：每个地址租 70,000 能量 × 67.25 sun = 4.71 TRX；只有没激活的地址热钱包转 1 TRX
+    expect(tron.tronRent).toMatchObject({ mode: 'rent', provider: 'TronSave', priceSun: '67.25', energyPerItem: 70_000, burnSun: '100' });
+    expect(tron.candidates.every((c) => c.rentTrx === '4.71')).toBe(true);
+    expect(tron.candidates.every((c) => (c.activate ? c.topup === '1.00' : c.topup === '0.00'))).toBe(true);
+    const okTron = tron.candidates.filter((c) => !c.skip);
+    expect(Number(tron.totals.rent)).toBeCloseTo(okTron.length * 4.71, 2);
+    expect((await previewSweep('ERC20')).tronRent).toBeNull();
   });
 
   it('以太坊、BSC 执行归集：一批完成、写审计；原因必填；TRON 有进行中的批次时不能再生成', async () => {
@@ -81,8 +91,9 @@ describe('资金归集：模拟层', () => {
     expect(d.sweptUsdt).toBe(before.usdt);
     expect(d.items.every((i) => i.status === 'swept')).toBe(true);
     expect((await listAuditLogs({ page: 1, pageSize: 5 })).items[0]).toMatchObject({ action: 'sweep.run', target: no, highRisk: true, reason: '测试归集' });
-    // 归集完的地址余额归零，下次预览不再出现
-    expect((await previewSweep('BSC')).totals.count).toBe(0);
+    // 归集完的地址余额归零，下次预览不再出现（超过每批上限的留到下一批）
+    const swept = new Set(d.items.map((i) => i.address));
+    expect((await previewSweep('BSC')).candidates.some((c) => swept.has(c.address))).toBe(false);
     await expect(runSweep('TRC20', '再来一批')).rejects.toMatchObject({ reasonKey: 'errors.sweepBatchActive' });
   });
 
@@ -99,6 +110,11 @@ describe('资金归集：模拟层', () => {
     expect(after.status).toBe('partial');
     expect(after.items.filter((i) => i.status === 'failed').map((i) => i.failReason)).toEqual(['outOfEnergy']);
     expect(after.items.find((i) => i.itemNo === d.items.length)!.status).toBe('sign_rejected');
+    // 能量：第 1、2 笔租到（第 2 笔租到了但链上执行失败），第 3 笔没到账 → 回退烧 TRX；核对不通过的不租
+    expect(after.items.map((i) => i.rent?.status)).toEqual(['delivered', 'delivered', 'fallbackBurn', 'none']);
+    expect(after.fee).toBe((4.71 * 2 + 7.72).toFixed(2));
+    expect(after.events.map((e) => e.text)).toEqual(expect.arrayContaining(['rent_ordered', 'rent_delivered', 'rent_fallback']));
+    expect(Number((await getSweepSettings()).tronEnergy.spentTodayTrx)).toBeCloseTo(9.42, 2);
   });
 
   it('TRON 冷钱包地址：格式、不能用热钱包地址、24 小时后生效、可取消；以太坊、BSC 的冷钱包不能改', async () => {
@@ -130,6 +146,40 @@ describe('资金归集：模拟层', () => {
     await expect(updateSweepSettings({ ...s2, reason: 'x', expectedVersion: s2.version + 1 })).rejects.toMatchObject({ reasonKey: 'errors.forbidden' });
   });
 
+  it('门槛、占比上限、上线初期上限、TRON 能量都能改：原因必填、写审计；默认值是方案建议', async () => {
+    expect(SWEEP_DEFAULTS).toEqual({ thresholds: { ERC20: '100', BSC: '10', TRC20: '100' }, maxFeeRatioPct: '3' });
+    const s = await getSweepSettings();
+    expect(s.thresholds).toEqual(SWEEP_DEFAULTS.thresholds);
+    expect(s.maxFeeRatioPct).toBe(SWEEP_DEFAULTS.maxFeeRatioPct);
+    expect(s.tronEnergy).toMatchObject({ mode: 'rent', maxPriceSun: '90', perDayTrx: '500', fallbackBurn: true, durationMin: 60 });
+    const base = { ...s, reason: '', expectedVersion: s.version };
+    const changed = { ...base, maxFeeRatioPct: '2.5', evmCaps: { perAddress: '8000', perBatch: '30000' }, tronEnergy: { ...s.tronEnergy, maxPriceSun: '80' } };
+    await expect(updateSweepSettings(changed)).rejects.toMatchObject({ reasonKey: 'errors.reasonRequired' });
+    // 占比上限不能超过 100%，租能量单价不能高于烧 TRX 的 100 sun
+    await expect(updateSweepSettings({ ...changed, reason: 'x', maxFeeRatioPct: '120' })).rejects.toMatchObject({ reasonKey: 'errors.validationFailed' });
+    await expect(updateSweepSettings({ ...changed, reason: 'x', tronEnergy: { ...s.tronEnergy, maxPriceSun: '120' } })).rejects.toMatchObject({ reasonKey: 'errors.validationFailed' });
+    await updateSweepSettings({ ...changed, reason: '放宽上线上限' });
+    const log = (await listAuditLogs({ page: 1, pageSize: 5 })).items[0];
+    expect(log).toMatchObject({ action: 'sweep.settings_update', highRisk: true, reason: '放宽上线上限' });
+    const s2 = await getSweepSettings();
+    expect(s2.maxFeeRatioPct).toBe('2.5');
+    expect(s2.evmCaps).toEqual({ perAddress: '8000', perBatch: '30000' });
+    expect(s2.tronEnergy.maxPriceSun).toBe('80');
+    // 改回默认
+    await updateSweepSettings({ ...s2, reason: '改回', expectedVersion: s2.version, maxFeeRatioPct: s.maxFeeRatioPct, evmCaps: s.evmCaps, tronEnergy: { ...s2.tronEnergy, maxPriceSun: '90' } });
+  });
+
+  it('烧 TRX 模式：预览改成补 TRX，不租能量', async () => {
+    const s = await getSweepSettings();
+    await updateSweepSettings({ ...s, reason: '平台故障，临时改烧 TRX', expectedVersion: s.version, tronEnergy: { ...s.tronEnergy, mode: 'burn' } });
+    const p = await previewSweep('TRC20');
+    expect(p.tronRent?.mode).toBe('burn');
+    expect(p.candidates.every((c) => c.rentTrx === '0')).toBe(true);
+    expect(p.candidates.every((c) => Number(c.topup) > 0 || c.skip)).toBe(true);
+    const s2 = await getSweepSettings();
+    await updateSweepSettings({ ...s2, reason: '恢复租能量', expectedVersion: s2.version, tronEnergy: { ...s2.tronEnergy, mode: 'rent' } });
+  });
+
   it('批次列表按链筛选', async () => {
     const all = await listSweepBatches({ page: 1, pageSize: 100 });
     const tron = await listSweepBatches({ page: 1, pageSize: 100, chain: 'TRC20' });
@@ -152,14 +202,17 @@ describe('资金归集：页面', () => {
     expect(await screen.findAllByRole('button', { name: /详\s?情/ })).not.toHaveLength(0);
   });
 
-  it('生成 / 执行：以太坊显示"执行归集"和首次部署，TRON 显示"生成待签名清单"和要补的 TRX', async () => {
+  it('生成 / 执行：以太坊显示"执行归集"和首次部署，TRON 显示"生成待签名清单"、租能量报价和预计租金', async () => {
     renderAs(<SweepNewPage />, { path: '/funds/reconciliation/sweep/new?chain=ERC20' });
     expect(await screen.findByRole('button', { name: '执行归集' })).toBeInTheDocument();
     expect((await screen.findAllByText('首次部署')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('手续费占比过高').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByText(/TRC20 · 离线签名/));
     expect(await screen.findByRole('button', { name: '生成待签名清单' })).toBeInTheDocument();
-    expect(await screen.findByText('要补的 TRX')).toBeInTheDocument();
+    expect(await screen.findByText('预计租金')).toBeInTheDocument();
+    expect(screen.getByText('激活')).toBeInTheDocument();
+    expect(screen.getByText(/TronSave 报价 67.25 sun/)).toBeInTheDocument();
+    expect(screen.getByText('预计租金合计')).toBeInTheDocument();
   });
 
   it('风控身份没有执行权限：按钮不可用', async () => {
@@ -193,6 +246,31 @@ describe('资金归集：页面', () => {
     expect(screen.getByRole('button', { name: /保\s?存/ })).toBeEnabled();
     fireEvent.change(screen.getByLabelText('归集门槛 TRC20'), { target: { value: 'abc' } });
     expect(screen.getByRole('button', { name: /保\s?存/ })).toBeDisabled();
+    // 默认值显示在输入框下面；TRON 能量设置可改
+    expect(screen.getAllByText('默认 100 USDT')).toHaveLength(2);
+    expect(screen.getByText('默认 10 USDT')).toBeInTheDocument();
+    expect(screen.getByText('默认 3%')).toBeInTheDocument();
+    expect(screen.getByLabelText('最高单价')).toHaveValue('90');
+    expect(screen.getByRole('switch', { name: '租不到或没到账时回退到烧 TRX' })).toBeChecked();
+  });
+
+  it('归集设置：改门槛和占比上限，保存时高危确认填原因，版本 +1、写审计', async () => {
+    renderAs(<SweepSettingsPage />);
+    const before = await getSweepSettings();
+    fireEvent.change(await screen.findByLabelText('归集门槛 BSC'), { target: { value: '15' } });
+    fireEvent.change(screen.getByLabelText('手续费占比上限'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /保\s?存/ }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'BSC 门槛提高到 15' } });
+    fireEvent.click(within(dialog).getByRole('checkbox'));
+    fireEvent.click(within(dialog).getByRole('button', { name: /保\s?存/ }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const s = await getSweepSettings();
+    expect(s.version).toBe(before.version + 1);
+    expect(s.thresholds.BSC).toBe('15');
+    expect(s.maxFeeRatioPct).toBe('2');
+    expect((await listAuditLogs({ page: 1, pageSize: 5 })).items[0]).toMatchObject({ action: 'sweep.settings_update', reason: 'BSC 门槛提高到 15' });
+    await updateSweepSettings({ ...s, reason: '改回', expectedVersion: s.version, thresholds: before.thresholds, maxFeeRatioPct: before.maxFeeRatioPct });
   });
 
   it('英文界面能渲染', async () => {
