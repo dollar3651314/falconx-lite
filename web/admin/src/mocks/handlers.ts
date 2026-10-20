@@ -53,7 +53,19 @@ import {
   type WithdrawalQuery,
   type WithdrawalSummary,
   type Withdrawal,
+  type SweepBatch,
+  type SweepBatchDetail,
+  type SweepBatchQuery,
+  type SweepChain,
+  type SweepImportResult,
+  type SweepItem,
+  type SweepOverview,
+  type SweepPreview,
+  type SweepSettings,
+  type SweepSettingsInput,
 } from '../api/types';
+import { GAS_ASSET, SWEEP_CHAINS, SWEEP_MODE, SWEEP_PERM, isSweepNumber, isTronAddress } from '../config/sweep';
+import * as sw from './data/sweep';
 import { AUTO_RULE_EDIT_PERM, AUTO_RULES, crossRuleProblems, ruleParamProblem } from '../config/autoApprove';
 import { defaultMarkup } from '../config/constants';
 import { MENU, type MenuItemDef } from '../config/menu';
@@ -1287,5 +1299,488 @@ export function updateSystemConfig(key: string, value: string, reason: string): 
     c.value = value;
     c.updatedAt = nowString();
     audit('config.update', key, true, r, { value: before }, { value });
+  });
+}
+
+// ============ v2 资金归集（原型，技术方案/v2-半自动归集.md 路线 (b)） ============
+// 权限借用已有的（config/sweep.ts 的 SWEEP_PERM）：查看 recon:view，执行 / 生成 / 导入 / 广播 / 作废 recon:resolve，改设置 config:edit
+
+function sweepDetail(no: string): SweepBatchDetail {
+  const d = sw.details.get(no);
+  if (!d) throw new ApiError('errors.notFound');
+  return d;
+}
+
+function syncBatch(d: SweepBatchDetail): void {
+  const b = sw.batches.find((x) => x.no === d.no)!;
+  Object.assign(b, {
+    status: d.status,
+    sweptUsdt: d.sweptUsdt,
+    fee: d.fee,
+    finishedAt: d.finishedAt,
+    txHash: d.txHash,
+  });
+}
+
+export function getSweepOverview(): Promise<SweepOverview[]> {
+  return respond(
+    () =>
+      SWEEP_CHAINS.map((chain) => {
+        const c = sw.candidatesOf(chain).filter((x) => !x.skip);
+        const last = sw.batches.find((b) => b.chain === chain && (b.status === 'confirmed' || b.status === 'partial'));
+        const active = sw.batches.find((b) => b.chain === chain && sw.ACTIVE.includes(b.status));
+        return {
+          chain,
+          mode: SWEEP_MODE[chain],
+          pendingUsdt: sumAmounts(c.map((x) => x.usdt)),
+          eligibleCount: c.length,
+          belowCount: sw.belowCount(chain),
+          destination: chain === 'TRC20' ? sw.settings.tronTarget.address : sw.settings.evm.parent,
+          operatorBalance: chain === 'TRC20' ? null : sw.settings.evm.operatorBalances[chain],
+          gasAsset: GAS_ASSET[chain],
+          lastSweepAt: last?.finishedAt ?? null,
+          activeBatch: active?.no ?? null,
+        };
+      }),
+    { empty: () => [] },
+  );
+}
+
+export function previewSweep(chain: SweepChain): Promise<SweepPreview> {
+  return respond(() => {
+    const candidates = sw.candidatesOf(chain);
+    const ok = candidates.filter((c) => !c.skip);
+    const usdt = sumAmounts(ok.map((c) => c.usdt));
+    const fee = ok.reduce((s, c) => s + Number(c.estFee), 0);
+    const feeUsd = ok.reduce((s, c) => s + Number(c.estFeeUsd), 0);
+    const te = sw.settings.tronEnergy;
+    const tronRent =
+      chain === 'TRC20'
+        ? { mode: te.mode, provider: te.provider, priceSun: sw.TRON_RENT.priceSun, energyPerItem: sw.TRON_RENT.energyPerItem, durationMin: te.durationMin, burnSun: sw.TRON_RENT.burnSun }
+        : null;
+    return {
+      chain,
+      mode: SWEEP_MODE[chain],
+      destination: chain === 'TRC20' ? sw.settings.tronTarget.address : sw.settings.evm.parent,
+      threshold: sw.settings.thresholds[chain],
+      maxFeeRatioPct: sw.settings.maxFeeRatioPct,
+      gasPrice: tronRent?.mode === 'rent' ? `${tronRent.priceSun} sun / 能量（${tronRent.provider}，${tronRent.durationMin} 分钟）` : sw.GAS_PRICE_TEXT[chain],
+      tronRent,
+      gasAsset: GAS_ASSET[chain],
+      candidates,
+      totals: {
+        count: ok.length,
+        usdt,
+        fee: sw.fmtFee(chain, fee),
+        feeUsd: feeUsd.toFixed(2),
+        feePct: Number(usdt) > 0 ? ((feeUsd / Number(usdt)) * 100).toFixed(2) : '0',
+        topup: ok.reduce((s, c) => s + Number(c.topup), 0).toFixed(2),
+        rent: ok.reduce((s, c) => s + Number(c.rentTrx), 0).toFixed(2),
+        skipped: candidates.length - ok.length,
+      },
+    };
+  });
+}
+
+/** 以太坊、BSC：执行一批（服务器签名批量交易）；TRON：生成待签名清单（没激活的地址热钱包转 1 TRX 激活；租能量在广播前） */
+export function runSweep(chain: SweepChain, reason: string): Promise<{ no: string }> {
+  return mutate(() => {
+    requirePerm(SWEEP_PERM.operate);
+    const r = requireReason(reason);
+    if (sw.batches.some((b) => b.chain === chain && sw.ACTIVE.includes(b.status))) throw new ApiError('errors.sweepBatchActive');
+    if (chain === 'TRC20' && !sw.settings.tronTarget.address) throw new ApiError('errors.sweepNoTarget');
+    const ok = sw.candidatesOf(chain).filter((c) => !c.skip);
+    if (!ok.length) throw new ApiError('errors.sweepNothing');
+    const no = sw.nextBatchNo();
+    const now = nowString();
+    const offline = SWEEP_MODE[chain] === 'offline';
+    const items: SweepItem[] = ok.map((c, i) => ({
+      itemNo: i + 1,
+      userId: c.userId,
+      customerName: c.customerName,
+      address: c.address,
+      amount: c.usdt,
+      deploy: c.deploy,
+      topup: c.topup,
+      status: offline ? 'ready' : 'swept',
+      txHash: null,
+      failReason: null,
+      rent: offline ? { status: 'none', energy: sw.TRON_RENT.energyPerItem, trx: '0.00', expiresAt: null } : null,
+    }));
+    const fee = ok.reduce((s, c) => s + Number(c.estFee), 0);
+    const d: SweepBatchDetail = {
+      no,
+      chain,
+      mode: SWEEP_MODE[chain],
+      status: offline ? 'awaiting_signature' : 'confirmed',
+      trigger: 'manual',
+      addressCount: items.length,
+      expectedUsdt: sumAmounts(items.map((x) => x.amount)),
+      sweptUsdt: offline ? '0.00' : sumAmounts(items.map((x) => x.amount)),
+      fee: offline ? '0.00' : sw.fmtFee(chain, fee),
+      gasAsset: GAS_ASSET[chain],
+      destination: offline ? sw.settings.tronTarget.address! : sw.settings.evm.parent,
+      createdBy: currentAdmin().displayName,
+      createdAt: now,
+      finishedAt: offline ? null : now,
+      expiresAt: offline ? addHours(now, sw.settings.tronExpireHours) : null,
+      txHash: offline ? null : '0x' + mockHex(64, Number(no.slice(-6))),
+      reason: r,
+      items,
+      unsignedSha256: offline ? mockHex(64, Number(no.slice(-5))) : null,
+      signedSha256: null,
+      events: offline
+        ? [
+            { time: now, actor: currentAdmin().displayName, text: 'created_offline' },
+            { time: now, actor: 'system', text: 'topup_confirmed' },
+          ]
+        : [
+            { time: now, actor: currentAdmin().displayName, text: 'created_contract' },
+            { time: now, actor: 'system', text: 'all_swept' },
+          ],
+    };
+    sw.batches.unshift({ ...d, items: undefined, reason: undefined, events: undefined, unsignedSha256: undefined, signedSha256: undefined } as unknown as SweepBatch);
+    sw.details.set(no, d);
+    syncBatch(d);
+    if (!offline) {
+      for (const it of items) {
+        const h = sw.holdings.find((x) => x.chain === chain && x.userId === it.userId);
+        if (h) {
+          h.usdt = '0.00';
+          h.ready = true;
+        }
+      }
+    }
+    audit('sweep.run', no, true, r, null, { chain, addresses: items.length, usdt: d.expectedUsdt });
+    return { no };
+  });
+}
+
+function addHours(time: string, hours: number): string {
+  const ms = Date.parse(time.replace(' ', 'T') + 'Z');
+  return new Date(ms + hours * 3600_000).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+function mockHex(len: number, seed: number): string {
+  const r = createRng(seed);
+  return r.hex(len);
+}
+
+export function listSweepBatches(q: SweepBatchQuery): Promise<Page<SweepBatch>> {
+  return respond(() => paginate(sw.batches.filter((b) => !q.chain || b.chain === q.chain), q.page, q.pageSize), {
+    empty: () => emptyPage<SweepBatch>(q.page, q.pageSize),
+  });
+}
+
+export function getSweepBatch(no: string): Promise<SweepBatchDetail> {
+  return respond(() => sweepDetail(no));
+}
+
+/** TRON：下载待签名文件（格式见方案附录 B.6） */
+export function downloadSweepUnsigned(no: string): Promise<{ fileName: string; content: string }> {
+  return respond(
+    () => {
+      requirePerm(SWEEP_PERM.operate);
+      const d = sweepDetail(no);
+      if (d.mode !== 'offline') throw new ApiError('errors.sweepWrongMode');
+      const body = {
+        format: 'falconx-sweep/1',
+        kind: 'unsigned',
+        prototype: true,
+        batchNo: d.no,
+        chain: d.chain,
+        createdAt: d.createdAt,
+        expiresAt: d.expiresAt,
+        coldAddress: d.destination,
+        derivation: "m/44'/195'/0'/0/{index}",
+        totals: { count: d.items.length, usdt: d.expectedUsdt },
+        items: d.items.map((it) => ({ itemNo: it.itemNo, index: it.userId, from: it.address, amount: it.amount, tx: { txID: '（原型：没有真实交易）', raw_data_hex: '（原型）' } })),
+        sha256: d.unsignedSha256,
+      };
+      return { fileName: `sweep-${d.no}-unsigned.json`, content: JSON.stringify(body, null, 2) };
+    },
+    { bypass: true },
+  );
+}
+
+/** 原型专用：生成一份演示用的"签好的文件"（最后一笔故意改过，演示核对不通过） */
+export function demoSweepSignedFile(no: string): Promise<string> {
+  return respond(
+    () => {
+      const d = sweepDetail(no);
+      return JSON.stringify({
+        format: 'falconx-sweep/1',
+        kind: 'signed',
+        batchNo: d.no,
+        unsignedSha256: d.unsignedSha256,
+        items: d.items.map((it, i) => ({ itemNo: it.itemNo, tampered: i === d.items.length - 1 && d.items.length > 1 })),
+      });
+    },
+    { bypass: true },
+  );
+}
+
+export function importSweepSigned(no: string, text: string): Promise<SweepImportResult> {
+  return mutate(() => {
+    requirePerm(SWEEP_PERM.operate);
+    const d = sweepDetail(no);
+    if (d.mode !== 'offline') throw new ApiError('errors.sweepWrongMode');
+    if (d.status !== 'awaiting_signature' && d.status !== 'signed') throw new ApiError('errors.sweepBatchState');
+    let file: { kind?: string; batchNo?: string; unsignedSha256?: string; items?: { itemNo: number; tampered?: boolean }[] };
+    try {
+      file = JSON.parse(text);
+    } catch {
+      throw new ApiError('errors.sweepBadFile');
+    }
+    if (file.kind !== 'signed' || !Array.isArray(file.items)) throw new ApiError('errors.sweepBadFile');
+    if (file.batchNo !== d.no || file.unsignedSha256 !== d.unsignedSha256) throw new ApiError('errors.sweepBatchMismatch');
+    const rejected: SweepImportResult['rejected'] = [];
+    let accepted = 0;
+    for (const f of file.items) {
+      const it = d.items.find((x) => x.itemNo === f.itemNo);
+      if (!it || (it.status !== 'ready' && it.status !== 'sign_rejected')) continue;
+      if (f.tampered) {
+        it.status = 'sign_rejected';
+        it.failReason = 'contentMismatch';
+        rejected.push({ itemNo: it.itemNo, reason: 'contentMismatch' });
+      } else {
+        it.status = 'signed';
+        it.failReason = null;
+        accepted += 1;
+      }
+    }
+    d.status = 'signed';
+    d.signedSha256 = mockHex(64, text.length);
+    d.events.push({ time: nowString(), actor: currentAdmin().displayName, text: 'imported' });
+    syncBatch(d);
+    audit('sweep.batch_import', no, true, null, null, { accepted, rejected: rejected.length });
+    return { accepted, rejected };
+  });
+}
+
+export function broadcastSweep(no: string, reason: string): Promise<void> {
+  return mutate(() => {
+    requirePerm(SWEEP_PERM.operate);
+    const r = requireReason(reason);
+    const d = sweepDetail(no);
+    if (d.status !== 'signed') throw new ApiError('errors.sweepBatchState');
+    const signed = d.items.filter((x) => x.status === 'signed');
+    if (!signed.length) throw new ApiError('errors.sweepNothing');
+    const now = nowString();
+    const te = sw.settings.tronEnergy;
+    const rentTrx = sw.rentTrxOf(sw.TRON_RENT.priceSun);
+    const burnTopup = 7.72; // 64,285 能量 × 100 sun × 1.2
+    let rentSpent = 0;
+    let burnSpent = 0;
+    let fallback = 0;
+    signed.forEach((it, i) => {
+      it.txHash = mockHex(64, Number(no.slice(-4)) + i);
+      const expiresAt = addHours(now, te.durationMin / 60);
+      if (te.mode === 'burn') {
+        it.rent = { status: 'fallbackBurn', energy: 0, trx: burnTopup.toFixed(2), expiresAt: null };
+        burnSpent += burnTopup;
+      } else if (i === 2 && signed.length > 2 && te.fallbackBurn) {
+        // 原型：第三笔演示"能量 2 分钟内没到账 → 回退到热钱包补 TRX、烧 TRX"（平台没扣钱）
+        it.rent = { status: 'fallbackBurn', energy: sw.TRON_RENT.energyPerItem, trx: burnTopup.toFixed(2), expiresAt: null };
+        burnSpent += burnTopup;
+        fallback += 1;
+      } else {
+        it.rent = { status: 'delivered', energy: sw.TRON_RENT.energyPerItem, trx: rentTrx.toFixed(2), expiresAt };
+        rentSpent += rentTrx;
+      }
+      // 原型：第二笔演示"租到了能量，但链上执行失败（动态能量涨了，能量不够）"
+      if (i === 1 && signed.length > 2) {
+        it.status = 'failed';
+        it.failReason = 'outOfEnergy';
+      } else {
+        it.status = 'swept';
+        const h = sw.holdings.find((x) => x.chain === d.chain && x.userId === it.userId);
+        if (h) h.usdt = '0.00';
+      }
+    });
+    te.spentTodayTrx = (Number(te.spentTodayTrx) + rentSpent).toFixed(2);
+    te.providerBalance = Math.max(0, Number(te.providerBalance) - rentSpent).toFixed(2);
+    for (const it of d.items) if (it.status === 'ready') it.status = 'expired';
+    const swept = d.items.filter((x) => x.status === 'swept');
+    d.sweptUsdt = sumAmounts(swept.map((x) => x.amount));
+    d.fee = (rentSpent + burnSpent).toFixed(2);
+    d.status = swept.length === d.items.length ? 'confirmed' : swept.length ? 'partial' : 'failed';
+    d.finishedAt = now;
+    d.events.push({ time: now, actor: currentAdmin().displayName, text: 'broadcast' });
+    if (te.mode === 'rent') d.events.push({ time: now, actor: 'system', text: 'rent_ordered' }, { time: now, actor: 'system', text: 'rent_delivered' });
+    if (fallback) d.events.push({ time: now, actor: 'system', text: 'rent_fallback' });
+    d.events.push({ time: now, actor: 'system', text: d.status === 'confirmed' ? 'all_swept' : 'some_failed' });
+    syncBatch(d);
+    audit('sweep.batch_broadcast', no, true, r, null, { swept: swept.length, failed: d.items.length - swept.length });
+  });
+}
+
+export function cancelSweepBatch(no: string, reason: string): Promise<void> {
+  return mutate(() => {
+    requirePerm(SWEEP_PERM.operate);
+    const r = requireReason(reason);
+    const d = sweepDetail(no);
+    if (d.status !== 'awaiting_signature' && d.status !== 'signed') throw new ApiError('errors.sweepBatchState');
+    for (const it of d.items) if (it.status !== 'swept' && it.status !== 'failed') it.status = 'cancelled';
+    d.status = 'cancelled';
+    d.finishedAt = nowString();
+    d.events.push({ time: d.finishedAt, actor: currentAdmin().displayName, text: 'cancelled' });
+    syncBatch(d);
+    audit('sweep.batch_cancel', no, true, r, { status: 'awaiting_signature' }, { status: 'cancelled' });
+  });
+}
+
+/** 以太坊、BSC：失败的地址重新归集（新批次） */
+export function retrySweepBatch(no: string, reason: string): Promise<{ no: string }> {
+  return mutate(() => {
+    requirePerm(SWEEP_PERM.operate);
+    const r = requireReason(reason);
+    const d = sweepDetail(no);
+    if (d.mode !== 'contract' || (d.status !== 'partial' && d.status !== 'failed' && d.status !== 'deferred')) throw new ApiError('errors.sweepBatchState');
+    const redo = d.items.filter((x) => x.status === 'failed' || x.status === 'pending');
+    const nn = sw.nextBatchNo();
+    const now = nowString();
+    const items = redo.map((it, i) => ({ ...it, itemNo: i + 1, status: 'swept' as const, failReason: null }));
+    const nd: SweepBatchDetail = {
+      ...d,
+      no: nn,
+      status: 'confirmed',
+      addressCount: items.length,
+      expectedUsdt: sumAmounts(items.map((x) => x.amount)),
+      sweptUsdt: sumAmounts(items.map((x) => x.amount)),
+      fee: sw.fmtFee(d.chain, items.reduce((s, it) => s + sw.feeOf(d.chain, it.deploy), 0)),
+      createdBy: currentAdmin().displayName,
+      createdAt: now,
+      finishedAt: now,
+      txHash: '0x' + mockHex(64, Number(nn.slice(-6))),
+      reason: r,
+      items,
+      events: [
+        { time: now, actor: currentAdmin().displayName, text: 'retry_of' },
+        { time: now, actor: 'system', text: 'all_swept' },
+      ],
+    };
+    sw.details.set(nn, nd);
+    sw.batches.unshift({ ...nd, items: undefined, reason: undefined, events: undefined, unsignedSha256: undefined, signedSha256: undefined } as unknown as SweepBatch);
+    audit('sweep.retry', nn, true, r, null, { retryOf: no, addresses: items.length });
+    return { no: nn };
+  });
+}
+
+export function getSweepSettings(): Promise<SweepSettings> {
+  return respond(() => {
+    const p = sw.settings.tronTarget.pending;
+    // 原型：到了生效时间就生效
+    if (p && p.effectiveAt <= nowString()) {
+      sw.settings.tronTarget = { address: p.address, pending: null };
+    }
+    return sw.settings;
+  });
+}
+
+const SWEEP_FIELDS = ['maxFeeRatioPct', 'ethMaxBaseFeeGwei', 'tronTopupPerItem', 'tronTopupPerDay'] as const;
+const TRON_ENERGY_NUMS = ['maxPriceSun', 'perDayTrx', 'providerBalanceMin'] as const;
+
+export function updateSweepSettings(input: SweepSettingsInput): Promise<void> {
+  return mutate(() => {
+    requirePerm(SWEEP_PERM.config);
+    const r = requireReason(input.reason);
+    const cur = sw.settings;
+    if (input.expectedVersion !== cur.version) throw new ApiError('errors.configChanged', undefined, { status: 409, code: 'CONFIG_CHANGED' });
+    const nums = [
+      ...SWEEP_CHAINS.map((c) => input.thresholds[c]),
+      ...SWEEP_CHAINS.map((c) => input.remind[c]),
+      input.operatorMin.ERC20,
+      input.operatorMin.BSC,
+      ...SWEEP_FIELDS.map((k) => input[k]),
+      input.evmCaps.perAddress,
+      input.evmCaps.perBatch,
+      ...TRON_ENERGY_NUMS.map((k) => input.tronEnergy[k]),
+    ];
+    const te = input.tronEnergy;
+    // 占比上限 0–100%；租能量单价不能高于烧 TRX（100 sun）；每笔租 10–1440 分钟
+    if (Number(input.maxFeeRatioPct) > 100 || Number(te.maxPriceSun) > 100 || !(te.durationMin >= 10 && te.durationMin <= 1440) || (te.mode !== 'rent' && te.mode !== 'burn')) {
+      throw new ApiError('errors.validationFailed');
+    }
+    if (nums.some((v) => !isSweepNumber(v)) || !(input.autoHourUtc >= 0 && input.autoHourUtc <= 23) || !(input.tronExpireHours >= 1 && input.tronExpireHours <= 23)) {
+      throw new ApiError('errors.validationFailed');
+    }
+    const before: Record<string, string> = {};
+    const after: Record<string, string> = {};
+    const put = (k: string, a: string | number | boolean, b: string | number | boolean) => {
+      if (String(a) !== String(b)) {
+        before[k] = String(a);
+        after[k] = String(b);
+      }
+    };
+    for (const c of SWEEP_CHAINS) put(`threshold.${c}`, cur.thresholds[c], input.thresholds[c].trim());
+    for (const c of SWEEP_CHAINS) put(`remind.${c}`, cur.remind[c], input.remind[c].trim());
+    put('operatorMin.ERC20', cur.operatorMin.ERC20, input.operatorMin.ERC20.trim());
+    put('operatorMin.BSC', cur.operatorMin.BSC, input.operatorMin.BSC.trim());
+    for (const k of SWEEP_FIELDS) put(k, cur[k], input[k].trim());
+    put('autoEnabled', cur.autoEnabled, input.autoEnabled);
+    put('autoHourUtc', cur.autoHourUtc, input.autoHourUtc);
+    put('tronExpireHours', cur.tronExpireHours, input.tronExpireHours);
+    put('evmCaps.perAddress', cur.evmCaps.perAddress, input.evmCaps.perAddress.trim());
+    put('evmCaps.perBatch', cur.evmCaps.perBatch, input.evmCaps.perBatch.trim());
+    put('tronEnergy.mode', cur.tronEnergy.mode, te.mode);
+    for (const k of TRON_ENERGY_NUMS) put(`tronEnergy.${k}`, cur.tronEnergy[k], te[k].trim());
+    put('tronEnergy.fallbackBurn', cur.tronEnergy.fallbackBurn, te.fallbackBurn);
+    put('tronEnergy.durationMin', cur.tronEnergy.durationMin, te.durationMin);
+    if (!Object.keys(after).length) throw new ApiError('errors.sweepNoChange');
+    Object.assign(cur, {
+      thresholds: { ...input.thresholds },
+      remind: { ...input.remind },
+      operatorMin: { ...input.operatorMin },
+      maxFeeRatioPct: input.maxFeeRatioPct.trim(),
+      ethMaxBaseFeeGwei: input.ethMaxBaseFeeGwei.trim(),
+      tronTopupPerItem: input.tronTopupPerItem.trim(),
+      tronTopupPerDay: input.tronTopupPerDay.trim(),
+      autoEnabled: input.autoEnabled,
+      autoHourUtc: input.autoHourUtc,
+      tronExpireHours: input.tronExpireHours,
+      evmCaps: { perAddress: input.evmCaps.perAddress.trim(), perBatch: input.evmCaps.perBatch.trim() },
+      tronEnergy: {
+        ...cur.tronEnergy,
+        mode: te.mode,
+        maxPriceSun: te.maxPriceSun.trim(),
+        perDayTrx: te.perDayTrx.trim(),
+        providerBalanceMin: te.providerBalanceMin.trim(),
+        fallbackBurn: te.fallbackBurn,
+        durationMin: te.durationMin,
+      },
+      version: cur.version + 1,
+      updatedAt: nowString(),
+      updatedBy: currentAdmin().displayName,
+    });
+    audit('sweep.settings_update', `v${cur.version}`, true, r, before, after);
+  });
+}
+
+/** TRON 冷钱包地址：提交修改，24 小时后生效（方案附录 B.7） */
+export function requestTronSweepTarget(address: string, reason: string): Promise<void> {
+  return mutate(() => {
+    requirePerm(SWEEP_PERM.config);
+    const r = requireReason(reason);
+    const a = address.trim();
+    if (!isTronAddress(a)) throw new ApiError('errors.sweepAddressInvalid');
+    const forbidden = [...db.hotWallets.map((h) => h.address), ...sw.holdings.filter((h) => h.chain === 'TRC20').map((h) => sw.addressOf('TRC20', h.userId))];
+    if (forbidden.includes(a)) throw new ApiError('errors.sweepAddressForbidden');
+    if (a === sw.settings.tronTarget.address) throw new ApiError('errors.sweepNoChange');
+    if (sw.settings.tronTarget.pending) throw new ApiError('errors.sweepTargetPending');
+    const now = nowString();
+    sw.settings.tronTarget.pending = { address: a, requestedAt: now, effectiveAt: addHours(now, sw.settings.tronTargetDelayHours), requestedBy: currentAdmin().displayName, reason: r };
+    audit('sweep.target_request', 'TRC20', true, r, { address: sw.settings.tronTarget.address }, { address: a });
+  });
+}
+
+export function cancelTronSweepTarget(reason: string): Promise<void> {
+  return mutate(() => {
+    requirePerm(SWEEP_PERM.config);
+    const r = requireReason(reason);
+    const p = sw.settings.tronTarget.pending;
+    if (!p) throw new ApiError('errors.sweepBatchState');
+    sw.settings.tronTarget.pending = null;
+    audit('sweep.target_cancel', 'TRC20', true, r, { pending: p.address }, { pending: null });
   });
 }

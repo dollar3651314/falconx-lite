@@ -11,6 +11,10 @@ import { DepositsPage } from '../pages/funds/DepositsPage';
 import { WithdrawalsPage } from '../pages/funds/WithdrawalsPage';
 import { AutoApprovePage } from '../pages/funds/AutoApprovePage';
 import { ReconPage } from '../pages/funds/ReconPage';
+import { SweepRecordsPage } from '../pages/funds/sweep/SweepRecordsPage';
+import { SweepNewPage } from '../pages/funds/sweep/SweepNewPage';
+import { SweepBatchPage } from '../pages/funds/sweep/SweepBatchPage';
+import { SweepSettingsPage } from '../pages/funds/sweep/SweepSettingsPage';
 import { TasksPage } from '../pages/funds/TasksPage';
 import { OrdersPage } from '../pages/trading/OrdersPage';
 import { PositionsPage } from '../pages/trading/PositionsPage';
@@ -47,6 +51,11 @@ export const APP_ROUTES: RouteDef[] = [
   // v2 自动审批规则（原型；真实接口模式下显示"未上线"），从出金审核页进入，归在出金审核菜单下
   { path: '/funds/withdrawals/auto-rules', menuKey: 'withdrawals', element: <AutoApprovePage /> },
   { path: '/funds/reconciliation', menuKey: 'reconciliation', element: <ReconPage /> },
+  // v2 资金归集（原型；真实接口模式下显示"未上线"），从对账页进入，归在入金对账菜单下
+  { path: '/funds/reconciliation/sweep', menuKey: 'reconciliation', element: <SweepRecordsPage /> },
+  { path: '/funds/reconciliation/sweep/new', menuKey: 'reconciliation', element: <SweepNewPage /> },
+  { path: '/funds/reconciliation/sweep/batches/:no', menuKey: 'reconciliation', element: <SweepBatchPage /> },
+  { path: '/funds/reconciliation/sweep/settings', menuKey: 'reconciliation', element: <SweepSettingsPage /> },
   { path: '/funds/tasks', menuKey: 'tasks', element: <TasksPage /> },
   { path: '/trading/orders', menuKey: 'orders', element: <OrdersPage /> },
   { path: '/trading/positions', menuKey: 'positions', element: <PositionsPage /> },
