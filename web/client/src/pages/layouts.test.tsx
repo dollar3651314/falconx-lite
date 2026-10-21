@@ -73,7 +73,7 @@ describe('交易页：手机下单抽屉、电脑下单面板', () => {
     expect(within(dialog).getByRole('button', { name: '确认卖出 0.10 手 XAUUSD' })).toBeInTheDocument();
   });
 
-  it('电脑交易页：右栏常驻下单面板，图表上的"卖出"按钮切换方向', async () => {
+  it('电脑交易页：右栏常驻下单面板，在右栏切换方向；图表上没有卖出 / 买入按钮（体验优化 1021 第 5 条）', async () => {
     setDesktop(true);
     renderPage(
       <Routes>
@@ -82,9 +82,49 @@ describe('交易页：手机下单抽屉、电脑下单面板', () => {
       '/trade/XAUUSD',
     );
     expect(await screen.findByRole('button', { name: '确认买入 0.10 手 XAUUSD' })).toBeInTheDocument();
-    const chartSell = document.querySelector('.px-btns .px-btn.sell') as HTMLButtonElement;
-    fireEvent.click(chartSell);
+    expect(document.querySelector('.px-btns')).toBeNull();
+    // 确认按钮放在固定在右栏底部的那一块里（第 3 条）
+    expect(screen.getByRole('button', { name: '确认买入 0.10 手 XAUUSD' }).closest('.op-sticky')).not.toBeNull();
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: '方向' })).getByRole('radio', { name: /卖出/ }));
     expect(await screen.findByRole('button', { name: '确认卖出 0.10 手 XAUUSD' })).toBeInTheDocument();
+  });
+
+  it('电脑交易页左栏：默认只列自选品种名称（不跳价格），可以切到全部行情、收起和展开（第 7 条）', async () => {
+    setDesktop(true);
+    localStorage.removeItem('fx.trade.wl');
+    renderPage(
+      <Routes>
+        <Route path="/trade/:symbol" element={<Trade />} />
+      </Routes>,
+      '/trade/XAUUSD',
+    );
+    const names = await screen.findByRole('list', { name: '自选' });
+    expect(within(names).getAllByRole('button').length).toBeGreaterThan(0);
+    expect(names.querySelector('.sym-price, .sym-ba')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: '全部行情' }));
+    expect(await screen.findByText('显示 50 / 50 个品种')).toBeInTheDocument();
+    expect(localStorage.getItem('fx.trade.wl')).toBe('full');
+    fireEvent.click(screen.getByRole('button', { name: '收起品种列表' }));
+    expect(screen.queryByRole('tab', { name: '全部行情' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '展开品种列表' }));
+    expect(await screen.findByRole('list', { name: '自选' })).toBeInTheDocument();
+  });
+
+  it('电脑交易页左栏：自选全部取消后显示空状态，可以去浏览全部品种', async () => {
+    setDesktop(true);
+    localStorage.setItem('fx.favorites', '[]');
+    resetFavorites();
+    localStorage.setItem('fx.favorites', '[]');
+    renderPage(
+      <Routes>
+        <Route path="/trade/:symbol" element={<Trade />} />
+      </Routes>,
+      '/trade/XAUUSD',
+    );
+    expect(await screen.findByText('还没有自选品种')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '浏览全部品种' }));
+    expect(await screen.findByText('显示 50 / 50 个品种')).toBeInTheDocument();
+    localStorage.removeItem('fx.trade.wl');
   });
 });
 
@@ -98,17 +138,47 @@ describe('主题和涨跌色', () => {
     );
   }
 
-  it('默认深色、绿涨红跌；切换后写到页面根元素', () => {
+  it('默认浅色（体验优化 1021 第 8 条）、绿涨红跌；切换后写到页面根元素', () => {
     localStorage.clear();
     render(
       <ThemeProvider>
         <Probe />
       </ThemeProvider>,
     );
-    expect(screen.getByRole('button')).toHaveTextContent('dark-green');
-    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(screen.getByRole('button')).toHaveTextContent('light-green');
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(localStorage.getItem('fx.theme.v3')).toBeNull();
     act(() => screen.getByRole('button').click());
     expect(document.documentElement.dataset.updown).toBe('red');
     expect(localStorage.getItem('fx.updown')).toBe('red');
+  });
+
+  it('自己选过深色的保留；旧版本每次自动写入的 fx.theme.v2 不再沿用', () => {
+    function ThemeProbe() {
+      const { theme, setTheme } = useTheme();
+      return (
+        <button type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+          {theme}
+        </button>
+      );
+    }
+    localStorage.clear();
+    localStorage.setItem('fx.theme.v2', 'dark');
+    const first = render(
+      <ThemeProvider>
+        <ThemeProbe />
+      </ThemeProvider>,
+    );
+    expect(screen.getByRole('button')).toHaveTextContent('light');
+    act(() => screen.getByRole('button').click());
+    expect(localStorage.getItem('fx.theme.v3')).toBe('dark');
+    first.unmount();
+    render(
+      <ThemeProvider>
+        <ThemeProbe />
+      </ThemeProvider>,
+    );
+    expect(screen.getByRole('button')).toHaveTextContent('dark');
+    expect(document.documentElement.dataset.theme).toBe('dark');
   });
 });

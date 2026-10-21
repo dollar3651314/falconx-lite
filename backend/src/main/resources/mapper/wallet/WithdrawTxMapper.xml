@@ -19,6 +19,10 @@
     </constructor>
   </resultMap>
 
+  <select id="publicNo" resultType="java.lang.Long">
+    SELECT public_no FROM wallet_withdrawal WHERE id = #{withdrawalId}
+  </select>
+
   <select id="lockNonce" resultType="long">
     SELECT next_nonce FROM wallet_chain_nonce WHERE chain = #{chain} FOR UPDATE
   </select>

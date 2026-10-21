@@ -17,14 +17,14 @@ class EnvLabelFlowTest extends NotifyTestSupport {
 
   @Test
   void 测试环境_邮件标题加前缀_站内信不加() throws Exception {
-    User u = register();
+    User u = registerClean();
     assertThat(mailsTo(u.email()).getFirst().getSubject()).isEqualTo("[测试] Quick Come 验证码 | [TEST] Quick Come verification code");
 
     notify.toUser(u.id(), "DEPOSIT_CREDITED", Map.of("amount", "100", "chain", "TRC20"));
     worker.drain();
     MimeMessage zh = mailsTo(u.email()).getLast();
     assertThat(zh.getSubject()).isEqualTo("[测试] 充值已到账");
-    assertThat(body(zh)).as("正文不变").isEqualTo("您通过 TRC20 充值的 100 USDT 已到账。");
+    assertThat(body(zh)).as("正文不变").isEqualTo("您通过 TRC20 充值的 100 USDT 已到账，现在可以开始交易了。");
 
     String inbox = call(get("/api/notifications?lang=zh-CN"), u.cookie(), null).getContentAsString();
     assertThat(inbox).contains("\"title\":\"充值已到账\"").doesNotContain("[测试]");

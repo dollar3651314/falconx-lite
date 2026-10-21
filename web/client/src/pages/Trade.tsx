@@ -2,7 +2,9 @@
  * 交易页（UI 风格 C）。手机和电脑各自一套结构，数据和下单逻辑共用。
  * 手机（效果图 assets/v1/ui-research/C-手机.png 第 ② 屏）：品种页，K 线占主体，底部固定"卖出 / 买入"，
  *   点了才弹出下单抽屉（OrderSheet）。
- * 桌面 ≥1024（效果图 C-桌面-交易页.png）：三栏，左品种列表 | 中 K 线（左上角卖 / 买价格按钮）+ 持仓 | 右下单面板。
+ * 桌面 ≥1024（效果图 C-桌面-交易页.png）：三栏，左品种栏 | 中 K 线 + 持仓 | 右下单面板。
+ * 体验优化 1021（第一批）：左栏是 WatchRail（只看自选名称 / 全部行情 / 收起，第 7 条），图表上不再有卖 / 买按钮（第 5 条），
+ *   右栏的确认按钮固定在面板底部（第 3 条，样式在 pages.css 的"电脑交易页"一段）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,7 +20,9 @@ import { OrderPanel } from '../components/OrderPanel';
 import { OrderSheet } from '../components/OrderSheet';
 import { PositionsTabs } from '../components/PositionsTabs';
 import { StatusTags, SymbolList } from '../components/SymbolList';
+import { WatchRail } from '../components/WatchRail';
 import { useChartPrefs, type ChartPrefs } from '../hooks/useChartPrefs';
+import { useWatchMode } from '../hooks/useWatchMode';
 import { useFavorites } from '../hooks/useFavorites';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { useQuote, useQuotes } from '../hooks/useQuotes';
@@ -157,22 +161,6 @@ function ChartCredit() {
   );
 }
 
-/** 卖出 / 买入价格按钮：桌面浮在图表左上角，点击切换右栏下单方向 */
-function PriceButtons({ s, side, onPick }: { s: SymbolInfo; side?: Side; onPick: (side: Side) => void }) {
-  const { t } = useTranslation();
-  const q = useQuote(s.code);
-  return (
-    <div className="px-btns">
-      {(['sell', 'buy'] as const).map((x) => (
-        <button key={x} type="button" className={`px-btn ${x}${side === x ? ' on' : ''}`} onClick={() => onPick(x)} aria-pressed={side === x}>
-          <small>{t(`side.${x}`)}</small>
-          <b className="num">{q ? formatPrice(x === 'buy' ? q.ask : q.bid, s.digits) : '—'}</b>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function DesktopHead({ s }: { s: SymbolInfo }) {
   const { t, i18n } = useTranslation();
   const { q, cls, spread, chgText } = useSymbolStats(s);
@@ -285,6 +273,7 @@ export default function Trade() {
   const { prefs, toggleIndicator, toggleBidAsk } = useChartPrefs();
   const [sheet, setSheet] = useState<Side | null>(null);
   const [picker, setPicker] = useState(false);
+  const [wlMode, setWlMode] = useWatchMode();
   const qSide = search.get('side');
   const [sideReq, setSideReq] = useState<{ side: Side; n: number }>(() => ({ side: qSide === 'sell' ? 'sell' : 'buy', n: 0 }));
 
@@ -325,16 +314,15 @@ export default function Trade() {
 
   if (desktop) {
     return (
-      <div className="trade-desktop">
+      <div className={`trade-desktop wl-mode-${wlMode}`}>
         <aside className="panel wl">
-          <SymbolList selected={s.code} onSelect={select} variant="side" initialCategory="fav" />
+          <WatchRail mode={wlMode} onMode={setWlMode} selected={s.code} onSelect={select} />
         </aside>
         <section className="center">
           <div className="panel chartp">
             <DesktopHead s={s} />
             <ChartToolbar period={tf} onPeriod={changeTf} prefs={prefs} onIndicator={toggleIndicator} onBidAsk={toggleBidAsk} inline />
             <div className="chart-wrap">
-              <PriceButtons s={s} side={sideReq.side} onPick={(x) => setSideReq((r) => ({ side: x, n: r.n + 1 }))} />
               <KChart symbol={s.code} period={tf} digits={s.digits} positionLines={lines} indicators={prefs.indicators} showBidAsk={prefs.bidAsk} />
             </div>
             <ChartCredit />

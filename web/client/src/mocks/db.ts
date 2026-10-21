@@ -175,10 +175,11 @@ function seedNotifications(): StoredNotification[] {
   const base: StoredNotification[] = [
     N('deposit', '充值到账', 'Deposit credited', '1,000.00 USDT（TRC20）已到账，可用于交易。', '1,000.00 USDT (TRC20) has been credited to your account.', 18, false, 0),
     N('fill', '限价单成交', 'Limit order filled', 'XAUUSD 买入 0.10 手已按 4,120.85 成交。', 'XAUUSD buy 0.10 lots filled at 4,120.85.', 205, false, 1),
-    N('marginCall', '保证金水平偏低', 'Low margin level', 'EURUSD 卖出持仓的保证金水平已低于 150%，请追加保证金或减少持仓。', 'Your EURUSD sell position margin level is below 150%. Please add margin or reduce exposure.', 380, false, 2),
+    N('marginCall', '保证金水平偏低', 'Low margin level', 'EURUSD 卖出持仓的保证金水平已低于 150%，请追加保证金或平掉部分持仓。', 'Your EURUSD sell position margin level is below 150%. Please add margin or close some positions.', 380, false, 2),
     N('withdraw', '提现已进入冷静期', 'Withdrawal in cooling-off period', '1,000.00 USDT 提现已提交，2 小时内可撤销。', 'Your 1,000.00 USDT withdrawal was submitted and can be cancelled within 2 hours.', 25, false, 3),
     N('system', '系统公告：<b>周末维护</b> 安排', 'Notice: <b>weekend maintenance</b> schedule', '本周六 02:00–04:00（北京时间）进行系统维护，期间无法登录和交易。标题里的 <b> 是测试用的特殊符号，应原样显示。', 'System maintenance on Saturday 02:00–04:00 (UTC+8). The <b> in the title is a test symbol and should be shown as-is.', 1440, false, 4),
-    N('kyc', '身份认证已通过', 'Identity verification approved', '您的身份认证已通过审核，现在可以提现。', 'Your identity verification has been approved. You can now withdraw.', 2880, true, 5),
+    // 和后端模板 KYC_APPROVED（迁移 V30，体验建议第 11 条）同一段文案
+    N('kyc', '身份认证已通过', 'Identity verified', '您的身份认证已通过，充值、交易、提现均已开通。还没有充值的话，可以在"资产"页充值 USDT 开始交易。', 'Your identity has been verified. Deposits, trading and withdrawals are all available. If you have not deposited yet, go to Assets to deposit USDT and start trading.', 2880, true, 5),
     N('tpsl', '止盈已触发', 'Take profit triggered', 'USDJPY 买入 1.00 手在 152.300 止盈平仓，盈利 +302.14 USDT。', 'USDJPY buy 1.00 lots closed by take profit at 152.300, P/L +302.14 USDT.', 3100, true, 6),
     N('liquidation', '持仓被强平', 'Position liquidated', 'XTIUSD 卖出 2.00 手在 63.15 被强制平仓，亏损 -1,240.00 USDT。', 'XTIUSD sell 2.00 lots was liquidated at 63.15, P/L -1,240.00 USDT.', 5200, true, 7),
   ];

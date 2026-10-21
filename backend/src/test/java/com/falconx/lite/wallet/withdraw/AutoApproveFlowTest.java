@@ -156,8 +156,9 @@ class AutoApproveFlowTest {
   /** 同 WithdrawFlowTest.notices：按客户筛选，避免 NotifyFlowTest 留下的同编号通知混进来 */
   List<String> notices(long withdrawalId) {
     return jdbc.queryForList("SELECT JSON_UNQUOTE(JSON_EXTRACT(params, '$.status')) FROM notify_message WHERE template_code = 'WITHDRAW_STATUS' "
-        + "AND JSON_UNQUOTE(JSON_EXTRACT(params, '$.orderId')) = ? AND user_id = (SELECT user_id FROM wallet_withdrawal WHERE id = ?) ORDER BY id",
-        String.class, String.valueOf(withdrawalId), withdrawalId);
+        + "AND JSON_UNQUOTE(JSON_EXTRACT(params, '$.orderId')) = (SELECT CAST(public_no AS CHAR) FROM wallet_withdrawal WHERE id = ?) "
+        + "AND user_id = (SELECT user_id FROM wallet_withdrawal WHERE id = ?) ORDER BY id",
+        String.class, withdrawalId, withdrawalId);
   }
 
   AutoApproveAdminApi.RuleResult rule(long withdrawalId, String code) {

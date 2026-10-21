@@ -10,6 +10,9 @@ const PATHS: Record<string, string> = {
   id: 'M3.5 5.5h17v13h-17Zm4.5 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm-2.5 7c.5-1.5 1.5-2.2 2.5-2.2s2 .7 2.5 2.2M13.5 10h4.5M13.5 13.5h3',
   menu: 'M4 6.5h16M4 12h16M4 17.5h16',
   close: 'M6 6l12 12M18 6 6 18',
+  globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3.5 9h17M3.5 15h17M12 3c-2.5 2.6-3.5 5.6-3.5 9s1 6.4 3.5 9c2.5-2.6 3.5-5.6 3.5-9s-1-6.4-3.5-9Z',
+  chevronDown: 'M6 9l6 6 6-6',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
 };
 
 export type IconName = keyof typeof PATHS;

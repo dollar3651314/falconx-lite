@@ -6,13 +6,16 @@ import com.falconx.lite.common.id.Snowflake;
 import com.falconx.lite.market.api.MarketApi;
 import com.falconx.lite.market.api.MarketQuote;
 import com.falconx.lite.market.api.SymbolSpec;
+import com.falconx.lite.notification.api.NotifyApi;
 import com.falconx.lite.trading.api.AccountSnapshot;
 import com.falconx.lite.trading.api.Bucket;
 import com.falconx.lite.trading.api.LedgerApi;
 import com.falconx.lite.trading.api.LedgerCommand;
 import com.falconx.lite.trading.api.LedgerEntryType;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -39,8 +42,10 @@ class PositionService {
   private final Clock clock;
   private final TradingEvents events;
   private final Snowflake ids;
+  private final NotifyApi notify;
 
-  PositionService(OrderMapper mapper, LedgerApi ledger, MarketApi market, Funds funds, TransactionTemplate tx, Clock clock, TradingEvents events, Snowflake ids) {
+  PositionService(OrderMapper mapper, LedgerApi ledger, MarketApi market, Funds funds, TransactionTemplate tx, Clock clock, TradingEvents events, Snowflake ids,
+      NotifyApi notify) {
     this.mapper = mapper;
     this.ledger = ledger;
     this.market = market;
@@ -49,6 +54,7 @@ class PositionService {
     this.clock = clock;
     this.events = events;
     this.ids = ids;
+    this.notify = notify;
   }
 
   /**
@@ -101,10 +107,30 @@ class PositionService {
       if (!market.isTradingOpen(p.symbol, clock.instant())) throw new BizException("TRADING_CLOSED", "不在交易时段");
       MarketQuote q = market.quote(p.symbol).filter(MarketQuote::executable)
           .orElseThrow(() -> new BizException("QUOTE_UNAVAILABLE", "报价暂不可用"));
-      return closeLocked(p, Side.valueOf(p.side).closePrice(q), CloseReason.CLOSED);
+      Closed closed = closeLocked(p, Side.valueOf(p.side).closePrice(q), CloseReason.CLOSED);
+      // 手动平仓站内信（体验优化 1021 UX-9：只发站内信，模板 POSITION_CLOSED 的渠道只有 INBOX），和平仓同一事务（约定 14）
+      int digits = market.symbol(p.symbol).map(SymbolSpec::digits).orElse(8);
+      notify.toUser(userId, "POSITION_CLOSED", Map.of("symbol", p.symbol, "side", p.side, "lots", lotsText(p.lots), "price",
+          closed.price().setScale(digits, RoundingMode.HALF_UP).toPlainString(), "pnl", TradingController.money(closed.pnl())));
+      return closed;
     });
     events.changed(userId, "positions", "account");
     return c;
+  }
+
+  /**
+   * 市价单成交开仓的站内信（体验优化 1021 UX-9：只发站内信，模板 POSITION_OPENED 的渠道只有 INBOX）。调用方在开仓的事务里调用（约定 14）。
+   * 限价挂单成交另有 ORDER_FILLED（MatchingEngine），不走这里。
+   */
+  void notifyMarketOpened(PositionRow p, SymbolSpec spec) {
+    notify.toUser(p.userId, "POSITION_OPENED", Map.of("symbol", p.symbol, "side", p.side, "lots", lotsText(p.lots), "price",
+        p.openPrice.setScale(spec.digits(), RoundingMode.HALF_UP).toPlainString()));
+  }
+
+  /** 通知里的手数：至少两位小数，和客户端显示一致（0.10 而不是 0.1） */
+  static String lotsText(BigDecimal lots) {
+    BigDecimal v = lots.stripTrailingZeros();
+    return (v.scale() < 2 ? v.setScale(2) : v).toPlainString();
   }
 
   /**

@@ -102,8 +102,8 @@ class TronWithdrawSender implements WithdrawSender {
     if (history.size() >= MAX_ATTEMPTS) return new Rejected("TRON 交易多次失败或过期");
     BigInteger amount = order.sendAmount().setScale(decimals, RoundingMode.DOWN).movePointRight(decimals).toBigIntegerExact();
     try {
-      if (usdtBalance().compareTo(amount) < 0) return lowFunds("USDT 不够");
-      if (trxBalance() < props.tronFeeLimitSun()) return lowFunds("TRX（手续费）不够");
+      if (usdtBalance().compareTo(amount) < 0) return lowFunds("USDT");
+      if (trxBalance() < props.tronFeeLimitSun()) return lowFunds("TRX");
       return build(order.withdrawalId(), order.address(), amount, history.size() + 1);
     } catch (NodeException.Unreachable e) {
       return new Wait("TRON 节点暂时不可用：" + e.getMessage());
@@ -233,12 +233,13 @@ class TronWithdrawSender implements WithdrawSender {
     }
   }
 
-  private Outcome lowFunds(String what) {
+  /** 热钱包余额不足：告警邮件的 {@code {what}} 只传币种（USDT / TRX），"余额不足"由模板写（体验优化 1021 UX-11） */
+  private Outcome lowFunds(String coin) {
     LocalDateTime now = now();
     if (lastAlert == null || Duration.between(lastAlert, now).compareTo(Duration.ofHours(1)) >= 0) {
       lastAlert = now;
-      risk.notifyStaff("HOT_WALLET_LOW", Map.of("chain", "TRC20", "address", HotWallet.tronAddress(hot), "what", what));
+      risk.notifyStaff("HOT_WALLET_LOW", Map.of("chain", "TRC20", "address", HotWallet.tronAddress(hot), "what", coin));
     }
-    return new Wait("热钱包" + what);
+    return new Wait("热钱包 " + coin + " 余额不足");
   }
 }

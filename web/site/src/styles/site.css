@@ -27,9 +27,19 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .btn.sec:hover { background: var(--s3); }
 .btn.sm { height: 36px; padding: 0 16px; font-size: 14px; }
 .btn.lg { height: 50px; padding: 0 30px; }
-.lang { display: inline-flex; align-items: center; font-size: 13px; color: var(--muted); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px; }
-.lang button { padding: 2px 8px; border-radius: 4px; color: var(--muted); }
-.lang button[aria-pressed='true'] { color: var(--text); background: var(--s3); font-weight: 700; }
+/* 语言下拉框（体验优化 1021 UX-1）：按钮显示当前语言，列表里当前语言打勾 */
+.lang { position: relative; flex: none; }
+.lang-btn { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 8px; font-size: 13px; color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.lang-btn:hover { background: var(--s3); }
+.lang-btn[aria-expanded='true'] { border-color: var(--cyan); }
+.lang-btn svg { width: 16px; height: 16px; }
+.lang-btn svg:last-child { width: 12px; height: 12px; color: var(--subtle); }
+.lang-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 60; min-width: 160px; margin: 0; padding: 4px; list-style: none; background: var(--s1); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); }
+.lang-list button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: var(--r-sm); color: var(--text); font-size: 14px; text-align: left; }
+.lang-list button:hover { background: var(--s3); }
+.lang-list button.on { color: var(--cyan); font-weight: 700; background: var(--cyan-soft); }
+.lang-current { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; }
+.lang-current svg { width: 14px; height: 14px; }
 
 /* ---------- 卡片、标题 ---------- */
 .card { background: var(--s1); border: 1px solid var(--border); border-radius: var(--r-lg); }

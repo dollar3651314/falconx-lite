@@ -88,8 +88,11 @@ export function OrderPanel({ symbol, initialSide = 'buy', sideRequest }: { symbo
       </dl>
 
       <RejectAndSummary f={f} />
-      <SubmitButton f={f} symbol={symbol} />
-      <div className="op-foot">{t('order.footNote')}</div>
+      {/* 体验优化 1021 第 3 条：电脑右栏里确认按钮固定在面板底部，笔记本屏幕上不用滚动也能看到（面板内容在它上面滚动） */}
+      <div className="op-sticky">
+        <SubmitButton f={f} symbol={symbol} />
+        <div className="op-foot">{t('order.footNote')}</div>
+      </div>
       <OrderConfirm f={f} symbol={symbol} />
     </div>
   );

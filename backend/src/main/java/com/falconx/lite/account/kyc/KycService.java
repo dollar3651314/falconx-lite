@@ -108,10 +108,11 @@ class KycService {
     if (!"PENDING".equals(r.status())) throw new BizException("KYC_NOT_PENDING", "只能审核待审核的申请");
     mapper.review(id, status, reviewerId, reason);
     Map<String, String> params = new LinkedHashMap<>();
-    params.put("result", status);
     if (reason != null) params.put("reason", reason);
-    // 站内信、推送、邮件（AC-05），和审核同一事务
-    notify.toUser(r.userId(), "KYC_RESULT", params);
+    // 站内信、推送、邮件（AC-05），和审核同一事务。
+    // 2026-10-21（Amos 体验建议第 11 条）：通过和驳回分成两个模板（迁移 V30），通过的整段文案在模板里、运营可改，
+    // 不再由 {result} 变量带出"现在可以提现"。旧模板 KYC_RESULT 只留给已经发出的站内信按原样显示。
+    notify.toUser(r.userId(), "APPROVED".equals(status) ? "KYC_APPROVED" : "KYC_REJECTED", params);
   }
 
   private static DocType parseDocType(String raw) {

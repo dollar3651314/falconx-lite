@@ -22,6 +22,9 @@ interface WithdrawTxMapper {
 
   int setStatus(@Param("id") long id, @Param("status") String status);
 
+  /** 提现的对外编号（后台和客户端显示的编号，告警邮件用它；体验优化 1021 UX-11） */
+  Long publicNo(@Param("withdrawalId") long withdrawalId);
+
   /** 这笔提现的广播记录，最新的在前 */
   List<TxRow> attempts(@Param("withdrawalId") long withdrawalId);
 }

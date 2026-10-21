@@ -177,7 +177,18 @@
     "pickSymbol": "Choose symbol",
     "symbolNotFound": "Symbol {{code}} not found",
     "myPositionHere": "My positions · {{code}}",
-    "viewAll": "All positions"
+    "viewAll": "All positions",
+    "wl": {
+      "title": "Watchlist",
+      "all": "All markets",
+      "namesOnly": "Watchlist only",
+      "collapse": "Collapse symbol list",
+      "expand": "Expand symbol list",
+      "emptyTitle": "Your watchlist is empty",
+      "emptyHint": "In All markets, tap ☆ next to a symbol to add it. Only names are shown here, no moving prices.",
+      "browse": "Browse all symbols",
+      "manage": "Edit watchlist"
+    }
   },
   "chart": {
     "open": "O",
@@ -293,7 +304,16 @@
     "liqAfter": "Liq. price after",
     "addMarginNote": "Liquidation price is recalculated with the maintenance rate set at opening.",
     "marginAdded": "Margin added",
-    "pageTitle": "Positions"
+    "pageTitle": "Positions",
+    "closeTitleV2": "Close position",
+    "closeLots": "Lots to close",
+    "remainLots": "Remaining after close",
+    "closeAll": "Close all",
+    "quickRatio": "Quick ratio",
+    "closePartConfirm": "Close {{lots}} lots",
+    "releasedMargin": "Margin released",
+    "partialNote": "After a partial close the remaining position keeps its open price, liquidation price and TP/SL; pending orders are not affected. The actual price is the latest quote at closing.",
+    "partialClosed": "{{lots}} lots closed"
   },
   "orders": {
     "tab": "Orders",
@@ -520,7 +540,8 @@
     "version": "Quick Come · v2.0",
     "upDown": "Up / down colors",
     "upDownGreen": "Green up, red down",
-    "upDownRed": "Red up, green down"
+    "upDownRed": "Red up, green down",
+    "onboarding": "Getting started"
   },
   "kyc": {
     "intro": "Verification is only required before withdrawing.",
@@ -705,7 +726,9 @@
     "nationalityInvalid": "Please choose your nationality",
     "docTypeInvalid": "Please choose a document type",
     "docNumberInvalid": "Invalid document number",
-    "addressInvalid": "Invalid address format"
+    "addressInvalid": "Invalid address format",
+    "closeLotsMax": "Cannot exceed the position lots",
+    "closeRemainMin": "The remaining lots would be below the minimum. Close all instead"
   },
   "countries": {
     "CN": "Mainland China",
@@ -736,5 +759,56 @@
     "month": "Month",
     "day": "Day",
     "birthHint": "For example, 27 3 1990. You can also paste 1990-03-27"
+  },
+  "lang": {
+    "current": "Current"
+  },
+  "onboarding": {
+    "title": "Getting started",
+    "progress": "Step {{n}} of {{total}}",
+    "skip": "Skip",
+    "later": "Later",
+    "prev": "Back",
+    "next": "Next",
+    "goKyc": "Verify identity",
+    "goDeposit": "Deposit",
+    "kycNow": "Verify now",
+    "depositNow": "Deposit now",
+    "welcome": {
+      "title": "Welcome to {{brand}}",
+      "body": "Trade CFDs on forex, gold, indices, oil and crypto with USDT. Two steps before your first trade:",
+      "items": [
+        "Verify your identity (about 3 minutes)",
+        "Deposit USDT (trade as soon as it arrives)"
+      ],
+      "note": "You can open this guide again from Me → Getting started."
+    },
+    "kyc": {
+      "title": "Step 1: verify your identity",
+      "body": "Upload photos of your ID. Your name and date of birth must match it. Reviews usually finish within one business day; the result is sent to your inbox and email.",
+      "items": [
+        "Both sides of your ID card, or the photo page of your passport",
+        "A selfie holding the document"
+      ],
+      "note": "Once verified, deposits, trading and withdrawals are all available. Withdrawals require verification."
+    },
+    "deposit": {
+      "title": "Step 2: deposit USDT",
+      "body": "Go to Assets → Deposit, choose a network, copy your own address and send USDT from an exchange or wallet.",
+      "items": [
+        "Ethereum (ERC20), TRON (TRC20) and BNB Chain are supported",
+        "Your balance updates automatically and you get a notification"
+      ],
+      "note": "Send USDT only, on the same network as the address. Wrong coins or networks cannot be recovered."
+    },
+    "trade": {
+      "title": "Finally: your first order",
+      "body": "On the Trade page pick a symbol, set lots and leverage, then press \"Confirm buy / Confirm sell\" at the bottom of the order panel.",
+      "items": [
+        "Isolated margin: a position can lose at most its own margin",
+        "Set take profit and stop loss to close automatically"
+      ],
+      "note": "CFDs are leveraged; you can lose all of your margin."
+    }
   }
 }

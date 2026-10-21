@@ -2,7 +2,9 @@
  * 主流程（S19；需求说明书第 7 节 AC 对照见 测试报告/v1-端到端测试方案.md 第 5 节）：
  * 客户在 390px 宽的手机上：注册（邮箱验证码）→ 退出后登录 → 充值到账 → 提交 KYC → 市价下单 → 设止盈止损 → 报价触发止盈自动平仓
  * → 再开一单手动平仓 → 资金流水 → 加白名单 → 提现；超管在电脑上：首次登录改密码 → 审核 KYC → 出金审核 → 查看客户；
- * 广播成功、链上确认后客户看到提现已完成。v2：检查品牌改名（标题、页面文字、邮件标题没有旧品牌名，AC2-11、AC2-12）和电脑宽度的顶栏跑马灯（AC2-17）。
+ * 广播成功、链上确认后客户看到提现已完成。v2：检查品牌改名（标题、页面文字、邮件标题没有旧品牌名，AC2-11、AC2-12）。
+ * 体验优化 1021（第一批）：注册后第一次进来弹出新手引导（这里点"跳过"）；电脑顶栏没有"我的"和跑马灯；交易页左栏只列自选名称、
+ * 图表上没有卖出 / 买入按钮，1366×633（1366×768 屏幕的浏览器可视区）下确认按钮不用滚动就能看到；站内信有欢迎、开仓、平仓三类。
  * 每轮用新邮箱、新证件号，不依赖上一轮的数据。外部依赖（邮件、链、LP 行情、提现广播）由后端 e2e profile 的替身代替。
  * 两种形态共用（tests/targets.ts）：默认经 server.mjs；部署形态经 Nginx 镜像（HTTPS、两个域名），另外检查登录 Cookie 带 Secure、
  * 两个前端顶部有"测试环境"标识条。
@@ -27,6 +29,18 @@ async function marketBuy(page: Page, lots: string): Promise<void> {
   await expect(sheet.locator('#lots-input')).toHaveValue(lots);
   await sheet.getByRole('button', { name: `确认买入 ${lots} 手 ${SYMBOL}` }).click();
   await page.getByRole('button', { name: '确认买入', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+}
+
+/**
+ * 新手引导（体验优化 1021 第 2 条）：身份认证"未提交"的新客户第一次进来自动弹出；点"跳过"关掉，记在这个浏览器，之后不再弹。
+ * 弹窗要等认证状态取回来才出现，这里等它出现再关。
+ */
+async function skipOnboarding(page: Page): Promise<void> {
+  const guide = page.getByRole('dialog').filter({ hasText: '新手引导' });
+  await expect(guide, '新客户第一次进来弹出新手引导').toBeVisible();
+  await expect(guide.getByText('欢迎来到 Quick Come')).toBeVisible();
+  await guide.getByRole('button', { name: '跳过', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 
@@ -97,6 +111,7 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await expectNoHorizontalScroll(page, '注册页');
       await page.getByRole('button', { name: '注册', exact: true }).click();
       await expect(page).toHaveURL(/\/markets$/);
+      await skipOnboarding(page);
     });
 
     await step('客户：退出登录，再用邮箱和密码登录', async () => {
@@ -114,28 +129,44 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       // AC2-11：标签页标题和页面文字是 Quick Come，没有旧品牌名
       await expect(page).toHaveTitle('Quick Come');
       expect(await page.locator('body').innerText(), '客户端页面文字').not.toMatch(/falcon\s*x/i);
-      await expect(page.getByTestId('hot-ticker'), '手机上没有跑马灯').toHaveCount(0);
+      await expect(page.getByTestId('hot-ticker'), '没有跑马灯').toHaveCount(0);
+      await expect(page.getByRole('dialog'), '新手引导看过（跳过）就不再自动弹').toHaveCount(0);
     });
 
-    await step('客户：电脑宽度顶栏跑马灯（AC2-17）：热门品种滚动、悬停暂停、点击进入交易页', async () => {
+    await step('客户：电脑顶栏没有"我的"和跑马灯，交易页左栏只列自选名称、图表上没有买卖按钮（体验优化 1021 第 4、5、7、10 条）', async () => {
       await page.setViewportSize({ width: 1440, height: 900 });
-      const ticker = page.getByTestId('hot-ticker');
-      await expect(ticker).toBeVisible();
-      const track = ticker.locator('.ticker-track');
-      await expect.poll(() => track.evaluate((el) => getComputedStyle(el).animationName), { message: '在滚动' }).toBe('ticker-scroll');
-      // "有报价"只看 7×24 交易的加密货币（SYMBOL = ETHUSD）：热门品种的第一个是 EURUSD，周末和节假日外汇休市，一直显示"—"
-      // （2026-10-17 周六 CI 因此失败）。休市品种显示"—"是正确的，不在这里断言
-      await expect(ticker.getByTestId(`ticker-${SYMBOL}`), `${SYMBOL} 显示卖价和涨跌幅`).not.toContainText('—', { timeout: 15_000 });
-      // 点击用第一个品种（不管开没开市都能进交易页）：它在可见区域里，不用等跑马灯把后面的品种滚过来
-      const item = ticker.locator('[data-testid^="ticker-"]').first();
-      await ticker.hover();
-      await expect.poll(() => track.evaluate((el) => getComputedStyle(el).animationPlayState), { message: '悬停时暂停' }).toBe('paused');
-      const code = (await item.getAttribute('data-testid'))!.replace('ticker-', '');
-      await item.click();
-      await expect(page).toHaveURL(new RegExp(`/trade/${code}$`));
+      await page.goto('/markets');
+      const top = page.locator('header.topnav');
+      await expect(top).toBeVisible();
+      await expect(page.getByTestId('hot-ticker'), '客户端不放跑马灯（官网保留）').toHaveCount(0);
+      const menu = top.getByRole('navigation', { name: '主导航' });
+      await expect(menu.getByRole('link', { name: '交易', exact: true })).toBeVisible();
+      await expect(menu.getByRole('link', { name: '我的', exact: true }), '顶栏菜单没有"我的"').toHaveCount(0);
+      await top.getByRole('link', { name: '我的', exact: true }).click();
+      await expect(page, '右上角头像进"我的"').toHaveURL(/\/me$/);
+      await page.goto(`/trade/${SYMBOL}`);
+      const rail = page.getByRole('list', { name: '自选' });
+      await expect(rail, '左栏默认只列自选品种名称').toBeVisible();
+      await expect(rail.locator('.sym-price, .sym-ba'), '不显示跳动的价格').toHaveCount(0);
+      await expect(page.locator('.px-btns'), '图表上没有卖出 / 买入按钮').toHaveCount(0);
+      await expect(page.getByRole('button', { name: new RegExp(`^确认买入 [\\d.]+ 手 ${SYMBOL}$`) })).toBeVisible();
       await expectNoHorizontalScroll(page, '电脑宽度交易页');
       await page.setViewportSize({ width: 390, height: 844 });
-      await expect(ticker, '回到手机宽度不显示').toHaveCount(0);
+    });
+
+    await step('客户：1366×633（1366×768 屏幕的浏览器可视区）交易页不滚动就能看到确认按钮（体验优化 1021 第 3 条）', async () => {
+      const lap = await browser.newContext({ baseURL: CLIENT_URL, ignoreHTTPSErrors: DEPLOYED, viewport: { width: 1366, height: 633 }, locale: 'zh-CN', serviceWorkers: 'block', storageState: await client.storageState() });
+      try {
+        const d = await lap.newPage();
+        await d.goto(`/trade/${SYMBOL}`);
+        const confirm = d.getByRole('button', { name: new RegExp(`^确认买入 [\\d.]+ 手 ${SYMBOL}$`) });
+        await expect(confirm).toBeVisible();
+        const box = (await confirm.boundingBox())!;
+        expect(box.y + box.height, `确认按钮底边 ${Math.round(box.y + box.height)}px 在可视区 633px 以内`).toBeLessThanOrEqual(633);
+        expect(await d.evaluate(() => document.documentElement.scrollHeight - window.innerHeight), '整页不再多出一截滚动').toBeLessThanOrEqual(1);
+      } finally {
+        await lap.close();
+      }
     });
 
     await step('客户：电脑最窄宽度 1024 各页面没有横向滚动（AC-31）', async () => {
@@ -292,6 +323,13 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await expect(page.locator('.hist-row').filter({ hasText: '手动平仓' })).toHaveCount(1);
     });
 
+    await step('客户：站内信有注册欢迎、开仓成功、平仓成功（体验优化 1021 UX-9，只发站内信）', async () => {
+      await page.goto('/me/notifications');
+      await expect(page.getByText('欢迎来到 Quick Come').first()).toBeVisible();
+      await expect(page.getByText('开仓成功').first()).toBeVisible();
+      await expect(page.getByText('平仓成功').first()).toBeVisible();
+    });
+
     await step('客户：资金流水里有充值、手续费、平仓盈亏', async () => {
       await page.goto('/assets/ledger');
       const list = page.locator('.ledger');
@@ -365,12 +403,14 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
 
     await step('通知邮件：验证码、入金到账、KYC 结果、出金状态都发到客户邮箱', async () => {
       // 邮件任务每 2 秒发一次：等全部到齐（AC-05 KYC 结果、AC-07 到账通知、AC-19 提现状态）
-      for (const subject of ['Quick Come 验证码', '充值已到账', '身份认证结果', '止盈止损已触发', '提现状态更新']) {
+      // V30 起认证通过的模板是 KYC_APPROVED（标题"身份认证已通过"）；欢迎、开仓、平仓只发站内信，不发邮件（UX-9）
+      for (const subject of ['Quick Come 验证码', '充值已到账', '身份认证已通过', '止盈止损已触发', '提现状态更新']) {
         await expect.poll(async () => (await e2e.mailSubjects(request, email)).join(' | '), { message: `等邮件「${subject}」`, timeout: 20_000 }).toContain(subject);
       }
       const subjects = (await e2e.mailSubjects(request, email)).join(' | ');
       test.info().annotations.push({ type: '客户收到的邮件', description: subjects });
       expect(subjects, 'AC2-12：邮件标题里没有旧品牌名').not.toMatch(/falcon\s*x/i);
+      expect(subjects, '欢迎、开仓、平仓只发站内信，不发邮件').not.toMatch(/欢迎来到|开仓成功|平仓成功/);
     });
 
     await step('AC-23 风控信息不外泄、AC-29 不依赖 Google', async () => {

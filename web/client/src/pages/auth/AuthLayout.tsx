@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { EnvBanner } from '../../components/EnvBanner';
 import { Brand } from '../../components/Icon';
 import { ProtoBanner } from '../../components/Layout';
-import { LangSwitch } from '../../components/LangSwitch';
+import { LangSelect } from '../../components/LangSelect';
 import { ProtoPanel } from '../../components/ProtoPanel';
 
 export function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
@@ -16,7 +16,7 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
         <div className="brand">
           <Brand />
         </div>
-        <LangSwitch />
+        <LangSelect />
       </div>
       <main className="auth-main">
         <div className="auth-card">

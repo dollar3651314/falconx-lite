@@ -154,7 +154,7 @@ class AdminOpsTest extends AdminTestSupport {
     assertThat(r.get("status").asString()).isEqualTo("rejected");
     assertThat(r.get("reviewer").asString()).isEqualTo(a.username());
     assertThat(r.get("rejectReason").asString()).isEqualTo("照片模糊");
-    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message WHERE user_id = ? AND template_code = 'KYC_RESULT'", Long.class, uid)).isEqualTo(1);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message WHERE user_id = ? AND template_code = 'KYC_REJECTED'", Long.class, uid)).isEqualTo(1);
     assertThat(call(post("/api/admin/kyc/" + app + "/review"), a.cookie(), "{\"approve\":true}").getContentAsString()).contains("KYC_NOT_PENDING");
   }
 

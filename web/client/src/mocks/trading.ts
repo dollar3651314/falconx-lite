@@ -4,7 +4,8 @@
  */
 import { ApiError } from '../api/errors';
 import type { Account, HistoryItem, HistoryKind, Page, PendingOrder, PlaceOrderRequest, PlaceOrderResult, Position, Quote, Side } from '../api/types';
-import { add, cmp, dec, mul, neg, sub, toFixed, ZERO, type Dec } from '../lib/decimal';
+import { add, cmp, dec, div, mul, neg, sub, toFixed, ZERO, type Dec } from '../lib/decimal';
+import { validateCloseLots } from '../lib/validators';
 import { formatAmount, formatLots, formatPrice } from '../lib/format';
 import { availableFunds, closePrice, estimateOrder, execPrice, liquidationAfterAddMargin, notionalUsd, pnlAt, positionPnl } from '../lib/trading';
 import { emit } from './bus';
@@ -172,13 +173,31 @@ function closeInternal(p: Position, exit: Dec, kind: HistoryKind): Dec {
   return pnl;
 }
 
-export function closePosition(id: string): Promise<{ pnl: string; price: string }> {
+/**
+ * 平仓；lots 不传或等于持仓手数 = 全部平仓。
+ * 部分平仓（体验优化 1021 第 6 条，方案 UX-6 的建议规则，后端还没做）：平掉的部分按比例拆出一笔已平仓记录
+ * （保证金按手数比例释放、盈亏只算平掉的部分、亏损上限是这部分的保证金），剩下的持仓开仓价、强平价、止盈止损都不变。
+ */
+export function closePosition(id: string, lots?: string): Promise<{ pnl: string; price: string }> {
   return mutate(() => {
     const p = db.positions.find((x) => x.id === id);
     if (!p) throw new ApiError('notFound');
     const info = symbolInfo(p.symbol)!;
     if (!info.tradingOpen) throw new ApiError('tradingClosed');
     const exit = dec(closePrice(p.side, quote(p.symbol)!));
+    if (lots !== undefined && cmp(dec(lots), dec(p.lots)) !== 0) {
+      const errs = validateCloseLots(lots, p.lots, info);
+      if (errs.length) throw new ApiError('validationFailed', { lots: errs });
+      const total = dec(p.lots);
+      const part = dec(lots);
+      const partMargin = div(mul(dec(p.margin), part), total);
+      // 拆出来的那部分有自己的编号（后端建议同样拆一行已平仓持仓，方案第 6 节），走和全部平仓同一套记账：盈亏进余额、写一条历史
+      const closedPart: Position = { ...p, id: snowflakeId(), lots: toFixed(part, 2), margin: toFixed(partMargin, 2) };
+      p.lots = toFixed(sub(total, part), 2);
+      p.margin = toFixed(sub(dec(p.margin), dec(closedPart.margin)), 2);
+      const pnl = closeInternal(closedPart, exit, 'closed');
+      return { pnl: toFixed(pnl, 2), price: toFixed(exit, info.digits) };
+    }
     const pnl = closeInternal(p, exit, 'closed');
     return { pnl: toFixed(pnl, 2), price: toFixed(exit, info.digits) };
   });

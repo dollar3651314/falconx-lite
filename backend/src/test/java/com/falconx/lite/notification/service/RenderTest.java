@@ -18,6 +18,7 @@ class RenderTest {
 
   @Test
   void 某一行缺变量时整行不显示() {
+    // V14 的旧模板 KYC_RESULT：V30 起不再发送（改用 KYC_APPROVED / KYC_REJECTED），只用来显示已经发出的站内信，翻译保持原样
     String t = "您的身份认证{result}。\n驳回原因：{reason}";
     assertThat(Render.fill(t, Map.of("result", "APPROVED"), false)).isEqualTo("您的身份认证已通过，现在可以提现。");
     assertThat(Render.fill(t, Map.of("result", "REJECTED", "reason", "照片模糊"), false)).isEqualTo("您的身份认证未通过。\n驳回原因：照片模糊");

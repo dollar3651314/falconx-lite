@@ -124,9 +124,24 @@ export function protoSetKyc(status: KycStatus): void {
     status === 'none'
       ? { status }
       : { status, docType: db.kyc.docType ?? 'idCard', docNumber: db.kyc.docNumber ?? '110101199006181234', submittedAt: db.kyc.submittedAt ?? now, reviewedAt: status === 'pending' ? undefined : now };
-  if (status === 'approved') pushNotification('kyc', ['身份认证已通过', 'Identity verification approved'], ['您的身份认证已通过审核，现在可以提现。', 'Your identity verification has been approved. You can now withdraw.']);
-  if (status === 'rejected') pushNotification('kyc', ['身份认证被驳回', 'Identity verification rejected'], [`驳回原因：${REJECT_REASON.zh}`, `Reason: ${REJECT_REASON.en}`]);
+  // 文案和后端模板 KYC_APPROVED / KYC_REJECTED 一致（迁移 V30，体验建议第 11 条）
+  if (status === 'approved') pushNotification('kyc', ['身份认证已通过', 'Identity verified'], [KYC_APPROVED_BODY.zh, KYC_APPROVED_BODY.en]);
+  if (status === 'rejected')
+    pushNotification(
+      'kyc',
+      ['身份认证未通过', 'Identity verification not approved'],
+      [
+        `您的身份认证未通过，请到"身份认证"页面按原因修改后重新提交。充值和交易不受影响。\n驳回原因：${REJECT_REASON.zh}`,
+        `Your identity verification was not approved. Please fix the issue on the Identity verification page and submit again. Deposits and trading are not affected.\nReason: ${REJECT_REASON.en}`,
+      ],
+    );
 }
+
+/** 身份认证通过的站内信正文（和后端模板 KYC_APPROVED 一致） */
+export const KYC_APPROVED_BODY = {
+  zh: '您的身份认证已通过，充值、交易、提现均已开通。还没有充值的话，可以在"资产"页充值 USDT 开始交易。',
+  en: 'Your identity has been verified. Deposits, trading and withdrawals are all available. If you have not deposited yet, go to Assets to deposit USDT and start trading.',
+};
 
 export function protoKycStatus(): KycStatus {
   return db.kyc.status;

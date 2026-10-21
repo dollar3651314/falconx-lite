@@ -132,7 +132,7 @@ class TradingPushTest {
           "{\"symbol\":\"XAUUSD\",\"type\":\"market\",\"side\":\"buy\",\"lots\":\"0.10\",\"leverage\":100,\"takeProfit\":\"4135.00\",\"clientOrderId\":\"push-1\"}", me);
       assertThat(r.statusCode()).isEqualTo(200);
       // 客户买价 = 原始 4126.75 + 加点 0.10（V24）
-      assertThat(mine.next("\"kind\":\"fill\"")).contains("\"symbol\":\"XAUUSD\"").contains("\"price\":\"4126.85\"");
+      assertThat(mine.next("\"type\":\"trade\",\"kind\":\"fill\"")).contains("\"symbol\":\"XAUUSD\"").contains("\"price\":\"4126.85\"");
       assertThat(mine.seen).as("成交前先推 positions、account").anyMatch(m -> m.contains("\"type\":\"positions\"")).anyMatch(m -> m.contains("\"type\":\"account\""));
 
       // 客户卖价 4135.60 − 0.10 = 4135.50 到止盈；盈亏 (4135.50 − 4126.85) × 10 = 86.5
@@ -140,7 +140,9 @@ class TradingPushTest {
       assertThat(mine.next("\"kind\":\"tp\"")).contains("\"pnl\":\"86.5\"").contains("\"price\":\"4135.50\"");
       // 站内信实时推送（{"type":"notification","item":{…}}，和客户端 ServerEvent 一致），按客户的语言（默认中文）
       // 站内信在平仓事务提交时推出，比 trade 事件早
-      assertThat(mine.seen).filteredOn(m -> m.contains("\"type\":\"notification\"")).singleElement().asString().contains("\"kind\":\"tpsl\"").contains("\"title\":\"止盈止损已触发\"").contains("\"read\":false");
+      // 体验优化 1021 UX-9：市价开仓先有一条"开仓成功"站内信（只发站内信）
+      assertThat(mine.seen).filteredOn(m -> m.contains("\"type\":\"notification\"")).hasSize(2).first().asString().contains("\"kind\":\"fill\"").contains("\"title\":\"开仓成功\"");
+      assertThat(mine.seen).filteredOn(m -> m.contains("\"type\":\"notification\"")).last().asString().contains("\"kind\":\"tpsl\"").contains("\"title\":\"止盈止损已触发\"").contains("\"read\":false");
       assertThat(theirs.msgs.poll(300, TimeUnit.MILLISECONDS)).as("别人收不到").isNull();
       ws1.sendClose(WebSocket.NORMAL_CLOSURE, "").get(5, TimeUnit.SECONDS);
       ws2.sendClose(WebSocket.NORMAL_CLOSURE, "").get(5, TimeUnit.SECONDS);

@@ -155,6 +155,27 @@ function decimalsOf(v: string): number {
 }
 
 /**
+ * 部分平仓的手数（体验优化 1021 第 6 条，方案 UX-6，原型阶段只有模拟层支持）：
+ * 大于 0、按品种步长（lotStep）、不小于最小手数、不超过持仓手数；平完剩下的不能小于最小手数（那样只能全部平仓）。
+ */
+export function validateCloseLots(lots: string, positionLots: string, symbol: Pick<SymbolInfo, 'minLots' | 'lotStep'>): string[] {
+  const out: string[] = [];
+  const v = lots.trim();
+  if (!v) return ['validation.required'];
+  const l = positive(v);
+  if (!l) return ['validation.positiveNumber'];
+  const step = dec(symbol.lotStep);
+  if (decimalsOf(v) > 8 || (cmp(step, ZERO) > 0 && l % step !== ZERO)) out.push('validation.lotsStep');
+  const total = dec(positionLots);
+  if (cmp(l, total) > 0) out.push('validation.closeLotsMax');
+  else if (cmp(l, total) < 0) {
+    if (cmp(l, dec(symbol.minLots)) < 0) out.push('validation.lotsMin');
+    if (cmp(sub(total, l), dec(symbol.minLots)) < 0) out.push('validation.closeRemainMin');
+  }
+  return out;
+}
+
+/**
  * 下单表单校验。refPrice 是止盈止损的比较基准：市价单用成交参考价，限价单用限价。
  */
 export function validateOrder(f: OrderForm, symbol: SymbolInfo, refPrice: string | null): FieldErrors<keyof OrderForm> {

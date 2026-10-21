@@ -118,6 +118,19 @@ abstract class NotifyTestSupport {
     return new User(id, email, r.getCookie("fx_session"));
   }
 
+  /**
+   * 真实注册，并去掉注册时自动发的欢迎站内信（体验优化 1021 UX-9，模板 WELCOME）：
+   * 先确认它只有一条站内信、没有推送和邮件，再删掉，后面的断言只看这个测试自己发的通知。
+   */
+  User registerClean() throws Exception {
+    User u = register();
+    assertThat(records(u.id())).containsExactly("INBOX SENT -");
+    assertThat(jdbc.queryForList("SELECT template_code FROM notify_message WHERE user_id = ?", String.class, u.id())).containsExactly("WELCOME");
+    jdbc.update("DELETE FROM notify_message WHERE user_id = ?", u.id());
+    jdbc.update("DELETE FROM notify_record WHERE user_id = ?", u.id());
+    return u;
+  }
+
   /** 这个客户的通知记录："渠道 状态 原因"，按时间先后 */
   List<String> records(long uid) {
     return jdbc.queryForList("SELECT CONCAT(channel, ' ', status, ' ', COALESCE(error, '-')) FROM notify_record WHERE user_id = ? ORDER BY id", String.class, uid);
