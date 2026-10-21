@@ -201,10 +201,14 @@ class WithdrawFlowTest {
     assertThat(notices(w2.id)).as("冷静期结束不通知").isEmpty();
   }
 
-  /** 这笔提现通知客户的状态（通知方案 N6），按时间先后 */
+  /**
+   * 这笔提现通知客户的状态（通知方案 N6），按时间先后。
+   * 同时按客户筛选：NotifyFlowTest 给别的客户发过 orderId = "88" 的提现通知，这里的提现正好是 88 号时会混进来（CI 偶发失败，2026-10-21）
+   */
   List<String> notices(long withdrawalId) {
     return jdbc.queryForList("SELECT JSON_UNQUOTE(JSON_EXTRACT(params, '$.status')) FROM notify_message WHERE template_code = 'WITHDRAW_STATUS' "
-        + "AND JSON_UNQUOTE(JSON_EXTRACT(params, '$.orderId')) = ? ORDER BY id", String.class, String.valueOf(withdrawalId));
+        + "AND JSON_UNQUOTE(JSON_EXTRACT(params, '$.orderId')) = ? AND user_id = (SELECT user_id FROM wallet_withdrawal WHERE id = ?) ORDER BY id",
+        String.class, String.valueOf(withdrawalId), withdrawalId);
   }
 
   WithdrawalRow reviewing(long uid, long address, String amount) {

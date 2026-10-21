@@ -102,7 +102,7 @@ public class ChainMonitor implements AlertCheck {
           nodeOk ? "正常" : "连续 " + s.failures + " 次连不上节点（最近一次：" + s.lastError + "）"));
       Duration idle = Duration.between(s.progressAt, now);
       long lag = s.head >= 0 && s.cursor >= 0 ? Math.max(0, s.head - s.cursor) : 0;
-      long lagSeconds = lag * wallet.chain(c).blockSeconds();
+      long lagSeconds = (long) Math.ceil(lag * wallet.chain(c).blockSeconds());
       boolean stalled = idle.compareTo(props.scanStall()) > 0;
       boolean behind = lagSeconds > props.scanStall().toSeconds();
       String detail = stalled ? "扫块已经 " + idle.toMinutes() + " 分钟没有推进（扫到 " + s.cursor + "，节点最新 " + s.head + "）"
