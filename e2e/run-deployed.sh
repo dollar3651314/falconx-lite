@@ -9,6 +9,7 @@
 #   E2E_SKIP_BUILD=1   不重新构建 jar 和两个前端（用已有的 backend/target、web/*/dist），镜像照样重新打包
 #   E2E_MVN_ARGS       传给 Maven 的额外参数（例如本机离线时 -o）
 #   E2E_KEEP=1         测试结束后不停容器、不删临时目录（排查用；之后 docker compose -p falconx-e2e down -v 并手动删目录）
+#   E2E_BUILDX_CACHE=gha  用 docker buildx 和 GitHub Actions 缓存构建镜像（CI 的 e2e-deployed 设；本机不要设）
 #   E2E_APP_DOMAIN、E2E_ADMIN_DOMAIN、E2E_WWW_DOMAIN  三个假域名（默认 test-app.e2e.test、test-admin.e2e.test、test-www.e2e.test（官网）；
 #                      .test 是保留的顶级域名，不会解析到外网）
 # 密码（数据库、Redis、第一个超管）每次随机生成，只写进临时目录的 .env，结束时连同临时目录一起删除，不进仓库、不打印。
@@ -63,8 +64,17 @@ for app in client admin site; do [ -f "web/$app/dist/index.html" ] || die "没�
 # ---------- 2. 构建两个镜像（和 CI 的 publish-staging 同样的 Dockerfile） ----------
 SHA=$(git rev-parse HEAD 2> /dev/null || echo dev)
 say "构建镜像 $REG-app:$TAG、$REG-web:$TAG（FX_VERSION=$SHA）"
-docker build -q -f deploy/app.Dockerfile --build-arg FX_VERSION="$SHA" -t "$REG-app:$TAG" . > /dev/null
-docker build -q -f deploy/web.Dockerfile --build-arg FX_VERSION="$SHA" -t "$REG-web:$TAG" . > /dev/null
+# E2E_BUILDX_CACHE=gha（只在 CI 里设）：用 buildx 和 GitHub Actions 缓存（scope 和 ci.yml 的 publish-staging 相同），本机不设，照旧 docker build
+build_image() { # $1 Dockerfile  $2 镜像标签  $3 缓存 scope
+  if [ "${E2E_BUILDX_CACHE:-}" = gha ]; then
+    docker buildx build -q --load --cache-from "type=gha,scope=$3" --cache-to "type=gha,mode=max,scope=$3" \
+      -f "$1" --build-arg FX_VERSION="$SHA" -t "$2" . > /dev/null
+  else
+    docker build -q -f "$1" --build-arg FX_VERSION="$SHA" -t "$2" . > /dev/null
+  fi
+}
+build_image deploy/app.Dockerfile "$REG-app:$TAG" falconx-app
+build_image deploy/web.Dockerfile "$REG-web:$TAG" falconx-web
 
 # ---------- 3. 临时目录：.env、state/image.env、自签名证书、数据目录 ----------
 TMP=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/falconx-e2e.XXXXXX")

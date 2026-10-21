@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# 手动发布测试环境镜像：GitHub Actions 额度用完时，代替 CI 的 publish-staging（部署方案第 20 节；Amos 2026-10-21 选 B）。
+# 手动发布测试环境镜像：备用办法，GitHub Actions 不可用时代替 CI 的 publish-staging（部署方案第 20 节）。
+# 2026-10-21 额度用完时写的；同一天仓库改为公开、Actions 恢复，平时不用。
 # 在 Amos 自己的电脑上运行（macOS 或 Linux，要 git、curl、Docker Desktop / Docker Engine + buildx），和 CI 做的事一样：
 #   取 origin/staging 最新提交 → 在容器里构建后端 jar 和三个前端 → 构建 linux/amd64 镜像（标签 = 提交号）并推送
 #   → 最后移动 staging 标签（先 web 后 app）→ 测试服务器每分钟检查一次，自己换上新版本 → 等健康检查返回这个版本号
-# 只发布已经合并到 staging 的提交；合并前的检查由智能体在开发环境里跑完整的 CI 命令（C54 例外，Amos 2026-10-21 同意）。
+# 只发布已经合并到 staging 的提交；合并前的检查仍以 CI 为准，用本地完整检查代替 CI 要 Amos 同意（部署方案第 20 节）。
 # 登录镜像仓库的令牌只由 Amos 自己保管：运行前先 `docker login ghcr.io -u dollar3651314`，密码填 GitHub 令牌（write:packages），
 # 这个脚本不读、不存、不打印令牌。
 #
