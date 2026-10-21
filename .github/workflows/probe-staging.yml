@@ -1,0 +1,27 @@
+# 测试环境外部探测（S20，部署方案 v1.1 D6 / H7）：每 15 分钟从 GitHub 访问一次测试环境的健康检查，失败时本次运行失败，GitHub 发邮件通知。
+# 注意：GitHub 的定时任务只认默认分支（main）上的文件。Amos 2026-10-21 选 A（C74 可用性探测例外），本文件单独先合并到 main，立即开始定时运行。
+# 测试环境地址在仓库 Settings → Variables 里设 FX_STAGING_APP_URL（例如 https://test-app.<域名>），不是密钥。
+name: probe-staging
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      STAGING_APP_URL: ${{ vars.FX_STAGING_APP_URL }}
+    steps:
+      - name: 健康检查
+        if: env.STAGING_APP_URL != ''
+        run: |
+          for _ in 1 2 3; do
+            body=$(curl -sf --max-time 10 "$STAGING_APP_URL/api/health" || true)
+            case "$body" in *'"status":"UP"'*) echo "正常：$body"; exit 0 ;; esac
+            sleep 20
+          done
+          echo "测试环境健康检查失败（连续 3 次）：${body:-无法访问}" >&2
+          exit 1
