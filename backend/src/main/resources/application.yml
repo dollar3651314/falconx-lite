@@ -290,8 +290,11 @@ falconx:
         # BSC 上的 USDT 是 18 位小数，按需求要上链实测确认（S20）
         usdt-decimals: 18
         confirmations: 15
-        block-seconds: 3
-        scan-batch: 50
+        # BSC 出块已经缩短到约 0.45 秒（2026-10-21 在测试网和主网各取 1,000 个区块实测：450 秒），原来按 3 秒配置，
+        # 每 15 秒只扫 50 个区块，几乎追不上出块，停机后积压永远补不完（scan.BSC 一直 DOWN）。
+        # 每 15 秒扫 150 个区块 ≈ 10 个/秒，是出块速度（约 2.2 个/秒）的 4 倍多；主网 USDT 转账多，一次不扫太多区块
+        block-seconds: 0.45
+        scan-batch: 150
       TRC20:
         rpc-url: ${FX_WALLET_TRON_RPC_URL:}
         usdt-contract: ${FX_WALLET_TRC20_USDT_CONTRACT:}

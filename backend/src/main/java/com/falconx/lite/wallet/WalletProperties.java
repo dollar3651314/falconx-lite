@@ -23,11 +23,11 @@ public record WalletProperties(String ethXpub, String tronXpub, @DefaultValue("1
    * @param usdtContract 只认这个 USDT 合约（修复 F3）；没有配置时这条链不扫块
    * @param usdtDecimals USDT 精度：ERC20、TRC20 是 6；BSC 是 18，要上链实测确认
    * @param confirmations 入账需要的确认数（ETH 12、BSC 15、TRON 19，沿用现有系统）
-   * @param blockSeconds 出块间隔（秒），只用于给客户估算到账时间
+   * @param blockSeconds 出块间隔（秒，可以是小数：BSC 2026-10 实测约 0.45 秒），用于给客户估算到账时间、判断扫块落后多久
    * @param scanBatch 每次最多扫多少个区块
    * @param startBlock 第一次扫块从哪个区块开始；不填就从当前区块开始
    */
-  public record ChainConfig(String rpcUrl, String usdtContract, @DefaultValue("6") int usdtDecimals, int confirmations, @DefaultValue("3") int blockSeconds,
+  public record ChainConfig(String rpcUrl, String usdtContract, @DefaultValue("6") int usdtDecimals, int confirmations, @DefaultValue("3") double blockSeconds,
       @DefaultValue("200") int scanBatch, Long startBlock) {
 
     public boolean scanReady() {
