@@ -191,6 +191,19 @@ export interface HistoryItem {
   fee: string;
   kind: HistoryKind;
   closedAt: string;
+  /**
+   * 部分平仓拆出来的记录（体验优化 1021 UX-6）：原持仓的编号（对外编号，字符串）；整笔平仓、撤单没有。
+   * 页面据此标"部分平仓"。
+   */
+  parentId?: string;
+}
+
+/** 平仓结果（`POST /api/trading/positions/{id}/close`）：closedLots 平掉的手数，remainingLots 剩下的手数（全部平仓时 "0.00"） */
+export interface CloseResult {
+  pnl: string;
+  price: string;
+  closedLots: string;
+  remainingLots: string;
 }
 
 export interface PlaceOrderRequest {

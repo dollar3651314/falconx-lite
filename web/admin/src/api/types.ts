@@ -151,6 +151,34 @@ export interface Position {
   openedAt: string;
 }
 
+/** 平仓原因：客户平仓 / 止盈 / 止损 / 强平 */
+export type CloseReason = 'closed' | 'tp' | 'sl' | 'liquidated';
+
+/**
+ * 已平仓记录（GET /api/admin/positions/closed，体验优化 1021 UX-6 起）。
+ * partial 为 true 表示部分平仓拆出来的记录，parentId 是它来自的原持仓编号；整笔平仓 parentId 为空。
+ */
+export interface ClosedPosition {
+  id: string;
+  parentId: string | null;
+  partial: boolean;
+  customerId: number;
+  customerName: string;
+  symbol: string;
+  side: Side;
+  lots: string;
+  openPrice: string;
+  closePrice: string;
+  leverage: number;
+  margin: string;
+  fee: string;
+  swap: string;
+  pnl: string;
+  reason: CloseReason;
+  openedAt: string;
+  closedAt: string;
+}
+
 export interface CustomerDetail extends CustomerSummary {
   /** 最近一次登录的 IP 和时间（v2 E6，取最近一个登录会话）；从没登录过为空 */
   lastLoginIp?: string | null;
@@ -176,6 +204,8 @@ export interface CustomerDetail extends CustomerSummary {
   };
   positions: Position[];
   ledger: LedgerEntry[];
+  /** 最近 20 条已平仓记录（部分平仓的标出原持仓编号） */
+  closedPositions: ClosedPosition[];
 }
 
 /** 后台编辑客户资料（v2 E1）：只有这 5 项；邮箱不能改，状态只能用冻结 / 解冻改 */

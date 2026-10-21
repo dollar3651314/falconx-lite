@@ -291,6 +291,8 @@
 .hist-row .r2 span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kind-tag { font-size: 11px; border-radius: 4px; padding: 1px 6px; background: var(--s3); color: var(--muted); white-space: nowrap; font-family: var(--sans); }
 .kind-tag.k-tp { color: var(--long); background: var(--long-soft); } .kind-tag.k-sl, .kind-tag.k-liquidated { color: var(--short-text); background: var(--short-soft); }
+/* 部分平仓（体验优化 1021 UX-6）：中性色，和"手动平仓"放在一起 */
+.kind-tag.k-partial { color: var(--text); background: var(--s3); border: 1px dashed var(--border); }
 
 .table-scroll { overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; }

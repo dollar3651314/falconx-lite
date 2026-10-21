@@ -245,6 +245,16 @@ describe('S18b：交易监控', () => {
   });
 });
 
+describe('体验优化 1021 UX-6：已平仓记录', () => {
+  it('已平仓记录的路径和筛选；客户详情原样带 closedPositions', async () => {
+    const item = { id: '9001', parentId: '8001', partial: true, customerId: 3, customerName: 'A', symbol: 'XAUUSD', side: 'buy', lots: '0.04' };
+    const { calls } = fakeFetch({ 'GET /api/admin/positions/closed': { body: { items: [item], total: 1, page: 1, pageSize: 20 } } });
+    const p = await real.listClosedPositions({ page: 1, pageSize: 20, keyword: '8001', side: 'buy' });
+    expect(calls[0].url).toBe('/api/admin/positions/closed?side=buy&keyword=8001&page=1&pageSize=20');
+    expect(p.items[0]).toMatchObject({ partial: true, parentId: '8001' });
+  });
+});
+
 describe('S18b：风控', () => {
   it('看板：后端的 symbols 转成 exposures，没有刷新时间时用取数时间', async () => {
     fakeFetch({

@@ -27,10 +27,11 @@
     WHERE a.user_id = #{userId} AND l.bucket = 'BALANCE' AND l.entry_type IN ('REALIZED_PNL', 'TRADE_FEE', 'SWAP')
   </select>
 
-  <!-- 成交的开仓订单（每笔成交的订单对应一个持仓，成交时间是持仓的开仓时间）按下单时的 USD 名义价值合计 -->
+  <!-- 成交的开仓订单（每笔成交的订单对应一个原持仓，成交时间是持仓的开仓时间）按下单时的 USD 名义价值合计。
+       部分平仓（V32）拆出来的行和原持仓是同一张订单，只按原持仓（parent_id 为空）连接，不重复计算 -->
   <select id="openedNotionalSince" resultType="java.math.BigDecimal">
     SELECT COALESCE(SUM(o.notional_usd), 0)
-    FROM trading_order o JOIN trading_position p ON p.order_id = o.id
+    FROM trading_order o JOIN trading_position p ON p.order_id = o.id AND p.parent_id IS NULL
     WHERE o.user_id = #{userId} AND o.status = 'FILLED' AND p.opened_at &gt;= #{since}
   </select>
 </mapper>

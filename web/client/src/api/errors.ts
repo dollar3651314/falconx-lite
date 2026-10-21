@@ -173,6 +173,9 @@ export const FIELD_CODES: Record<string, string> = {
   lotsMin: 'validation.lotsMin',
   lotsMax: 'validation.lotsMax',
   lotsStep: 'validation.lotsStep',
+  // 部分平仓（体验优化 1021 UX-6）：超过持仓手数、剩下的会小于最小手数
+  closeLotsMax: 'validation.closeLotsMax',
+  closeRemainMin: 'validation.closeRemainMin',
   leverageInteger: 'validation.leverageInteger',
   priceDigits: 'validation.priceDigits',
   tpBuy: 'validation.tpBuy',

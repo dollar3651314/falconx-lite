@@ -6,6 +6,7 @@ import type {
   AdminUser,
   AuditLog,
   Chain,
+  ClosedPosition,
   CustomerSummary,
   Deposit,
   FxRate,
@@ -766,3 +767,44 @@ export const adjustState = { usedToday: '1250.00' };
 /** 原型身份：超级管理员 / 运营 / 风控 → 对应的管理员 */
 export const identityAdmin: Record<'super' | 'ops' | 'risk', number> = { super: 1, ops: 2, risk: 3 };
 export const session = { adminId: 1 };
+
+// ---------------- 已平仓记录（体验优化 1021 UX-6 部分平仓） ----------------
+// 单独的随机数序列，不影响上面已有数据的生成结果
+const closedRng = createRng(20261021);
+
+/**
+ * 已平仓记录：每 3 条里有 1 条是从某个还在持有的持仓上部分平仓拆出来的（parentId 指向它，客户、品种、方向、开仓价相同），
+ * 其他是整笔平仓（客户平仓、止盈、止损、强平）。第一条是 0 号持仓（XAUUSD）的部分平仓，方便演示。
+ */
+export const closedPositions: ClosedPosition[] = Array.from({ length: 30 }, (_, i) => {
+  const partial = i % 3 === 0;
+  const parent = partial ? positions[(i / 3) % positions.length] : null;
+  const c = parent ? customerById(parent.customerId)! : customers[(i * 5) % (customers.length - 6)];
+  const sym = parent ? parent.symbol : closedRng.pick(tradeSymbols);
+  const side = parent ? parent.side : closedRng.bool() ? 'buy' : 'sell';
+  const open = parent ? parent.openPrice : priceOf[sym];
+  const reason: ClosedPosition['reason'] = partial ? 'closed' : closedRng.pick(['closed', 'closed', 'tp', 'sl', 'liquidated'] as const);
+  const neg = reason === 'sl' || reason === 'liquidated' || (reason === 'closed' && closedRng.bool(0.4));
+  const margin = closedRng.amount(20, 1500);
+  const openedMin = closedRng.int(60 * 24, 60 * 24 * 12);
+  return {
+    id: mockNo(i * 41 + 7, 3030 - i),
+    parentId: parent ? parent.id : null,
+    partial,
+    customerId: c.id,
+    customerName: c.name,
+    symbol: sym,
+    side,
+    lots: i === 0 ? '0.04' : closedRng.pick(['0.01', '0.02', '0.05', '0.10', '0.30', '1.00']),
+    openPrice: open,
+    closePrice: shiftPrice(open, (side === 'buy') !== neg ? 0.004 : -0.004),
+    leverage: parent ? parent.leverage : closedRng.pick([10, 20, 50, 100]),
+    margin,
+    fee: closedRng.amount(0, 6, 6),
+    swap: closedRng.bool(0.3) ? `-${closedRng.amount(0, 5, 4)}` : '0',
+    pnl: reason === 'liquidated' ? `-${margin}` : (neg ? '-' : '') + closedRng.amount(1, 600),
+    reason,
+    openedAt: minutesAgo(openedMin),
+    closedAt: minutesAgo(i * 41 + 7),
+  };
+});

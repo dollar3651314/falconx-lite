@@ -8,7 +8,10 @@ import { CustomerListPage } from './customers/CustomerListPage';
 import { AdminsPage } from './system/AdminsPage';
 import { App } from '../App';
 import { TemplatesPage } from './notify/TemplatesPage';
+import { PositionsPage } from './trading/PositionsPage';
+import { CustomerDetailPage } from './customers/CustomerDetailPage';
 import * as db from '../mocks/data/db';
+import * as mock from '../mocks/handlers';
 
 afterEach(() => setScenario('normal'));
 
@@ -107,5 +110,33 @@ describe('通知模板：品牌改名提醒（v2，《v2-需求说明书》第 8
     } finally {
       tpl.titleZh = before;
     }
+  });
+});
+
+describe('持仓：已平仓记录（体验优化 1021 UX-6 部分平仓）', () => {
+  it('切到"已平仓"：部分平仓的记录标出来并显示原持仓编号；模拟层按原持仓编号能搜到', async () => {
+    renderAs(<PositionsPage />);
+    fireEvent.click(await screen.findByText('已平仓'));
+    const first = db.closedPositions[0];
+    expect(await screen.findByText(first.id)).toBeInTheDocument();
+    const tags = await screen.findAllByTestId('partial-tag');
+    // 第一页 10 条里每 3 条有 1 条部分平仓
+    expect(tags.length).toBe(db.closedPositions.slice(0, 10).filter((r) => r.partial).length);
+    expect(tags[0]).toHaveTextContent(`部分平仓 原持仓 ${first.parentId}`);
+    const found = await mock.listClosedPositions({ page: 1, pageSize: 20, keyword: first.parentId! });
+    expect(found.items.map((r) => r.id)).toContain(first.id);
+  });
+
+  it('客户详情：最近平仓里部分平仓的记录标出原持仓', async () => {
+    const first = db.closedPositions[0];
+    renderAs(
+      <Routes>
+        <Route path="/customers/:id" element={<CustomerDetailPage />} />
+      </Routes>,
+      { path: `/customers/${first.customerId}` },
+    );
+    expect(await screen.findByText('最近平仓（20 条）')).toBeInTheDocument();
+    expect(await screen.findByText(first.id)).toBeInTheDocument();
+    expect(screen.getAllByTestId('partial-tag')[0]).toHaveTextContent(`原持仓 ${first.parentId}`);
   });
 });

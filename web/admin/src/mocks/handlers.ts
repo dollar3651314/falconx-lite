@@ -30,6 +30,7 @@ import {
   type NotifyRecordQuery,
   type NotifyTemplate,
   type Page,
+  type ClosedPosition,
   type PageQuery,
   type ReconQuery,
   type Role,
@@ -303,6 +304,7 @@ export function getCustomer(id: number): Promise<CustomerDetail> {
       account: { balance: c.balance, usedMargin: used, available: compareAmounts(avail, '0') < 0 ? '0.00' : avail, floatingPnl: floating, frozenWithdraw: frozenWd },
       positions,
       ledger: ledgerFor(c, false),
+      closedPositions: db.closedPositions.filter((p) => p.customerId === id).slice(0, 20),
     };
   });
 }
@@ -316,6 +318,7 @@ function mutateRead<T extends object>(produce: () => T): Promise<T> {
       if (acc) Object.assign(acc, { usedMargin: '0.00', floatingPnl: '0.00', frozenWithdraw: '0.00', available: acc.balance });
       if (v.positions) v.positions = [];
       if (v.ledger) v.ledger = [];
+      if ((v as { closedPositions?: unknown[] }).closedPositions) (v as { closedPositions?: unknown[] }).closedPositions = [];
       if (v.recentDeposits) v.recentDeposits = [];
       if (v.recentWithdrawals) v.recentWithdrawals = [];
       return v;
@@ -731,13 +734,49 @@ export function listPositions(q: TradeQuery) {
   return respond(() => paginate(tradeFilter(db.positions, q), q.page, q.pageSize), { empty: () => emptyPage<(typeof db.positions)[number]>(q.page, q.pageSize) });
 }
 
+/** 已平仓记录（体验优化 1021 UX-6）：关键字也匹配原持仓编号（和后端一样，输入原持仓编号能看到它拆出来的部分平仓记录） */
+export function listClosedPositions(q: TradeQuery): Promise<Page<ClosedPosition>> {
+  return respond(
+    () =>
+      paginate(
+        db.closedPositions.filter(
+          (r) => (!q.symbol || r.symbol === q.symbol) && (!q.side || r.side === q.side) && (matches(q.keyword, r.customerName, r.customerId, r.id) || (!!q.keyword && r.parentId === q.keyword.trim())),
+        ),
+        q.page,
+        q.pageSize,
+      ),
+    { empty: () => emptyPage<ClosedPosition>(q.page, q.pageSize) },
+  );
+}
+
 export function liquidatePosition(id: string, reason: string): Promise<void> {
   return mutate(() => {
     requirePerm('position:liquidate');
     const r = requireReason(reason);
     const idx = db.positions.findIndex((p) => p.id === id);
     if (idx < 0) throw new ApiError('errors.stateChanged');
-    db.positions.splice(idx, 1);
+    const [p] = db.positions.splice(idx, 1);
+    // 强平后进已平仓记录（整笔，亏损封顶为保证金）
+    db.closedPositions.unshift({
+      id: p.id,
+      parentId: null,
+      partial: false,
+      customerId: p.customerId,
+      customerName: p.customerName,
+      symbol: p.symbol,
+      side: p.side,
+      lots: p.lots,
+      openPrice: p.openPrice,
+      closePrice: p.currentPrice,
+      leverage: p.leverage,
+      margin: p.margin,
+      fee: '0',
+      swap: '0',
+      pnl: compareAmounts(p.pnl, `-${p.margin}`) < 0 ? `-${p.margin}` : p.pnl,
+      reason: 'liquidated',
+      openedAt: p.openedAt,
+      closedAt: nowString(),
+    });
     audit('position.liquidate', id, true, r, { status: 'open' }, { status: 'closed' });
   });
 }

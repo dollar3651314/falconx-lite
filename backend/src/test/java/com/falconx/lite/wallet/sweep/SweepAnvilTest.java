@@ -95,8 +95,18 @@ class SweepAnvilTest {
 
   JsonNode send(String from, String to, String data) {
     String hash = rpc.call("eth_sendTransaction", List.of(Map.of("from", from, "to", to, "data", data))).asString();
+    // anvil 自动出块是异步的：机器忙时（CI）发完交易立刻查回执可能还是空，等它出块再判断（PR #72 的 CI 偶发失败，2026-10-21）
     JsonNode r = rpc.call("eth_getTransactionReceipt", List.of(hash));
-    assertThat(r.path("status").asString()).as("交易应该成功 " + hash).isEqualTo("0x1");
+    for (int i = 0; i < 50 && (r == null || r.isNull() || r.isMissingNode()); i++) {
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        break;
+      }
+      r = rpc.call("eth_getTransactionReceipt", List.of(hash));
+    }
+    assertThat(r.path("status").asString()).as("交易应该成功 " + hash + "，回执：" + r).isEqualTo("0x1");
     return r;
   }
 

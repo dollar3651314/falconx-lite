@@ -98,6 +98,14 @@ class MonitorController {
     return trading.positions(symbol, side, keyword, page, pageSize);
   }
 
+  /** 已平仓记录（体验优化 1021 UX-6）：部分平仓拆出来的记录带 partial、parentId（原持仓编号）；权限同持仓监控 */
+  @RequiresPermission(Permission.POSITION_VIEW)
+  @GetMapping("/api/admin/positions/closed")
+  Ops.Page<TradingOps.ClosedView> closedPositions(@RequestParam(required = false) String symbol, @RequestParam(required = false) String side,
+      @RequestParam(required = false) String keyword, @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int pageSize) {
+    return trading.closedPositions(symbol, side, keyword, page, pageSize);
+  }
+
   @RequiresPermission(Permission.POSITION_LIQUIDATE)
   @PostMapping("/api/admin/positions/{id}/liquidate")
   Map<String, String> liquidate(@PathVariable long id, @RequestBody ReasonBody body) {

@@ -10,7 +10,8 @@ import { ArrowLeftOutlined, LockOutlined, UnlockOutlined, DollarOutlined, EditOu
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { adjustBalance, getAdjustLimits, getCustomer, setCustomerFrozen, updateCustomerProfile } from '../../api';
-import type { LedgerEntry, Position } from '../../api/types';
+import type { ClosedPosition, LedgerEntry, Position } from '../../api/types';
+import { closedColumns } from '../trading/closedColumns';
 import { useApi } from '../../hooks/useApi';
 import { useHighRisk } from '../../hooks/useConfirmDialogs';
 import { PageHeader } from '../../components/PageHeader';
@@ -299,6 +300,11 @@ export function CustomerDetailPage() {
                 { title: t('trading.openedAt'), dataIndex: 'openedAt', render: (v: string) => <Num>{shortTime(v)}</Num> },
               ]}
             />
+          </div>
+
+          <div className="card card-pad">
+            <h2 className="card-title">{t('positions.recentClosed')}</h2>
+            <DataTable<ClosedPosition> bare rowKey="id" dataSource={c.closedPositions ?? []} emptyText={t('common.empty')} columns={closedColumns(t, { withCustomer: false })} />
           </div>
 
           <div className="card card-pad">

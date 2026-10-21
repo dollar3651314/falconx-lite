@@ -39,8 +39,9 @@ class TradingController {
   record PendingOrderView(String id, String symbol, String side, String lots, int leverage, String limitPrice, String takeProfit,
       String stopLoss, String frozenMargin, String createdAt) {}
 
+  /** parentId：部分平仓拆出来的记录（V32）是原持仓的对外编号，其他为空；客户端据此标"部分平仓" */
   record HistoryView(String id, String symbol, String side, String lots, String openPrice, String closePrice, String pnl, String fee,
-      String kind, String closedAt) {}
+      String kind, String closedAt, String parentId) {}
 
   record Page<T>(List<T> items, long total, int page, int pageSize) {}
 
@@ -48,7 +49,11 @@ class TradingController {
 
   record MarginRequest(String amount) {}
 
-  record CloseView(String pnl, String price) {}
+  /** 平仓请求体（可选）：lots 不传 = 全部平仓（体验优化 1021 UX-6，老客户端不带请求体照样是全部平仓） */
+  record CloseRequest(String lots) {}
+
+  /** 平仓结果：closedLots 平掉的手数，remainingLots 剩下的手数（全部平仓时为 "0.00"） */
+  record CloseView(String pnl, String price, String closedLots, String remainingLots) {}
 
   private final OrderService orders;
   private final PositionService positions;
@@ -114,13 +119,13 @@ class TradingController {
     return id == null ? -1 : id;
   }
 
-  /** 全额平仓 */
+  /** 平仓：请求体 {"lots":"0.50"} 可选，不传或等于持仓手数 = 全部平仓，小于持仓手数 = 部分平仓（体验优化 1021 UX-6） */
   @UserWriteLimited
   @PostMapping("/api/trading/positions/{id}/close")
-  CloseView close(@PathVariable long id) {
+  CloseView close(@PathVariable long id, @RequestBody(required = false) CloseRequest req) {
     long uid = CurrentUser.id();
-    PositionService.Closed c = positions.close(uid, position(uid, id));
-    return new CloseView(money(c.pnl()), plain(c.price()));
+    PositionService.Closed c = positions.close(uid, position(uid, id), req == null ? null : req.lots());
+    return new CloseView(money(c.pnl()), plain(c.price()), lots(c.closedLots()), lots(c.remainingLots()));
   }
 
   /** 修改止盈止损；字段不传或为空表示取消 */
@@ -216,7 +221,7 @@ class TradingController {
     List<HistoryView> items = orders.history(uid, (p - 1) * size, size).stream().map(h -> {
       int d = digits(h.symbol);
       return new HistoryView(h.id, h.symbol, h.side.toLowerCase(), lots(h.lots), price(h.openPrice, d), price(h.closePrice, d),
-          h.pnl == null ? null : money(h.pnl), money(h.fee), h.kind, iso(h.at));
+          h.pnl == null ? null : money(h.pnl), money(h.fee), h.kind, iso(h.at), h.parentNo == null ? null : String.valueOf(h.parentNo));
     }).toList();
     return new Page<>(items, orders.countHistory(uid), p, size);
   }

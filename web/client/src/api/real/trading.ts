@@ -1,6 +1,6 @@
 /** 交易的真实接口：`/api/trading/*`（`trading/order/TradingController.java`）。推送见 events.ts。 */
 import { del, get, post, put } from '../http';
-import type { Account, HistoryItem, Page, PendingOrder, PlaceOrderRequest, PlaceOrderResult, Position } from '../types';
+import type { Account, CloseResult, HistoryItem, Page, PendingOrder, PlaceOrderRequest, PlaceOrderResult, Position } from '../types';
 
 /** 追加保证金时余额不足，后端的错误码按"可用余额不足"显示 */
 const MARGIN_CODES = { codes: { INSUFFICIENT_BALANCE: 'marginInsufficient' as const } };
@@ -12,7 +12,9 @@ export const listHistory = (page: number, pageSize: number): Promise<Page<Histor
 
 export const placeOrder = (req: PlaceOrderRequest): Promise<PlaceOrderResult> => post<PlaceOrderResult>('/api/trading/orders', req);
 
-export const closePosition = (id: string): Promise<{ pnl: string; price: string }> => post<{ pnl: string; price: string }>(`/api/trading/positions/${encodeURIComponent(id)}/close`);
+/** 平仓：lots 不传时不带请求体（全部平仓，和老版本一样）；传了手数时请求体 {"lots":"0.50"}（部分平仓） */
+export const closePosition = (id: string, lots?: string): Promise<CloseResult> =>
+  post<CloseResult>(`/api/trading/positions/${encodeURIComponent(id)}/close`, lots === undefined ? undefined : { lots });
 
 /** 不传表示取消 */
 export async function updateTpSl(id: string, takeProfit?: string, stopLoss?: string): Promise<void> {

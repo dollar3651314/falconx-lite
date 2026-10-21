@@ -832,15 +832,32 @@
     "title": "权限点字典"
   },
   "positions": {
+    "closePrice": "平仓价",
+    "closedAt": "平仓时间",
+    "closedHint": "已平仓记录按平仓时间倒序。部分平仓拆出来的记录标“部分平仓”并显示原持仓编号；搜索原持仓编号能看到它的全部部分平仓记录。",
     "confirmLiquidate": "确认强平",
+    "fromPosition": "原持仓 {{id}}",
     "hint": "手动强平按当前市价立即平仓，客户余额不会被扣成负数；仅在自动强平没有触发等异常情况下使用。",
     "liqPrice": "强平价",
     "liquidate": "手动强平",
     "liquidateDesc": "强平持仓 {{id}}：{{name}} · {{symbol}} {{side}} {{lots}} 手，当前浮动盈亏 {{pnl}} USDT。按市价立即平仓，无法撤销。",
     "liquidated": "已强平",
     "marginLevel": "保证金水平",
+    "parentId": "原持仓",
+    "partial": "部分平仓",
+    "realizedPnl": "已实现盈亏",
+    "reason": "平仓方式",
+    "reasons": {
+      "closed": "客户平仓",
+      "tp": "止盈",
+      "sl": "止损",
+      "liquidated": "强平"
+    },
+    "recentClosed": "最近平仓（20 条）",
     "slTp": "止损 / 止盈",
     "sub": "逐仓持仓；保证金水平低于 100% 的行标红",
+    "tabClosed": "已平仓",
+    "tabOpen": "持仓中",
     "title": "持仓"
   },
   "env": {

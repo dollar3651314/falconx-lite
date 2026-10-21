@@ -50,6 +50,13 @@ public interface TradingAdminApi {
   record Pending(long id, long no, long userId, String symbol, String side, BigDecimal lots, BigDecimal limitPrice, BigDecimal currentPrice, int leverage,
       BigDecimal frozen, BigDecimal stopLoss, BigDecimal takeProfit, LocalDateTime createdAt) {}
 
+  /**
+   * 一笔已平仓记录（V32 起后台可查）。reason：CLOSED（客户平仓）/ TP / SL / LIQUIDATED。
+   * parentNo：部分平仓拆出来的记录指向原持仓的对外编号（不为空 = 部分平仓），整笔平仓为空。
+   */
+  record ClosedPosition(long id, long no, Long parentNo, long userId, String symbol, String side, BigDecimal lots, BigDecimal openPrice, BigDecimal closePrice,
+      int leverage, BigDecimal margin, BigDecimal fee, BigDecimal swap, BigDecimal pnl, String reason, LocalDateTime openedAt, LocalDateTime closedAt) {}
+
   /** 后台强平的结果 */
   record Liquidated(long positionId, long userId, String symbol, BigDecimal price, BigDecimal pnl) {}
 
@@ -60,6 +67,9 @@ public interface TradingAdminApi {
   Page<Order> orders(String symbol, String side, String status, Collection<Long> userIds, Long no, int offset, int limit);
 
   Page<Position> positions(String symbol, String side, Collection<Long> userIds, Long no, int offset, int limit);
+
+  /** 已平仓记录，按平仓时间倒序；筛选同 {@link #positions}，no 也匹配原持仓的编号（能查到一笔持仓拆出来的全部部分平仓记录） */
+  Page<ClosedPosition> closedPositions(String symbol, String side, Collection<Long> userIds, Long no, int offset, int limit);
 
   Page<Pending> pendingOrders(String symbol, String side, Collection<Long> userIds, Long no, int offset, int limit);
 

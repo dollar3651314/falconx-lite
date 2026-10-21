@@ -34,6 +34,20 @@ interface OrderMapper {
   int closePosition(@Param("id") long id, @Param("closePrice") java.math.BigDecimal closePrice, @Param("pnl") java.math.BigDecimal pnl,
       @Param("reason") String reason);
 
+  /** 部分平仓（V32）：插入拆出来的那一行（opened_at 用原持仓的） */
+  int insertSplit(PositionRow row);
+
+  /** 部分平仓（V32）：原持仓减去平掉的部分 */
+  int shrinkPosition(@Param("id") long id, @Param("lots") java.math.BigDecimal lots, @Param("margin") java.math.BigDecimal margin,
+      @Param("fee") java.math.BigDecimal fee, @Param("swapTotal") java.math.BigDecimal swapTotal, @Param("notionalUsd") java.math.BigDecimal notionalUsd,
+      @Param("liquidationPrice") java.math.BigDecimal liquidationPrice);
+
+  /** 这个持仓最大的隔夜费记录号，没有时为 0 */
+  long maxSwapId(@Param("positionId") long positionId);
+
+  /** 原持仓在拆分之前（记录号 ≤ seq）是否已经结算过 date 这个结算日 */
+  boolean settledBeforeSplit(@Param("parentId") long parentId, @Param("date") java.time.LocalDate date, @Param("seq") long seq);
+
   int updateTpSl(@Param("id") long id, @Param("takeProfit") java.math.BigDecimal takeProfit, @Param("stopLoss") java.math.BigDecimal stopLoss);
 
   int updateMargin(@Param("id") long id, @Param("margin") java.math.BigDecimal margin, @Param("liquidationPrice") java.math.BigDecimal liquidationPrice);
@@ -132,6 +146,13 @@ interface OrderMapper {
       @Param("no") Long no, @Param("offset") int offset, @Param("limit") int limit);
 
   long countAdminPositions(@Param("symbol") String symbol, @Param("side") String side, @Param("userIds") java.util.Collection<Long> userIds,
+      @Param("no") Long no);
+
+  /** 后台已平仓记录（V32）：带原持仓的对外编号 parentNo；no 也匹配原持仓的编号 */
+  List<PositionRow> adminClosedPositions(@Param("symbol") String symbol, @Param("side") String side, @Param("userIds") java.util.Collection<Long> userIds,
+      @Param("no") Long no, @Param("offset") int offset, @Param("limit") int limit);
+
+  long countAdminClosedPositions(@Param("symbol") String symbol, @Param("side") String side, @Param("userIds") java.util.Collection<Long> userIds,
       @Param("no") Long no);
 
   /** 对外编号 → 内部 id；userId 不为空时只认这个客户的。没有时为 null */

@@ -29,6 +29,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>金额 = 手数 × 合约大小 × 平仓方向最新价 × |费率| × 汇率；费率为负扣、为正返还（沿用现有系统）</li>
  *   <li>扣费从这个持仓的保证金里扣（逐仓），强平价随之重算；返还进余额</li>
  *   <li>每个持仓每个结算日一条 {@code trading_swap} 记录（唯一键防重复），账本 {@code SWAP}</li>
+ *   <li>部分平仓（V32）：已经结算过的记录留在原持仓，以后按剩余手数结算；拆出来的已平仓行只补收"拆分时原持仓还没结算的、拆分前的结算日"
+ *       （拆分发生在结算时点之后、结算任务跑之前），按它自己的手数从余额扣——两行合计正好是拆分前的手数，不多收也不漏收</li>
  * </ul>
  */
 @Service
@@ -91,6 +93,8 @@ class SwapService {
       if (p == null || !p.openedAt.isBefore(at)) return false;
       boolean open = "OPEN".equals(p.status);
       if (!open && (p.closedAt == null || !p.closedAt.isAfter(at))) return false;
+      // 部分平仓拆出来的行（V32）：原持仓在拆分之前已经按拆分前的手数（含这部分）结算过这一天，不再收
+      if (p.parentId != null && p.splitSwapSeq != null && mapper.settledBeforeSplit(p.parentId, day, p.splitSwapSeq)) return false;
       SymbolSpec spec = market.symbol(p.symbol).orElse(null);
       if (spec == null) return false;
       Side side = Side.valueOf(p.side);

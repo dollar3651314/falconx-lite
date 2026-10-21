@@ -184,6 +184,54 @@ class AdminMonitorTest extends AdminTestSupport {
     assertThat(body(call(get("/api/admin/orders?keyword=999999999999999999"), view.cookie(), null)).get("total").asLong()).as("没有这个编号").isEqualTo(0);
   }
 
+  /**
+   * 体验优化 1021 UX-6 部分平仓（V32 拆行）：后台持仓只显示剩下的手数；已平仓记录里拆出来的那一笔标"部分平仓"并带原持仓编号，
+   * 按原持仓编号能搜到它；订单列表一张订单仍是一行、手续费是整张订单的；客户详情的最近平仓同样标出来。
+   */
+  @Test
+  void 部分平仓_后台持仓_已平仓记录_订单_客户详情都按拆分后的记录显示() throws Exception {
+    Admin view = withRoles(role(Permission.ORDER_VIEW, Permission.POSITION_VIEW, Permission.CUSTOMER_VIEW));
+    Customer c = customer("2000");
+    String orderNo = order(c, "market", "buy", null);
+    String posNo = jdbc.queryForObject("SELECT p.public_no FROM trading_position p JOIN trading_order o ON o.position_id = p.id WHERE o.public_no = ?", String.class,
+        Long.parseLong(orderNo));
+    MockHttpServletResponse r = call(post("/api/trading/positions/" + posNo + "/close"), c.cookie(), "{\"lots\":\"0.04\"}");
+    assertThat(r.getStatus()).as(r.getContentAsString()).isEqualTo(200);
+
+    JsonNode open = body(call(get("/api/admin/positions?keyword=" + posNo), view.cookie(), null));
+    assertThat(open.get("total").asLong()).isEqualTo(1);
+    assertThat(open.get("items").get(0).get("lots").asString()).isEqualTo("0.06");
+
+    JsonNode closed = body(call(get("/api/admin/positions/closed?keyword=" + posNo), view.cookie(), null));
+    assertThat(closed.get("total").asLong()).as("按原持仓编号搜到拆出来的记录").isEqualTo(1);
+    JsonNode part = closed.get("items").get(0);
+    assertThat(part.get("partial").asBoolean()).isTrue();
+    assertThat(part.get("parentId").asString()).isEqualTo(posNo);
+    assertThat(part.get("id").asString()).isNotEqualTo(posNo);
+    assertThat(part.get("lots").asString()).isEqualTo("0.04");
+    assertThat(part.get("reason").asString()).isEqualTo("closed");
+    assertThat(part.get("customerName").asString()).startsWith(c.name());
+
+    JsonNode orders = body(call(get("/api/admin/orders?keyword=" + orderNo), view.cookie(), null));
+    assertThat(orders.get("total").asLong()).as("一张订单仍是一行").isEqualTo(1);
+    assertThat(orders.get("items").size()).isEqualTo(1);
+    // 开仓手续费 41268.5 × 0.005% = 2.063425（拆到两行后合计不变）
+    assertThat(orders.get("items").get(0).get("fee").asString()).isEqualTo("2.063425");
+
+    JsonNode d = body(call(get("/api/admin/customers/" + c.id()), view.cookie(), null));
+    assertThat(d.get("positions").get(0).get("lots").asString()).isEqualTo("0.06");
+    assertThat(d.get("closedPositions").size()).isEqualTo(1);
+    assertThat(d.get("closedPositions").get(0).get("partial").asBoolean()).isTrue();
+    assertThat(d.get("closedPositions").get(0).get("parentId").asString()).isEqualTo(posNo);
+
+    // 再全部平掉：原持仓那一行是整笔平仓（不标部分平仓），列表里两条
+    assertThat(call(post("/api/trading/positions/" + posNo + "/close"), c.cookie(), null).getStatus()).isEqualTo(200);
+    JsonNode both = body(call(get("/api/admin/positions/closed?keyword=" + posNo), view.cookie(), null));
+    assertThat(both.get("total").asLong()).isEqualTo(2);
+    assertThat(both.get("items").toString()).contains("\"id\":\"" + posNo + "\",\"parentId\":null,\"partial\":false");
+    assertThat(call(get("/api/admin/positions/closed"), withRoles(role(Permission.ORDER_VIEW)).cookie(), null).getStatus()).as("要持仓查看权限").isEqualTo(403);
+  }
+
   /** M-19（修复 fxsystem T2"改了不同步"）：后台改加点后，下一条报价立即按新加点算买卖价，只加一次；改回 0 后也立即生效 */
   @Test
   void 后台改加点后下一条报价立即按新加点_M19() throws Exception {

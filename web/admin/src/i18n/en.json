@@ -832,15 +832,32 @@
     "title": "Permission dictionary"
   },
   "positions": {
+    "closePrice": "Close price",
+    "closedAt": "Closed at",
+    "closedHint": "Closed records, newest first. Records split off by a partial close are tagged \"Partial close\" and show the original position; search the original position number to see all its partial closes.",
     "confirmLiquidate": "Liquidate",
+    "fromPosition": "From position {{id}}",
     "hint": "Manual liquidation closes at market immediately; balances never go negative. Use only when automatic liquidation failed.",
     "liqPrice": "Liq. price",
     "liquidate": "Liquidate",
     "liquidateDesc": "Liquidate {{id}}: {{name}} · {{symbol}} {{side}} {{lots}} lots, floating P/L {{pnl}} USDT. Closes at market now and cannot be undone.",
     "liquidated": "Liquidated",
     "marginLevel": "Margin level",
+    "parentId": "Original position",
+    "partial": "Partial close",
+    "realizedPnl": "Realized P/L",
+    "reason": "Closed by",
+    "reasons": {
+      "closed": "Customer",
+      "tp": "Take profit",
+      "sl": "Stop loss",
+      "liquidated": "Liquidation"
+    },
+    "recentClosed": "Recently closed (20)",
     "slTp": "SL / TP",
     "sub": "Isolated positions; rows below 100% margin level are highlighted",
+    "tabClosed": "Closed",
+    "tabOpen": "Open",
     "title": "Positions"
   },
   "env": {

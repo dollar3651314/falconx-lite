@@ -186,6 +186,17 @@ describe('交易、钱包、通知接口', () => {
     expect(calls[1].body).toEqual({ takeProfit: '4200.00' });
   });
 
+  it('平仓：不带手数时没有请求体（全部平仓）；部分平仓带 {lots}；手数错误对应到 lots 字段', async () => {
+    const done = { pnl: '37.6', price: '4136.25', closedLots: '0.04', remainingLots: '0.06' };
+    stubFetch({ body: { ...done, closedLots: '0.10', remainingLots: '0.00' } }, { body: done }, { status: 400, body: { code: 'VALIDATION_FAILED', fields: [{ field: 'lots', code: 'closeRemainMin' }] } });
+    expect(await trading.closePosition('77')).toMatchObject({ closedLots: '0.10', remainingLots: '0.00' });
+    expect(await trading.closePosition('77', '0.04')).toEqual(done);
+    await expect(trading.closePosition('77', '0.095')).rejects.toMatchObject({ reason: 'validationFailed', fieldErrors: { lots: ['validation.closeRemainMin'] } });
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual(['POST /api/trading/positions/77/close', 'POST /api/trading/positions/77/close', 'POST /api/trading/positions/77/close']);
+    expect(calls[0].body).toBeUndefined();
+    expect(calls[1].body).toEqual({ lots: '0.04' });
+  });
+
   it('下单被拒：显示原因；追加保证金余额不足显示"可用余额不足"', async () => {
     stubFetch({ status: 400, body: { code: 'GLOBAL_PAUSED', fields: [] } }, { status: 400, body: { code: 'INSUFFICIENT_BALANCE', fields: [] } });
     await expect(trading.placeOrder({ symbol: 'X', type: 'market', side: 'buy', lots: '1', leverage: 1, clientOrderId: 'c' })).rejects.toMatchObject({ reason: 'globalPaused' });

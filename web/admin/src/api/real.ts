@@ -10,6 +10,7 @@ import type {
   AdjustLimits,
   AutoApproveChange,
   AutoApproveSettings,
+  ClosedPosition,
   AutoApproveSettingsInput,
   AdminInput,
   AdminSession,
@@ -484,6 +485,11 @@ export function listOrders(q: TradeQuery): Promise<Page<Order>> {
 
 export function listPositions(q: TradeQuery): Promise<Page<Position>> {
   return request('/positions', { query: { symbol: q.symbol, side: q.side, keyword: q.keyword, page: q.page, pageSize: q.pageSize } });
+}
+
+/** 已平仓记录（体验优化 1021 UX-6）：部分平仓的带 partial、parentId；关键字输入原持仓编号能查到它拆出来的全部记录 */
+export function listClosedPositions(q: TradeQuery): Promise<Page<ClosedPosition>> {
+  return request('/positions/closed', { query: { symbol: q.symbol, side: q.side, keyword: q.keyword, page: q.page, pageSize: q.pageSize } });
 }
 
 /** 手动强平（必须填原因）：按当前市价平仓 */

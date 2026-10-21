@@ -11,7 +11,6 @@ import { useQuote } from '../hooks/useQuotes';
 import { cmp, dec, div, isDecimalString, mul, toFixed, ZERO } from '../lib/decimal';
 import { formatAmount, formatLots, formatPrice } from '../lib/format';
 import { closePrice, liquidationAfterAddMargin, positionPnl, usdRate } from '../lib/trading';
-import { PARTIAL_CLOSE } from '../lib/ux1021';
 import { hasErrors, validateCloseLots, validateOrder, type FieldErrors } from '../lib/validators';
 import { FieldErrors as Errors, Switch, TextField } from './Form';
 import { ConfirmDialog, Modal } from './Modal';
@@ -48,10 +47,11 @@ function ErrorBox({ text }: { text: string | null }) {
 const RATIOS = [25, 50, 75, 100] as const;
 
 /**
- * 部分平仓（体验优化 1021 第 6 条，方案 UX-6；原型阶段只有模拟层支持，`PARTIAL_CLOSE`）：
+ * 平仓弹窗，支持部分平仓（体验优化 1021 第 6 条，方案 UX-6，后端 V32）：默认填全部手数；
  * 手数可改，快捷 25% / 50% / 75% / 全部（按步长向下取整），显示平掉部分的预计盈亏、释放的保证金和剩余手数。
+ * 全部平仓时不带手数（和老版本同一个请求）。
  */
-function PartialCloseDialog({ position, symbol, onClose }: { position: Position; symbol: SymbolInfo; onClose: () => void }) {
+export function ClosePositionDialog({ position, symbol, onClose }: { position: Position; symbol: SymbolInfo; onClose: () => void }) {
   const { t } = useTranslation();
   const q = useQuote(position.symbol);
   const a = useAction();
@@ -79,7 +79,7 @@ function PartialCloseDialog({ position, symbol, onClose }: { position: Position;
   return (
     <ConfirmDialog
       open
-      title={t('positions.closeTitleV2')}
+      title={t('positions.closeTitle')}
       confirmText={all || !valid ? t('positions.closeAll') : t('positions.closePartConfirm', { lots: formatLots(lots.trim()) })}
       tone="primary"
       busy={a.busy}
@@ -135,58 +135,6 @@ function PartialCloseDialog({ position, symbol, onClose }: { position: Position;
         </div>
       </dl>
       <p className="muted small">{t('positions.partialNote')}</p>
-      <ErrorBox text={a.error} />
-    </ConfirmDialog>
-  );
-}
-
-export function ClosePositionDialog({ position, symbol, onClose }: { position: Position; symbol: SymbolInfo; onClose: () => void }) {
-  if (PARTIAL_CLOSE) return <PartialCloseDialog position={position} symbol={symbol} onClose={onClose} />;
-  return <FullCloseDialog position={position} symbol={symbol} onClose={onClose} />;
-}
-
-function FullCloseDialog({ position, symbol, onClose }: { position: Position; symbol: SymbolInfo; onClose: () => void }) {
-  const { t } = useTranslation();
-  const q = useQuote(position.symbol);
-  const a = useAction();
-  const pnl = q ? positionPnl(position, symbol, q) : null;
-  return (
-    <ConfirmDialog
-      open
-      title={t('positions.closeTitle')}
-      confirmText={t('positions.closeConfirm')}
-      tone="primary"
-      busy={a.busy}
-      onClose={onClose}
-      onConfirm={() =>
-        a.run(
-          () => closePosition(position.id),
-          t('positions.closed'),
-          onClose,
-        )
-      }
-    >
-      <dl className="kv-list">
-        <div>
-          <dt>{t('order.symbol')}</dt>
-          <dd>
-            <b className="num">{position.symbol}</b> <span className={position.side === 'buy' ? 'up' : 'down'}>{t(`side.${position.side}`)}</span>
-          </dd>
-        </div>
-        <div>
-          <dt>{t('positions.lots')}</dt>
-          <dd className="num">{formatLots(position.lots)}</dd>
-        </div>
-        <div>
-          <dt>{t('positions.closePrice')}</dt>
-          <dd className="num">{q ? formatPrice(closePrice(position.side, q), symbol.digits) : '—'}</dd>
-        </div>
-        <div>
-          <dt>{t('positions.estPnl')}</dt>
-          <dd className={`num ${pnl && cmp(pnl, ZERO) < 0 ? 'down' : 'up'}`}>{pnl !== null ? `${formatAmount(pnl, { sign: true })} USDT` : '—'}</dd>
-        </div>
-      </dl>
-      <p className="muted small">{t('positions.closeNote')}</p>
       <ErrorBox text={a.error} />
     </ConfirmDialog>
   );

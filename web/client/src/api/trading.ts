@@ -2,7 +2,7 @@
 import * as mock from '../mocks/trading';
 import { IS_MOCK } from './mode';
 import * as real from './real/trading';
-import type { Account, HistoryItem, Page, PendingOrder, PlaceOrderRequest, PlaceOrderResult, Position } from './types';
+import type { Account, CloseResult, HistoryItem, Page, PendingOrder, PlaceOrderRequest, PlaceOrderResult, Position } from './types';
 
 const done = (): void => undefined;
 
@@ -12,14 +12,10 @@ export const listOrders = (): Promise<PendingOrder[]> => (IS_MOCK ? mock.listOrd
 export const listHistory = (page: number, pageSize = 20): Promise<Page<HistoryItem>> => (IS_MOCK ? mock.listHistory(page, pageSize) : real.listHistory(page, pageSize));
 export const placeOrder = (req: PlaceOrderRequest): Promise<PlaceOrderResult> => (IS_MOCK ? mock.placeOrder(req) : real.placeOrder(req));
 /**
- * 平仓。lots 不传 = 全部平仓。部分平仓（体验优化 1021 第 6 条）后端还没有接口，只有原型模拟层支持；
- * 真实接口模式下传了手数直接报错，**不能悄悄变成全部平仓**。
+ * 平仓。lots 不传或等于持仓手数 = 全部平仓，小于持仓手数 = 部分平仓（体验优化 1021 第 6 条，后端 V32 拆行）。
+ * 手数在后端按持仓当前的手数再检查一次（字段错误 lots：lotsStep、lotsMin、closeLotsMax、closeRemainMin）。
  */
-export const closePosition = (id: string, lots?: string): Promise<{ pnl: string; price: string }> => {
-  if (IS_MOCK) return mock.closePosition(id, lots);
-  if (lots !== undefined) return Promise.reject(new Error('部分平仓接口还没有上线'));
-  return real.closePosition(id);
-};
+export const closePosition = (id: string, lots?: string): Promise<CloseResult> => (IS_MOCK ? mock.closePosition(id, lots) : real.closePosition(id, lots));
 /** 不传表示取消 */
 export const updateTpSl = (id: string, tp?: string, sl?: string): Promise<void> => (IS_MOCK ? mock.updateTpSl(id, tp, sl).then(done) : real.updateTpSl(id, tp, sl));
 export const addMargin = (id: string, amount: string): Promise<Position> => (IS_MOCK ? mock.addMargin(id, amount) : real.addMargin(id, amount));

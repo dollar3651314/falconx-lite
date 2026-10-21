@@ -210,7 +210,7 @@ class NotifyFlowTest extends NotifyTestSupport {
 
   @Test
   void UX9_UX11_V31_新模板只发站内信_热钱包余额模板改成币种加余额不足() {
-    for (String code : List.of("POSITION_OPENED", "POSITION_CLOSED", "WELCOME")) {
+    for (String code : List.of("POSITION_OPENED", "POSITION_CLOSED", "POSITION_PARTIAL_CLOSED", "WELCOME")) {
       Map<String, Object> t = jdbc.queryForMap("SELECT audience, kind, channels, body_zh, body_en FROM notify_template WHERE code = ?", code);
       assertThat(t).as(code).containsEntry("audience", "USER").containsEntry("channels", "INBOX");
       assertThat((String) t.get("body_en")).as(code + " 英文里没有中文").doesNotContainPattern("[\\u4e00-\\u9fff]");

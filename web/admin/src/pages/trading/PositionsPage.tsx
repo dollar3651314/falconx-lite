@@ -1,12 +1,14 @@
 /**
  * 持仓监控：保证金水平、强平价；手动强平（高危，二次确认，写审计）。
  * v2 E7：每 5 秒静默刷新当前页（现价、盈亏、保证金水平），可暂停，页面不可见时停止。
+ * 体验优化 1021 UX-6：切换到"已平仓"看平仓记录，部分平仓拆出来的记录标出来并显示原持仓编号。
  */
-import { Alert } from 'antd';
+import { useState, type ReactNode } from 'react';
+import { Alert, Segmented } from 'antd';
 import { ThunderboltOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { liquidatePosition, listPositions } from '../../api';
-import type { Position } from '../../api/types';
+import { liquidatePosition, listClosedPositions, listPositions } from '../../api';
+import type { ClosedPosition, Position } from '../../api/types';
 import { usePagedList } from '../../hooks/usePagedList';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { AutoRefreshControl } from '../../components/AutoRefreshControl';
@@ -18,8 +20,52 @@ import { Amount, Num } from '../../components/Num';
 import { compareAmounts, formatAmount } from '../../utils/money';
 import { shortTime } from '../../utils/display';
 import { TradeFilters, type TradeFilterValues } from './TradeFilters';
+import { closedColumns } from './closedColumns';
+
+type View = 'open' | 'closed';
 
 export function PositionsPage() {
+  const { t } = useTranslation();
+  const [view, setView] = useState<View>('open');
+  const switcher = (
+    <Segmented<View>
+      value={view}
+      onChange={setView}
+      options={[
+        { value: 'open', label: t('positions.tabOpen') },
+        { value: 'closed', label: t('positions.tabClosed') },
+      ]}
+    />
+  );
+  return view === 'open' ? <OpenPositions switcher={switcher} /> : <ClosedPositions switcher={switcher} />;
+}
+
+/** 已平仓记录（不自动刷新：平仓记录不会变） */
+function ClosedPositions({ switcher }: { switcher: ReactNode }) {
+  const { t } = useTranslation();
+  const list = usePagedList<ClosedPosition, TradeFilterValues>(listClosedPositions, {});
+  return (
+    <>
+      <PageHeader title={t('positions.title')} sub={t('positions.sub')} extra={switcher} />
+      <Alert type="info" showIcon message={t('positions.closedHint')} />
+      <TradeFilters onChange={list.setFilters} />
+      <DataTable<ClosedPosition>
+        rowKey="id"
+        loading={list.loading}
+        error={list.error}
+        onRetry={list.reload}
+        dataSource={list.data?.items}
+        total={list.data?.total ?? 0}
+        page={list.page}
+        pageSize={list.pageSize}
+        onPageChange={list.onPageChange}
+        columns={closedColumns(t, { withCustomer: true })}
+      />
+    </>
+  );
+}
+
+function OpenPositions({ switcher }: { switcher: ReactNode }) {
   const { t } = useTranslation();
   const list = usePagedList<Position, TradeFilterValues>(listPositions, {});
   const auto = useAutoRefresh(list.refresh, 5000);
@@ -37,7 +83,16 @@ export function PositionsPage() {
 
   return (
     <>
-      <PageHeader title={t('positions.title')} sub={t('positions.sub')} extra={<AutoRefreshControl auto={auto} />} />
+      <PageHeader
+        title={t('positions.title')}
+        sub={t('positions.sub')}
+        extra={
+          <>
+            {switcher}
+            <AutoRefreshControl auto={auto} />
+          </>
+        }
+      />
       <Alert type="info" showIcon message={t('positions.hint')} />
       <TradeFilters onChange={list.setFilters} />
       <DataTable<Position>
