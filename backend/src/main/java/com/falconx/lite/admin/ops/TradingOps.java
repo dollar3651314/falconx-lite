@@ -24,6 +24,13 @@ class TradingOps {
   record PendingView(String id, long customerId, String customerName, String symbol, String side, String lots, String limitPrice, String currentPrice,
       int leverage, String frozenMargin, String stopLoss, String takeProfit, String createdAt) {}
 
+  /**
+   * 一笔已平仓记录（体验优化 1021 UX-6 起）：reason 是 closed（客户平仓）/ tp / sl / liquidated；
+   * partial 为 true 表示部分平仓拆出来的记录，parentId 是它来自的原持仓的编号（对外编号），整笔平仓时 parentId 为空。
+   */
+  record ClosedView(String id, String parentId, boolean partial, long customerId, String customerName, String symbol, String side, String lots,
+      String openPrice, String closePrice, int leverage, String margin, String fee, String swap, String pnl, String reason, String openedAt, String closedAt) {}
+
   private final TradingAdminApi trading;
   private final CustomerAdminApi customers;
   private final Audit audit;
@@ -83,6 +90,21 @@ class TradingOps {
         p.pnl() == null ? null : p.pnl().setScale(2, RoundingMode.HALF_UP).toPlainString(),
         p.marginLevel() == null ? null : p.marginLevel().multiply(BigDecimal.valueOf(100)).setScale(1, RoundingMode.DOWN).toPlainString(),
         Ops.money(p.liquidationPrice()), Ops.money(p.stopLoss()), Ops.money(p.takeProfit()), Ops.time(p.openedAt()));
+  }
+
+  @Transactional(readOnly = true)
+  Ops.Page<ClosedView> closedPositions(String symbol, String side, String keyword, int page, int pageSize) {
+    Ops.Slice s = Ops.slice(page, pageSize);
+    var p = trading.closedPositions(symbol(symbol), side(side), users(keyword), Ops.number(keyword), s.offset(), s.size());
+    var cs = names(p.items().stream().map(TradingAdminApi.ClosedPosition::userId).toList());
+    return new Ops.Page<>(p.items().stream().map(x -> closed(x, cs.get(x.userId()))).toList(), p.total(), s.page(), s.size());
+  }
+
+  static ClosedView closed(TradingAdminApi.ClosedPosition p, CustomerAdminApi.Customer c) {
+    return new ClosedView(String.valueOf(p.no()), p.parentNo() == null ? null : String.valueOf(p.parentNo()), p.parentNo() != null, p.userId(),
+        c == null ? null : c.name(), p.symbol(), p.side().toLowerCase(), Ops.money(p.lots()), Ops.money(p.openPrice()), Ops.money(p.closePrice()), p.leverage(),
+        Ops.money(p.margin()), Ops.money(p.fee()), Ops.money(p.swap()), Ops.money(p.pnl()), p.reason() == null ? null : p.reason().toLowerCase(),
+        Ops.time(p.openedAt()), Ops.time(p.closedAt()));
   }
 
   @Transactional(readOnly = true)

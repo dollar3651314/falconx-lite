@@ -15,4 +15,6 @@ class HistoryRow {
   BigDecimal fee;
   String kind;
   LocalDateTime at;
+  /** 部分平仓拆出来的已平仓行（V32）：原持仓的对外编号；其他为空 */
+  Long parentNo;
 }

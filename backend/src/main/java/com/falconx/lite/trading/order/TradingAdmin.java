@@ -114,6 +114,18 @@ class TradingAdmin implements TradingAdminApi {
 
   @Override
   @Transactional(readOnly = true)
+  public Page<ClosedPosition> closedPositions(String symbol, String side, Collection<Long> userIds, Long no, int offset, int limit) {
+    if (nothing(userIds, no)) return new Page<>(List.of(), 0);
+    Collection<Long> us = users(userIds);
+    List<ClosedPosition> items = mapper.adminClosedPositions(symbol, side, us, no, offset, limit).stream()
+        .map(p -> new ClosedPosition(p.id, p.publicNo, p.parentNo, p.userId, p.symbol, p.side, p.lots, p.openPrice, p.closePrice, p.leverage, p.margin, p.fee,
+            p.swapTotal, p.realizedPnl, p.closeReason, p.openedAt, p.closedAt))
+        .toList();
+    return new Page<>(items, mapper.countAdminClosedPositions(symbol, side, us, no));
+  }
+
+  @Override
+  @Transactional(readOnly = true)
   public Page<Pending> pendingOrders(String symbol, String side, Collection<Long> userIds, Long no, int offset, int limit) {
     if (nothing(userIds, no)) return new Page<>(List.of(), 0);
     Collection<Long> us = users(userIds);

@@ -6,8 +6,9 @@
   <sql id="orderCols">id, public_no, user_id, client_order_id, symbol, order_type, side, lots, leverage, limit_price, take_profit, stop_loss,
     frozen_amount, notional_usd, status, fill_price, position_id, revision, created_at</sql>
 
-  <sql id="positionCols">id, public_no, user_id, order_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
-    margin, fee, swap_total, maintenance_margin_rate, liquidation_price, take_profit, stop_loss, status, opened_at, closed_at</sql>
+  <sql id="positionCols">id, public_no, user_id, order_id, parent_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate, notional_usd,
+    margin, fee, swap_total, split_swap_seq, maintenance_margin_rate, liquidation_price, take_profit, stop_loss, status, opened_at, closed_at,
+    close_price, realized_pnl, close_reason</sql>
 
   <select id="findByClientId" resultType="com.falconx.lite.trading.order.OrderRow">
     SELECT <include refid="orderCols"/> FROM trading_order WHERE user_id = #{userId} AND client_order_id = #{clientOrderId}
@@ -62,6 +63,30 @@
     WHERE id = #{id} AND status = 'OPEN'
   </update>
 
+  <!-- 部分平仓（V32）：拆出来的那一行。开仓时间、订单号、开仓参数和原持仓相同；先插成 OPEN，同一事务里马上由 closePosition 平掉（提交前别的事务看不到） -->
+  <insert id="insertSplit" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO trading_position (public_no, user_id, order_id, parent_id, symbol, side, lots, leverage, open_price, contract_size, quote_ccy, open_usd_rate,
+      notional_usd, margin, fee, swap_total, split_swap_seq, maintenance_margin_rate, liquidation_price, take_profit, stop_loss, status, opened_at)
+    VALUES (#{publicNo}, #{userId}, #{orderId}, #{parentId}, #{symbol}, #{side}, #{lots}, #{leverage}, #{openPrice}, #{contractSize}, #{quoteCcy}, #{openUsdRate},
+      #{notionalUsd}, #{margin}, #{fee}, #{swapTotal}, #{splitSwapSeq}, #{maintenanceMarginRate}, #{liquidationPrice}, #{takeProfit}, #{stopLoss}, 'OPEN', #{openedAt})
+  </insert>
+
+  <!-- 部分平仓（V32）：原持仓减去平掉的部分（手数、保证金、手续费、累计隔夜费、名义价值），强平价按剩余重算 -->
+  <update id="shrinkPosition">
+    UPDATE trading_position SET lots = #{lots}, margin = #{margin}, fee = #{fee}, swap_total = #{swapTotal}, notional_usd = #{notionalUsd},
+      liquidation_price = #{liquidationPrice}
+    WHERE id = #{id} AND status = 'OPEN'
+  </update>
+
+  <select id="maxSwapId" resultType="long">
+    SELECT COALESCE(MAX(id), 0) FROM trading_swap WHERE position_id = #{positionId}
+  </select>
+
+  <!-- 拆出来的行：原持仓在拆分之前（记录号 ≤ seq）是否已经结算过这个结算日 -->
+  <select id="settledBeforeSplit" resultType="boolean">
+    SELECT EXISTS (SELECT 1 FROM trading_swap WHERE position_id = #{parentId} AND rollover_date = #{date} AND id &lt;= #{seq})
+  </select>
+
   <update id="updateTpSl">
     UPDATE trading_position SET take_profit = #{takeProfit}, stop_loss = #{stopLoss} WHERE id = #{id} AND status = 'OPEN'
   </update>
@@ -71,15 +96,17 @@
   </update>
 
   <sql id="historyUnion">
-    SELECT CONCAT('P', public_no) AS id, symbol, side, lots, open_price, close_price, realized_pnl AS pnl, fee, LOWER(close_reason) AS kind, closed_at AS at, id AS seq
-    FROM trading_position WHERE user_id = #{userId} AND status = 'CLOSED'
+    SELECT CONCAT('P', p.public_no) AS id, p.symbol, p.side, p.lots, p.open_price, p.close_price, p.realized_pnl AS pnl, p.fee, LOWER(p.close_reason) AS kind,
+      p.closed_at AS at, p.id AS seq, pp.public_no AS parent_no
+    FROM trading_position p LEFT JOIN trading_position pp ON pp.id = p.parent_id
+    WHERE p.user_id = #{userId} AND p.status = 'CLOSED'
     UNION ALL
-    SELECT CONCAT('O', public_no), symbol, side, lots, limit_price, NULL, NULL, 0, 'cancelled', cancelled_at, id
+    SELECT CONCAT('O', public_no), symbol, side, lots, limit_price, NULL, NULL, 0, 'cancelled', cancelled_at, id, NULL
     FROM trading_order WHERE user_id = #{userId} AND status = 'CANCELLED'
   </sql>
 
   <select id="history" resultType="com.falconx.lite.trading.order.HistoryRow">
-    SELECT id, symbol, side, lots, open_price, close_price, pnl, fee, kind, at FROM (<include refid="historyUnion"/>) h
+    SELECT id, symbol, side, lots, open_price, close_price, pnl, fee, kind, at, parent_no FROM (<include refid="historyUnion"/>) h
     ORDER BY at DESC, seq DESC LIMIT #{limit} OFFSET #{offset}
   </select>
 
@@ -107,6 +134,9 @@
     WHERE p.opened_at &lt; #{at} AND (p.status = 'OPEN' OR p.closed_at &gt; #{at})
       AND p.symbol IN <foreach collection="symbols" item="s" open="(" separator="," close=")">#{s}</foreach>
       AND NOT EXISTS (SELECT 1 FROM trading_swap s WHERE s.position_id = p.id AND s.rollover_date = #{date})
+      <!-- 部分平仓拆出来的行（V32）：原持仓在拆分之前已经按拆分前的手数结算过这一天的，不再收 -->
+      AND (p.parent_id IS NULL OR NOT EXISTS (SELECT 1 FROM trading_swap s2 WHERE s2.position_id = p.parent_id AND s2.rollover_date = #{date}
+        AND s2.id &lt;= p.split_swap_seq))
     ORDER BY p.id
   </select>
 
@@ -192,8 +222,9 @@
 
   <select id="adminOrders" resultType="com.falconx.lite.trading.order.OrderMapper$AdminOrderRow">
     SELECT o.id, o.public_no, o.user_id, o.symbol, o.order_type, o.side, o.lots, o.leverage, o.limit_price, o.fill_price, o.take_profit, o.stop_loss, o.frozen_amount,
-      p.fee, o.status, o.created_at
-    FROM trading_order o LEFT JOIN trading_position p ON p.order_id = o.id
+      <!-- 手续费按订单合计：部分平仓（V32）把手续费按手数拆到了原持仓和拆出来的行上，一张订单可能对应多行持仓 -->
+      (SELECT SUM(p.fee) FROM trading_position p WHERE p.order_id = o.id) AS fee, o.status, o.created_at
+    FROM trading_order o
     <include refid="adminOrderWhere"/> ORDER BY o.id DESC LIMIT #{limit} OFFSET #{offset}
   </select>
 
@@ -214,6 +245,29 @@
   </select>
 
   <select id="countAdminPositions" resultType="long">SELECT COUNT(*) FROM trading_position <include refid="adminPositionWhere"/></select>
+
+  <!-- 后台已平仓记录（V32 部分平仓）：按编号搜索时也匹配原持仓的编号（输入原持仓编号能看到它拆出来的全部记录） -->
+  <sql id="adminClosedWhere">
+    WHERE p.status = 'CLOSED'
+    <if test="symbol != null">AND p.symbol = #{symbol}</if>
+    <if test="side != null">AND p.side = #{side}</if>
+    <if test="userIds != null or no != null">AND (<trim prefixOverrides="OR">
+      <if test="userIds != null">OR p.user_id IN <foreach collection="userIds" item="u" open="(" separator="," close=")">#{u}</foreach></if>
+      <if test="no != null">OR p.public_no = #{no} OR pp.public_no = #{no}</if>
+    </trim>)</if>
+  </sql>
+
+  <select id="adminClosedPositions" resultType="com.falconx.lite.trading.order.PositionRow">
+    SELECT p.id, p.public_no, p.user_id, p.order_id, p.parent_id, p.symbol, p.side, p.lots, p.leverage, p.open_price, p.contract_size, p.quote_ccy, p.open_usd_rate,
+      p.notional_usd, p.margin, p.fee, p.swap_total, p.split_swap_seq, p.maintenance_margin_rate, p.liquidation_price, p.take_profit, p.stop_loss, p.status,
+      p.opened_at, p.closed_at, p.close_price, p.realized_pnl, p.close_reason, pp.public_no AS parent_no
+    FROM trading_position p LEFT JOIN trading_position pp ON pp.id = p.parent_id
+    <include refid="adminClosedWhere"/> ORDER BY p.closed_at DESC, p.id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="countAdminClosedPositions" resultType="long">
+    SELECT COUNT(*) FROM trading_position p LEFT JOIN trading_position pp ON pp.id = p.parent_id <include refid="adminClosedWhere"/>
+  </select>
 
   <!-- 对外编号 → 内部 id；userId 不为空时只查这个客户的（客户接口），为空时不限（后台） -->
   <select id="positionIdByNo" resultType="java.lang.Long">

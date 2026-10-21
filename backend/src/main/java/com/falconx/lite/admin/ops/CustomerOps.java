@@ -49,7 +49,11 @@ class CustomerOps {
   /** 字段和原型 CustomerDetail 一致；lastLoginIp、lastLoginIpAt 是 v2 E6 加的（最近一个登录会话的 IP 和时间） */
   record Detail(long id, String name, String email, String nationality, String status, String kycStatus, String balance, int openPositions,
       String registeredAt, String lastLoginAt, String lastLoginIp, String lastLoginIpAt, String firstName, String middleName, String lastName,
-      String birthDate, String frozenReason, Kyc kyc, Account account, List<PositionView> positions, List<LedgerView> ledger) {}
+      String birthDate, String frozenReason, Kyc kyc, Account account, List<PositionView> positions, List<LedgerView> ledger,
+      List<TradingOps.ClosedView> closedPositions) {}
+
+  /** 客户详情里最近的已平仓记录条数（部分平仓拆出来的记录标出原持仓编号） */
+  static final int RECENT_CLOSED = 20;
 
   /**
    * 编辑资料的请求体（v2 E1）。email、status 只用来拒绝：编辑里不能改邮箱，状态只能用冻结 / 解冻改。
@@ -127,13 +131,15 @@ class CustomerOps {
         Ops.money(p.liquidationPrice()), Ops.money(p.stopLoss()), Ops.money(p.takeProfit()), Ops.time(p.openedAt()))).toList();
     List<LedgerView> lines = trading.balanceLedger(id, 50).stream().map(l -> new LedgerView(String.valueOf(l.id()), ledgerType(l.type()), Ops.money(l.amount()),
         Ops.money(l.balanceAfter()), l.bizType() + ":" + l.bizId(), Ops.time(l.time()))).toList();
+    List<TradingOps.ClosedView> closed = trading.closedPositions(null, null, List.of(id), null, 0, RECENT_CLOSED).items().stream()
+        .map(p -> TradingOps.closed(p, c)).toList();
     Kyc kyc = new Kyc(apiStatus(c.kycStatus()), docType(d.docType()), d.docNumber(), Ops.time(d.kycReviewedAt()), d.kycRejectReason());
     Account account = new Account(Ops.money(m.balance()), Ops.money(m.usedMargin()), Ops.money(m.available()), Ops.money(m.floatingPnl()),
         Ops.money(m.withdrawFrozen()));
     LocalDate birth = d.birthDate();
     return new Detail(c.id(), c.name(), c.email(), c.nationality(), apiStatus(c.status()), apiStatus(c.kycStatus()), Ops.money(m.balance()), positions.size(),
         Ops.time(c.registeredAt()), Ops.time(c.lastLoginAt()), d.lastLoginIp(), Ops.time(d.lastLoginIpAt()), d.firstName(), d.middleName(), d.lastName(),
-        birth == null ? null : birth.toString(), d.frozenReason(), kyc, account, positions, lines);
+        birth == null ? null : birth.toString(), d.frozenReason(), kyc, account, positions, lines, closed);
   }
 
   /**

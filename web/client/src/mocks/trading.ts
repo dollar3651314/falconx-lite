@@ -3,7 +3,7 @@
  * 计算规则与 lib/trading.ts 同一口径，金额全部用定点小数。
  */
 import { ApiError } from '../api/errors';
-import type { Account, HistoryItem, HistoryKind, Page, PendingOrder, PlaceOrderRequest, PlaceOrderResult, Position, Quote, Side } from '../api/types';
+import type { Account, CloseResult, HistoryItem, HistoryKind, Page, PendingOrder, PlaceOrderRequest, PlaceOrderResult, Position, Quote, Side } from '../api/types';
 import { add, cmp, dec, div, mul, neg, sub, toFixed, ZERO, type Dec } from '../lib/decimal';
 import { validateCloseLots } from '../lib/validators';
 import { formatAmount, formatLots, formatPrice } from '../lib/format';
@@ -146,7 +146,7 @@ function openPosition(symbol: string, side: Side, lots: string, leverage: number
   return pos;
 }
 
-function closeInternal(p: Position, exit: Dec, kind: HistoryKind): Dec {
+function closeInternal(p: Position, exit: Dec, kind: HistoryKind, parentId?: string): Dec {
   const info = symbolInfo(p.symbol)!;
   const q = quote(p.symbol)!;
   let pnl = pnlAt(p.side, dec(p.openPrice), exit, dec(p.lots), info.contractSize, q.quoteToUsd);
@@ -167,6 +167,8 @@ function closeInternal(p: Position, exit: Dec, kind: HistoryKind): Dec {
     fee: '0.00',
     kind,
     closedAt: new Date().toISOString(),
+    // 和真实接口一样：部分平仓拆出来的记录带原持仓编号
+    ...(parentId ? { parentId } : {}),
   });
   emit({ type: 'positions' });
   emit({ type: 'account' });
@@ -174,32 +176,35 @@ function closeInternal(p: Position, exit: Dec, kind: HistoryKind): Dec {
 }
 
 /**
- * 平仓；lots 不传或等于持仓手数 = 全部平仓。
- * 部分平仓（体验优化 1021 第 6 条，方案 UX-6 的建议规则，后端还没做）：平掉的部分按比例拆出一笔已平仓记录
- * （保证金按手数比例释放、盈亏只算平掉的部分、亏损上限是这部分的保证金），剩下的持仓开仓价、强平价、止盈止损都不变。
+ * 平仓；lots 不传或等于持仓手数 = 全部平仓。返回字段和真实接口一致（pnl、price、closedLots、remainingLots）。
+ * 部分平仓（体验优化 1021 第 6 条，规则同后端 V32）：平掉的部分拆出一笔已平仓记录（新编号，parentId 指向原持仓），
+ * 保证金按手数比例释放、盈亏只算平掉的部分、亏损上限是这部分的保证金；剩下的持仓开仓价、强平价、止盈止损都不变。
  */
-export function closePosition(id: string, lots?: string): Promise<{ pnl: string; price: string }> {
+export function closePosition(id: string, lots?: string): Promise<CloseResult> {
   return mutate(() => {
     const p = db.positions.find((x) => x.id === id);
     if (!p) throw new ApiError('notFound');
     const info = symbolInfo(p.symbol)!;
+    if (lots !== undefined) {
+      // 和后端一样：按持仓当前的手数检查（手数可能已经被别的设备改过）
+      const errs = validateCloseLots(lots, p.lots, info);
+      if (errs.length) throw new ApiError('validationFailed', { lots: errs });
+    }
     if (!info.tradingOpen) throw new ApiError('tradingClosed');
     const exit = dec(closePrice(p.side, quote(p.symbol)!));
     if (lots !== undefined && cmp(dec(lots), dec(p.lots)) !== 0) {
-      const errs = validateCloseLots(lots, p.lots, info);
-      if (errs.length) throw new ApiError('validationFailed', { lots: errs });
       const total = dec(p.lots);
       const part = dec(lots);
       const partMargin = div(mul(dec(p.margin), part), total);
-      // 拆出来的那部分有自己的编号（后端建议同样拆一行已平仓持仓，方案第 6 节），走和全部平仓同一套记账：盈亏进余额、写一条历史
       const closedPart: Position = { ...p, id: snowflakeId(), lots: toFixed(part, 2), margin: toFixed(partMargin, 2) };
       p.lots = toFixed(sub(total, part), 2);
       p.margin = toFixed(sub(dec(p.margin), dec(closedPart.margin)), 2);
-      const pnl = closeInternal(closedPart, exit, 'closed');
-      return { pnl: toFixed(pnl, 2), price: toFixed(exit, info.digits) };
+      const pnl = closeInternal(closedPart, exit, 'closed', p.id);
+      return { pnl: toFixed(pnl, 2), price: toFixed(exit, info.digits), closedLots: closedPart.lots, remainingLots: p.lots };
     }
+    const closedLots = toFixed(dec(p.lots), 2);
     const pnl = closeInternal(p, exit, 'closed');
-    return { pnl: toFixed(pnl, 2), price: toFixed(exit, info.digits) };
+    return { pnl: toFixed(pnl, 2), price: toFixed(exit, info.digits), closedLots, remainingLots: '0.00' };
   });
 }
 

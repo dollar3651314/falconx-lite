@@ -135,6 +135,8 @@ export const retryTask: typeof real.retryTask = IS_MOCK ? mock.retryTask : real.
 export const listOrders: typeof real.listOrders = IS_MOCK ? mock.listOrders : real.listOrders;
 /** GET /api/admin/positions */
 export const listPositions: typeof real.listPositions = IS_MOCK ? mock.listPositions : real.listPositions;
+/** GET /api/admin/positions/closed（已平仓记录，部分平仓标出原持仓编号） */
+export const listClosedPositions: typeof real.listClosedPositions = IS_MOCK ? mock.listClosedPositions : real.listClosedPositions;
 /** POST /api/admin/positions/{id}/liquidate（高危） */
 export const liquidatePosition: typeof real.liquidatePosition = IS_MOCK ? mock.liquidatePosition : real.liquidatePosition;
 /** GET /api/admin/pending */

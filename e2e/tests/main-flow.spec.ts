@@ -1,7 +1,7 @@
 /**
  * 主流程（S19；需求说明书第 7 节 AC 对照见 测试报告/v1-端到端测试方案.md 第 5 节）：
  * 客户在 390px 宽的手机上：注册（邮箱验证码）→ 退出后登录 → 充值到账 → 提交 KYC → 市价下单 → 设止盈止损 → 报价触发止盈自动平仓
- * → 再开一单手动平仓 → 资金流水 → 加白名单 → 提现；超管在电脑上：首次登录改密码 → 审核 KYC → 出金审核 → 查看客户；
+ * → 再开一单先部分平仓、再全部平仓 → 资金流水 → 加白名单 → 提现；超管在电脑上：首次登录改密码 → 审核 KYC → 出金审核 → 查看客户；
  * 广播成功、链上确认后客户看到提现已完成。v2：检查品牌改名（标题、页面文字、邮件标题没有旧品牌名，AC2-11、AC2-12）。
  * 体验优化 1021（第一批）：注册后第一次进来弹出新手引导（这里点"跳过"）；电脑顶栏没有"我的"和跑马灯；交易页左栏只列自选名称、
  * 图表上没有卖出 / 买入按钮，1366×633（1366×768 屏幕的浏览器可视区）下确认按钮不用滚动就能看到；站内信有欢迎、开仓、平仓三类。
@@ -310,24 +310,51 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       await expect(page.locator('.hist-row').filter({ hasText: SYMBOL }).getByText('止盈')).toBeVisible();
     });
 
-    await step('客户：再开一单，手动平仓', async () => {
-      await marketBuy(page, '0.01');
+    await step('客户：再开一单 0.10 手，先部分平仓 0.04 手（体验优化 1021 UX-6）', async () => {
+      await marketBuy(page, '0.10');
       await page.goto('/positions');
       const card = page.locator('.pos-card').filter({ hasText: SYMBOL });
       await expect(card).toHaveCount(1);
       await card.getByRole('button', { name: '平仓', exact: true }).click();
-      await page.getByRole('button', { name: '确认平仓' }).click();
-      await expect(page.getByText('已平仓')).toBeVisible();
-      await expect(page.getByText('暂无持仓')).toBeVisible();
+      const dlg = page.getByRole('dialog');
+      // 默认填全部手数；改成 0.04，确认按钮跟着变成"平仓 0.04 手"，显示剩余 0.06
+      await expect(dlg.getByLabel('平仓手数')).toHaveValue('0.10');
+      await dlg.getByLabel('平仓手数').fill('0.04');
+      await expect(dlg.locator('.kv-list').getByText('0.06')).toBeVisible();
+      await dlg.getByRole('button', { name: '平仓 0.04 手' }).click();
+      await expect(page.getByText('已平仓 0.04 手')).toBeVisible();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      // 剩下的持仓还在（同一个编号），手数 0.06
+      await expect(card).toHaveCount(1);
+      await expect(card).toContainText('0.06');
       await selectTab(page, '历史');
-      await expect(page.locator('.hist-row').filter({ hasText: '手动平仓' })).toHaveCount(1);
+      const partial = page.locator('.hist-row').filter({ hasText: '部分平仓' });
+      await expect(partial).toHaveCount(1);
+      await expect(partial).toContainText('0.04');
     });
 
-    await step('客户：站内信有注册欢迎、开仓成功、平仓成功（体验优化 1021 UX-9，只发站内信）', async () => {
+    await step('客户：再全部平仓剩下的 0.06 手', async () => {
+      await selectTab(page, '持仓');
+      const card = page.locator('.pos-card').filter({ hasText: SYMBOL });
+      await card.getByRole('button', { name: '平仓', exact: true }).click();
+      const dlg = page.getByRole('dialog');
+      await expect(dlg.getByLabel('平仓手数')).toHaveValue('0.06');
+      // 快捷比例里也有一个"全部平仓"，点的是底部的确认按钮
+      await dlg.locator('.btn-row').getByRole('button', { name: '全部平仓' }).click();
+      await expect(page.getByText('已平仓', { exact: true })).toBeVisible();
+      await expect(page.getByText('暂无持仓')).toBeVisible();
+      await selectTab(page, '历史');
+      // 手动平仓两条（部分平仓拆出来的一条 + 剩下的整笔），其中一条标"部分平仓"
+      await expect(page.locator('.hist-row').filter({ hasText: '手动平仓' })).toHaveCount(2);
+      await expect(page.locator('.hist-row').filter({ hasText: '部分平仓' })).toHaveCount(1);
+    });
+
+    await step('客户：站内信有注册欢迎、开仓成功、部分平仓成功、平仓成功（体验优化 1021 UX-9、UX-6，只发站内信）', async () => {
       await page.goto('/me/notifications');
       await expect(page.getByText('欢迎来到 Quick Come').first()).toBeVisible();
       await expect(page.getByText('开仓成功').first()).toBeVisible();
-      await expect(page.getByText('平仓成功').first()).toBeVisible();
+      await expect(page.getByText('部分平仓成功').first()).toBeVisible();
+      await expect(page.getByText('平仓成功', { exact: true }).first()).toBeVisible();
     });
 
     await step('客户：资金流水里有充值、手续费、平仓盈亏', async () => {
@@ -410,7 +437,7 @@ test('客户主流程（手机 390px）和后台审核', async ({ browser }) => 
       const subjects = (await e2e.mailSubjects(request, email)).join(' | ');
       test.info().annotations.push({ type: '客户收到的邮件', description: subjects });
       expect(subjects, 'AC2-12：邮件标题里没有旧品牌名').not.toMatch(/falcon\s*x/i);
-      expect(subjects, '欢迎、开仓、平仓只发站内信，不发邮件').not.toMatch(/欢迎来到|开仓成功|平仓成功/);
+      expect(subjects, '欢迎、开仓、平仓、部分平仓只发站内信，不发邮件').not.toMatch(/欢迎来到|开仓成功|平仓成功/);
     });
 
     await step('AC-23 风控信息不外泄、AC-29 不依赖 Google', async () => {

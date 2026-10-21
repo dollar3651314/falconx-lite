@@ -12,6 +12,7 @@ import { ToastProvider } from './app/ToastProvider';
 import { Layout } from './components/Layout';
 import { LangSelect } from './components/LangSelect';
 import { ClosePositionDialog } from './components/PositionDialogs';
+import { PositionsTabs } from './components/PositionsTabs';
 import { resetOnboarding } from './hooks/useOnboarding';
 import { setLanguage } from './i18n';
 import { langFromBrowser, pickLang } from './i18n/urlLang';
@@ -143,7 +144,7 @@ describe('第 2 条：新手引导', () => {
   });
 });
 
-describe('第 6 条：部分平仓（原型，后端还没做）', () => {
+describe('第 6 条：部分平仓（第二批，真实接口和模拟层同一套规则）', () => {
   const sym = { minLots: '0.01', lotStep: '0.01' };
 
   it('手数校验：步长、最小手数、不超过持仓、剩余不能小于最小手数', () => {
@@ -160,7 +161,9 @@ describe('第 6 条：部分平仓（原型，后端还没做）', () => {
     const p = db.positions.find((x) => symbolInfo(x.symbol)?.tradingOpen && Number(x.lots) >= 0.5)!;
     const before = { ...p };
     const histBefore = db.history.length;
-    await closePosition(p.id, '0.20');
+    const r = await closePosition(p.id, '0.20');
+    expect(r.closedLots).toBe('0.20');
+    expect(r.remainingLots).toBe((Number(before.lots) - 0.2).toFixed(2));
     const after = db.positions.find((x) => x.id === p.id)!;
     expect(Number(after.lots)).toBeCloseTo(Number(before.lots) - 0.2, 6);
     expect(Number(after.margin)).toBeCloseTo((Number(before.margin) * (Number(before.lots) - 0.2)) / Number(before.lots), 1);
@@ -169,7 +172,28 @@ describe('第 6 条：部分平仓（原型，后端还没做）', () => {
     expect(after.stopLoss).toBe(before.stopLoss);
     expect(db.history.length).toBe(histBefore + 1);
     expect(db.history[0].lots).toBe('0.20');
-    await expect(closePosition(p.id, '9999')).rejects.toMatchObject({ reason: 'validationFailed' });
+    // 和真实接口一样：拆出来的记录有新编号，parentId 指向原持仓
+    expect(db.history[0].parentId).toBe(p.id);
+    expect(db.history[0].id).not.toBe(`P${p.id}`);
+    await expect(closePosition(p.id, '9999')).rejects.toMatchObject({ reason: 'validationFailed', fieldErrors: { lots: ['validation.closeLotsMax'] } });
+    // 剩下的全部平掉：返回平掉和剩下的手数，整笔平仓的记录没有 parentId
+    const rest = await closePosition(p.id);
+    expect(rest.closedLots).toBe(after.lots);
+    expect(rest.remainingLots).toBe('0.00');
+    expect(db.history[0].parentId).toBeUndefined();
+  });
+
+  it('历史：部分平仓的记录标"部分平仓"，悬停看原持仓编号；整笔平仓不标', async () => {
+    const p = db.positions.find((x) => symbolInfo(x.symbol)?.tradingOpen && Number(x.lots) >= 0.5)!;
+    await closePosition(p.id, '0.10');
+    for (const table of [false, true]) {
+      const { unmount } = renderPage(<PositionsTabs table={table} />, '/positions');
+      fireEvent.click(screen.getByRole('tab', { name: '历史' }));
+      const tags = await screen.findAllByText('部分平仓');
+      expect(tags).toHaveLength(1);
+      expect(tags[0]).toHaveAttribute('title', `来自持仓 ${p.id}`);
+      unmount();
+    }
   });
 
   it('平仓弹窗：快捷 50%，显示剩余手数，确认后提示已平仓', async () => {

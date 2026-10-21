@@ -285,6 +285,17 @@ function OrderList({ orders, table, onAction }: { orders: PendingOrder[]; table?
   );
 }
 
+/** 部分平仓拆出来的记录（体验优化 1021 UX-6）：标"部分平仓"，悬停看来自哪笔持仓 */
+function PartialTag({ item }: { item: HistoryItem }) {
+  const { t } = useTranslation();
+  if (!item.parentId) return null;
+  return (
+    <span className="kind-tag k-partial" title={t('history.fromPosition', { id: item.parentId })}>
+      {t('history.partial')}
+    </span>
+  );
+}
+
 function HistoryList({ table }: { table?: boolean }) {
   const { t } = useTranslation();
   const { map } = useSymbols();
@@ -328,7 +339,7 @@ function HistoryList({ table }: { table?: boolean }) {
                   <span className="num">{h.symbol}</span> <SideTag side={h.side} />
                 </td>
                 <td className="tx">
-                  <span className={`kind-tag k-${h.kind}`}>{t(`history.kinds.${h.kind}`)}</span>
+                  <span className={`kind-tag k-${h.kind}`}>{t(`history.kinds.${h.kind}`)}</span> <PartialTag item={h} />
                 </td>
                 <td>{formatLots(h.lots)}</td>
                 <td>{formatPrice(h.openPrice, digits(h))}</td>
@@ -352,6 +363,7 @@ function HistoryList({ table }: { table?: boolean }) {
             <b className="num">{h.symbol}</b>
             <SideTag side={h.side} />
             <span className={`kind-tag k-${h.kind}`}>{t(`history.kinds.${h.kind}`)}</span>
+            <PartialTag item={h} />
             <span className={`pnl num ${tone(h.pnl)}`}>{h.pnl ? formatAmount(h.pnl, { sign: true }) : '—'}</span>
           </div>
           <div className="r2">
