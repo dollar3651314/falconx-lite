@@ -8,11 +8,12 @@ import { addMargin, cancelOrder, closePosition, modifyOrder, updateTpSl } from '
 import type { PendingOrder, Position, SymbolInfo } from '../api/types';
 import { useAccount, useToast } from '../app/contexts';
 import { useQuote } from '../hooks/useQuotes';
-import { cmp, dec, isDecimalString, ZERO } from '../lib/decimal';
+import { cmp, dec, div, isDecimalString, mul, toFixed, ZERO } from '../lib/decimal';
 import { formatAmount, formatLots, formatPrice } from '../lib/format';
 import { closePrice, liquidationAfterAddMargin, positionPnl, usdRate } from '../lib/trading';
-import { hasErrors, validateOrder, type FieldErrors } from '../lib/validators';
-import { Switch, TextField } from './Form';
+import { PARTIAL_CLOSE } from '../lib/ux1021';
+import { hasErrors, validateCloseLots, validateOrder, type FieldErrors } from '../lib/validators';
+import { FieldErrors as Errors, Switch, TextField } from './Form';
 import { ConfirmDialog, Modal } from './Modal';
 
 function useAction() {
@@ -44,7 +45,107 @@ function ErrorBox({ text }: { text: string | null }) {
   ) : null;
 }
 
+const RATIOS = [25, 50, 75, 100] as const;
+
+/**
+ * 部分平仓（体验优化 1021 第 6 条，方案 UX-6；原型阶段只有模拟层支持，`PARTIAL_CLOSE`）：
+ * 手数可改，快捷 25% / 50% / 75% / 全部（按步长向下取整），显示平掉部分的预计盈亏、释放的保证金和剩余手数。
+ */
+function PartialCloseDialog({ position, symbol, onClose }: { position: Position; symbol: SymbolInfo; onClose: () => void }) {
+  const { t } = useTranslation();
+  const q = useQuote(position.symbol);
+  const a = useAction();
+  const [lots, setLots] = useState(position.lots);
+  const [submitted, setSubmitted] = useState(false);
+  const errs = validateCloseLots(lots, position.lots, symbol);
+  const total = dec(position.lots);
+  const valid = errs.length === 0;
+  const part = valid ? dec(lots.trim()) : null;
+  const all = part !== null && cmp(part, total) === 0;
+  const partPos = part !== null ? { ...position, lots: lots.trim(), margin: toFixed(div(mul(dec(position.margin), part), total), 2) } : null;
+  const pnl = q && partPos ? positionPnl(partPos, symbol, q) : null;
+  const step = dec(symbol.lotStep);
+  const ratioLots = (r: number) => {
+    if (r === 100) return position.lots;
+    let v = div(mul(total, dec(String(r))), dec('100'));
+    if (cmp(step, ZERO) > 0) v = v - (v % step);
+    return toFixed(v, 2);
+  };
+  const submit = () => {
+    setSubmitted(true);
+    if (!valid) return;
+    void a.run(() => closePosition(position.id, all ? undefined : lots.trim()), all ? t('positions.closed') : t('positions.partialClosed', { lots: formatLots(lots.trim()) }), onClose);
+  };
+  return (
+    <ConfirmDialog
+      open
+      title={t('positions.closeTitleV2')}
+      confirmText={all || !valid ? t('positions.closeAll') : t('positions.closePartConfirm', { lots: formatLots(lots.trim()) })}
+      tone="primary"
+      busy={a.busy}
+      onClose={onClose}
+      onConfirm={submit}
+    >
+      <dl className="kv-list">
+        <div>
+          <dt>{t('order.symbol')}</dt>
+          <dd>
+            <b className="num">{position.symbol}</b> <span className={position.side === 'buy' ? 'up' : 'down'}>{t(`side.${position.side}`)}</span> <span className="num muted">{formatLots(position.lots)}</span>
+          </dd>
+        </div>
+      </dl>
+      <div className="field lots-field pc-lots">
+        <div className="field-label">
+          <label htmlFor="close-lots">{t('positions.closeLots')}</label>
+          <em className="lots-range">
+            {formatLots(symbol.minLots)} – {formatLots(position.lots)}
+          </em>
+        </div>
+        <div className={`stepper${submitted && !valid ? ' invalid' : ''}`}>
+          <input id="close-lots" className="mono" inputMode="decimal" value={lots} onChange={(e) => setLots(e.target.value)} aria-invalid={submitted && !valid} aria-describedby="close-lots-err" />
+        </div>
+        <div className="chips op-chips" role="group" aria-label={t('positions.quickRatio')}>
+          {RATIOS.map((r) => {
+            const v = ratioLots(r);
+            return (
+              <button key={r} type="button" className={`chip mono${lots === v ? ' on' : ''}`} onClick={() => setLots(v)}>
+                {r === 100 ? t('positions.closeAll') : `${r}%`}
+              </button>
+            );
+          })}
+        </div>
+        <Errors id="close-lots-err" errors={submitted ? errs : undefined} />
+      </div>
+      <dl className="kv-list">
+        <div>
+          <dt>{t('positions.closePrice')}</dt>
+          <dd className="num">{q ? formatPrice(closePrice(position.side, q), symbol.digits) : '—'}</dd>
+        </div>
+        <div>
+          <dt>{t('positions.estPnl')}</dt>
+          <dd className={`num ${pnl && cmp(pnl, ZERO) < 0 ? 'down' : 'up'}`}>{pnl !== null ? `${formatAmount(pnl, { sign: true })} USDT` : '—'}</dd>
+        </div>
+        <div>
+          <dt>{t('positions.releasedMargin')}</dt>
+          <dd className="num">{partPos ? `${formatAmount(partPos.margin)} USDT` : '—'}</dd>
+        </div>
+        <div>
+          <dt>{t('positions.remainLots')}</dt>
+          <dd className="num">{part !== null ? formatLots(toFixed(total - part, 2)) : '—'}</dd>
+        </div>
+      </dl>
+      <p className="muted small">{t('positions.partialNote')}</p>
+      <ErrorBox text={a.error} />
+    </ConfirmDialog>
+  );
+}
+
 export function ClosePositionDialog({ position, symbol, onClose }: { position: Position; symbol: SymbolInfo; onClose: () => void }) {
+  if (PARTIAL_CLOSE) return <PartialCloseDialog position={position} symbol={symbol} onClose={onClose} />;
+  return <FullCloseDialog position={position} symbol={symbol} onClose={onClose} />;
+}
+
+function FullCloseDialog({ position, symbol, onClose }: { position: Position; symbol: SymbolInfo; onClose: () => void }) {
   const { t } = useTranslation();
   const q = useQuote(position.symbol);
   const a = useAction();

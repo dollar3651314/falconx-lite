@@ -1,6 +1,7 @@
 /**
  * 登录后的整体布局：顶部原型横幅（只在 mock 模式）或测试环境标识条（只在 real 模式且后端返回了 env，S20）；手机为底部 5 个导航（行情 / 交易 / 持仓 / 资产 / 我的，U4），
  * 桌面（≥1024）为顶部导航（持仓在交易页里，不单列）；1280 宽以上顶部导航中间有热门品种跑马灯（E4，HotTicker）。
+ * 体验优化 1021（原型模式，`lib/ux1021.ts`）：电脑顶栏去掉"我的"（右上角头像进"我的"）和跑马灯，新客户自动弹出新手引导。
  */
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
@@ -10,6 +11,8 @@ import { useAccount } from '../app/contexts';
 import { useUnread } from '../hooks/useUnread';
 import { formatAmount, formatPercent } from '../lib/format';
 import { marginLevelTone } from '../lib/trading';
+import { UX1021 } from '../lib/ux1021';
+import { Onboarding } from './Onboarding';
 import { EnvBanner } from './EnvBanner';
 import { BRAND_NAME } from '../lib/brand';
 import { HotTicker } from './HotTicker';
@@ -17,12 +20,13 @@ import { Brand, Icon, type IconName } from './Icon';
 import { ProtoPanel } from './ProtoPanel';
 import { PushListener } from './PushListener';
 
+// 体验优化 1021 第 4 条：电脑顶栏的"我的"和右上角头像重复，去掉"我的"、保留头像（手机底部导航没有头像，照旧保留"我的"）
 const NAV: Array<{ to: string; key: string; icon: IconName; desktop: boolean }> = [
   { to: '/markets', key: 'nav.markets', icon: 'markets', desktop: true },
   { to: '/trade', key: 'nav.trade', icon: 'trade', desktop: true },
   { to: '/positions', key: 'nav.positions', icon: 'positions', desktop: false },
   { to: '/assets', key: 'nav.assets', icon: 'assets', desktop: true },
-  { to: '/me', key: 'nav.me', icon: 'me', desktop: true },
+  { to: '/me', key: 'nav.me', icon: 'me', desktop: !UX1021 },
 ];
 
 /** 原型横幅：只在 mock 模式显示 */
@@ -65,7 +69,7 @@ export function Layout() {
   const navigate = useNavigate();
   const unread = useUnread();
   return (
-    <div className="app">
+    <div className={UX1021 ? 'app ux1021' : 'app'}>
       <ProtoBanner />
       <EnvBanner />
       <header className="topnav">
@@ -79,7 +83,8 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
-        <HotTicker />
+        {/* 体验优化 1021 第 10 条：客户端不放跑马灯（看 K 线时分神），官网保留 */}
+        {UX1021 ? <div className="topnav-spacer" /> : <HotTicker />}
         <TopAccount />
         <button type="button" className="btn btn-primary btn-sm" onClick={() => navigate('/assets')}>
           {t('assets.deposit')}
@@ -88,7 +93,7 @@ export function Layout() {
           <Icon name="bell" />
           {unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}
         </NavLink>
-        <NavLink to="/me" className="avatar" aria-label={t('nav.me')}>
+        <NavLink to="/me" className="avatar" aria-label={t('nav.me')} title={t('nav.me')}>
           <Icon name="user" size={16} />
         </NavLink>
       </header>
@@ -108,6 +113,7 @@ export function Layout() {
       </nav>
       <ProtoPanel />
       <PushListener />
+      {UX1021 && <Onboarding />}
     </div>
   );
 }

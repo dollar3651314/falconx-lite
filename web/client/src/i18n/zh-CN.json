@@ -177,7 +177,18 @@
     "pickSymbol": "切换品种",
     "symbolNotFound": "找不到品种 {{code}}",
     "myPositionHere": "我的持仓 · {{code}}",
-    "viewAll": "全部持仓"
+    "viewAll": "全部持仓",
+    "wl": {
+      "title": "自选",
+      "all": "全部行情",
+      "namesOnly": "只看自选",
+      "collapse": "收起品种列表",
+      "expand": "展开品种列表",
+      "emptyTitle": "还没有自选品种",
+      "emptyHint": "在\"全部行情\"里点品种旁边的 ☆ 加入自选。这里只显示名称，不跳价格。",
+      "browse": "浏览全部品种",
+      "manage": "管理自选"
+    }
   },
   "chart": {
     "open": "开",
@@ -293,7 +304,16 @@
     "liqAfter": "追加后强平价",
     "addMarginNote": "追加后按开仓时的维持保证金率重新计算强平价。",
     "marginAdded": "保证金已追加",
-    "pageTitle": "持仓"
+    "pageTitle": "持仓",
+    "closeTitleV2": "平仓",
+    "closeLots": "平仓手数",
+    "remainLots": "平仓后剩余",
+    "closeAll": "全部平仓",
+    "quickRatio": "快捷比例",
+    "closePartConfirm": "平仓 {{lots}} 手",
+    "releasedMargin": "释放保证金",
+    "partialNote": "部分平仓后，剩余持仓的开仓价、强平价、止盈止损都不变；挂单不受影响。实际成交价以平仓时的最新报价为准。",
+    "partialClosed": "已平仓 {{lots}} 手"
   },
   "orders": {
     "tab": "挂单",
@@ -520,7 +540,8 @@
     "version": "Quick Come · v2.0",
     "upDown": "涨跌颜色",
     "upDownGreen": "绿涨红跌",
-    "upDownRed": "红涨绿跌"
+    "upDownRed": "红涨绿跌",
+    "onboarding": "新手引导"
   },
   "kyc": {
     "intro": "只在提现前需要身份认证；注册、充值和交易不受影响。",
@@ -705,7 +726,9 @@
     "nationalityInvalid": "请选择国籍",
     "docTypeInvalid": "请选择证件类型",
     "docNumberInvalid": "证件号码格式不正确",
-    "addressInvalid": "地址格式不正确"
+    "addressInvalid": "地址格式不正确",
+    "closeLotsMax": "不能超过持仓手数",
+    "closeRemainMin": "剩余手数会小于最小手数，请改成全部平仓"
   },
   "countries": {
     "CN": "中国大陆",
@@ -736,5 +759,56 @@
     "month": "月",
     "day": "日",
     "birthHint": "例如 1990 年 3 月 27 日。也可以直接粘贴 1990-03-27"
+  },
+  "lang": {
+    "current": "当前"
+  },
+  "onboarding": {
+    "title": "新手引导",
+    "progress": "第 {{n}} / {{total}} 步",
+    "skip": "跳过",
+    "later": "以后再说",
+    "prev": "上一步",
+    "next": "下一步",
+    "goKyc": "去完成认证",
+    "goDeposit": "去充值",
+    "kycNow": "现在去认证",
+    "depositNow": "现在去充值",
+    "welcome": {
+      "title": "欢迎来到 {{brand}}",
+      "body": "在这里用 USDT 交易外汇、黄金、指数、原油和加密货币的差价合约。开始交易前只需要两步：",
+      "items": [
+        "完成身份认证（约 3 分钟）",
+        "充值 USDT（到账后就能下单）"
+      ],
+      "note": "随时可以在\"我的 → 新手引导\"重新查看。"
+    },
+    "kyc": {
+      "title": "第一步：完成身份认证",
+      "body": "上传证件照片，姓名、出生日期要和证件一致。一般 1 个工作日内审核完，结果会发到站内信和邮箱。",
+      "items": [
+        "身份证正反面或护照信息页",
+        "手持证件的自拍"
+      ],
+      "note": "认证通过后充值、交易、提现都可以使用；提现前必须完成认证。"
+    },
+    "deposit": {
+      "title": "第二步：充值 USDT",
+      "body": "在\"资产 → 充值\"选择网络，复制你的专属地址，从交易所或钱包转入 USDT。",
+      "items": [
+        "支持以太坊（ERC20）、波场（TRC20）、BNB Chain 三个网络",
+        "到账后余额自动更新，并收到到账通知"
+      ],
+      "note": "只能转入 USDT，网络要和地址一致，转错无法找回。"
+    },
+    "trade": {
+      "title": "最后：下第一笔单",
+      "body": "在交易页选品种，填好手数和杠杆，点下单区底部的\"确认买入 / 确认卖出\"。",
+      "items": [
+        "逐仓：每笔持仓最多亏掉它自己的保证金",
+        "可以设止盈止损，到价自动平仓"
+      ],
+      "note": "差价合约带杠杆，可能亏掉全部保证金。"
+    }
   }
 }

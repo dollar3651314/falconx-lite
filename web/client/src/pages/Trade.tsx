@@ -3,6 +3,8 @@
  * 手机（效果图 assets/v1/ui-research/C-手机.png 第 ② 屏）：品种页，K 线占主体，底部固定"卖出 / 买入"，
  *   点了才弹出下单抽屉（OrderSheet）。
  * 桌面 ≥1024（效果图 C-桌面-交易页.png）：三栏，左品种列表 | 中 K 线（左上角卖 / 买价格按钮）+ 持仓 | 右下单面板。
+ * 体验优化 1021（原型模式，`lib/ux1021.ts`）：左栏换成 WatchRail（只看自选名称 / 全部行情 / 收起），去掉图表上的卖 / 买按钮，
+ *   右栏的确认按钮固定在面板底部（样式在 pages.css 的 `.ux1021` 一段）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,7 +20,10 @@ import { OrderPanel } from '../components/OrderPanel';
 import { OrderSheet } from '../components/OrderSheet';
 import { PositionsTabs } from '../components/PositionsTabs';
 import { StatusTags, SymbolList } from '../components/SymbolList';
+import { WatchRail } from '../components/WatchRail';
 import { useChartPrefs, type ChartPrefs } from '../hooks/useChartPrefs';
+import { useWatchMode } from '../hooks/useWatchMode';
+import { UX1021 } from '../lib/ux1021';
 import { useFavorites } from '../hooks/useFavorites';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { useQuote, useQuotes } from '../hooks/useQuotes';
@@ -285,6 +290,7 @@ export default function Trade() {
   const { prefs, toggleIndicator, toggleBidAsk } = useChartPrefs();
   const [sheet, setSheet] = useState<Side | null>(null);
   const [picker, setPicker] = useState(false);
+  const [wlMode, setWlMode] = useWatchMode();
   const qSide = search.get('side');
   const [sideReq, setSideReq] = useState<{ side: Side; n: number }>(() => ({ side: qSide === 'sell' ? 'sell' : 'buy', n: 0 }));
 
@@ -325,16 +331,21 @@ export default function Trade() {
 
   if (desktop) {
     return (
-      <div className="trade-desktop">
+      <div className={UX1021 ? `trade-desktop wl-${wlMode}` : 'trade-desktop'}>
         <aside className="panel wl">
-          <SymbolList selected={s.code} onSelect={select} variant="side" initialCategory="fav" />
+          {UX1021 ? (
+            <WatchRail mode={wlMode} onMode={setWlMode} selected={s.code} onSelect={select} />
+          ) : (
+            <SymbolList selected={s.code} onSelect={select} variant="side" initialCategory="fav" />
+          )}
         </aside>
         <section className="center">
           <div className="panel chartp">
             <DesktopHead s={s} />
             <ChartToolbar period={tf} onPeriod={changeTf} prefs={prefs} onIndicator={toggleIndicator} onBidAsk={toggleBidAsk} inline />
             <div className="chart-wrap">
-              <PriceButtons s={s} side={sideReq.side} onPick={(x) => setSideReq((r) => ({ side: x, n: r.n + 1 }))} />
+              {/* 体验优化 1021 第 5 条：图表左上角的卖出 / 买入按钮去掉（下单都在右栏，还挡住 K 线缩放） */}
+              {!UX1021 && <PriceButtons s={s} side={sideReq.side} onPick={(x) => setSideReq((r) => ({ side: x, n: r.n + 1 }))} />}
               <KChart symbol={s.code} period={tf} digits={s.digits} positionLines={lines} indicators={prefs.indicators} showBidAsk={prefs.bidAsk} />
             </div>
             <ChartCredit />

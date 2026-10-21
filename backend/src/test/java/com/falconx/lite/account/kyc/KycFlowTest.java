@@ -125,9 +125,11 @@ class KycFlowTest {
     accounts.rejectKyc(app, 1, "照片模糊");
     assertThat(mvc.perform(get("/api/me/kyc").cookie(u.cookie())).andReturn().getResponse().getContentAsString()).contains("\"status\":\"rejected\"").contains("照片模糊");
     // 驳回结果通过站内信和邮件通知客户（AC-05）：站内信一条，邮件写成任务
-    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message WHERE user_id = ? AND template_code = 'KYC_RESULT'", Long.class, u.id())).isEqualTo(1);
-    assertThat(jdbc.queryForObject("SELECT status FROM notify_record WHERE user_id = ? AND template_code = 'KYC_RESULT' AND channel = 'EMAIL'", String.class, u.id()))
+    // V30 起驳回用 KYC_REJECTED、通过用 KYC_APPROVED（体验建议第 11 条），旧模板 KYC_RESULT 不再发送
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message WHERE user_id = ? AND template_code = 'KYC_REJECTED'", Long.class, u.id())).isEqualTo(1);
+    assertThat(jdbc.queryForObject("SELECT status FROM notify_record WHERE user_id = ? AND template_code = 'KYC_REJECTED' AND channel = 'EMAIL'", String.class, u.id()))
         .isEqualTo("PENDING");
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notify_message WHERE user_id = ? AND template_code = 'KYC_RESULT'", Long.class, u.id())).isZero();
     assertThat(submit(u, "passport", docNo(), JPG, JPG, JPG).getContentAsString()).contains("\"status\":\"pending\"");
   }
 
@@ -138,6 +140,9 @@ class KycFlowTest {
     long app = latestApplication(u.id());
     accounts.approveKyc(app, 1);
     assertThat(accounts.kycStatus(u.id())).isEqualTo(KycStatus.APPROVED);
+    // 通过的站内信（V30，体验建议第 11 条）：写明充值、交易、提现都已开通，不再只说"现在可以提现"
+    String inbox = mvc.perform(get("/api/notifications?lang=zh-CN").cookie(u.cookie())).andReturn().getResponse().getContentAsString();
+    assertThat(inbox).contains("\"title\":\"身份认证已通过\"").contains("充值、交易、提现均已开通").doesNotContain("现在可以提现");
     assertThatThrownBy(() -> accounts.approveKyc(app, 1)).isInstanceOf(BizException.class).extracting("code").isEqualTo("KYC_NOT_PENDING");
     assertThat(mvc.perform(get("/api/me/profile").cookie(u.cookie())).andReturn().getResponse().getContentAsString()).contains("\"locked\":true");
     MockHttpServletResponse r = mvc.perform(put("/api/me/profile").cookie(u.cookie()).contentType(MediaType.APPLICATION_JSON)

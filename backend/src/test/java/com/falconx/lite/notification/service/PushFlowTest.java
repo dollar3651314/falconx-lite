@@ -110,7 +110,7 @@ class PushFlowTest extends NotifyTestSupport {
     assertThat(r.headers().get("authorization")).startsWith("vapid t=").endsWith(", k=" + WebPushCryptoTest.TEST_PUBLIC);
     JsonNode msg = open(r, phone);
     assertThat(msg.get("title").asString()).isEqualTo("持仓已被强平");
-    assertThat(msg.get("body").asString()).isEqualTo("XAUUSD 持仓已于 4100.00 强制平仓，盈亏 -206.34 USDT。");
+    assertThat(msg.get("body").asString()).isEqualTo("XAUUSD 持仓已按 4100.00 强制平仓，盈亏 -206.34 USDT。逐仓模式下亏损最多为这笔持仓的保证金，不影响其他持仓。");
     assertThat(msg.get("kind").asString()).isEqualTo("liquidation");
     long messageId = jdbc.queryForObject("SELECT id FROM notify_message WHERE user_id = ?", Long.class, u.id());
     assertThat(msg.get("id").asString()).isEqualTo(String.valueOf(messageId));
@@ -128,7 +128,7 @@ class PushFlowTest extends NotifyTestSupport {
     List<Received> got = to(d);
     assertThat(got).hasSize(2);
     assertThat(got.getFirst().headers()).containsEntry("urgency", "normal");
-    assertThat(open(got.getFirst(), d).get("body").asString()).isEqualTo("Your deposit of 100 USDT via TRC20 has been credited.");
+    assertThat(open(got.getFirst(), d).get("body").asString()).isEqualTo("Your deposit of 100 USDT via TRC20 has been credited. You can start trading now.");
     JsonNode manual = open(got.get(1), d);
     assertThat(manual.get("title").asString()).isEqualTo("维护通知");
     assertThat(manual.get("kind").asString()).isEqualTo("system");
@@ -144,7 +144,7 @@ class PushFlowTest extends NotifyTestSupport {
     replies.put(gone.path(), 410);
     replies.put(flaky.path(), 503);
     replies.put(bad.path(), 400);
-    notify.toUser(u.id(), "KYC_RESULT", Map.of("result", "APPROVED"));
+    notify.toUser(u.id(), "KYC_APPROVED", Map.of());
     worker.drain();
     assertThat(records(u.id())).containsExactly("INBOX SENT -", "PUSH FAILED 订阅已失效（410），已删除", "PUSH PENDING 推送服务返回 503", "PUSH FAILED 推送服务返回 400",
         "EMAIL SENT -");
@@ -162,15 +162,15 @@ class PushFlowTest extends NotifyTestSupport {
   @Test
   void 关闭推送记已跳过_没有设备记已跳过_取消订阅() throws Exception {
     User u = register();
-    notify.toUser(u.id(), "KYC_RESULT", Map.of("result", "APPROVED"));
+    notify.toUser(u.id(), "KYC_APPROVED", Map.of());
     assertThat(records(u.id()).get(1)).isEqualTo("PUSH SKIPPED 没有订阅推送的设备");
     Device d = subscribed(u);
     call(put("/api/me/notify-prefs"), u.cookie(), "{\"push\":false,\"email\":true}");
-    notify.toUser(u.id(), "KYC_RESULT", Map.of("result", "APPROVED"));
+    notify.toUser(u.id(), "KYC_APPROVED", Map.of());
     assertThat(records(u.id()).get(4)).isEqualTo("PUSH SKIPPED 客户关闭了推送");
     call(put("/api/me/notify-prefs"), u.cookie(), "{\"push\":true,\"email\":true}");
     assertThat(call(post("/api/notifications/push/unsubscribe"), u.cookie(), "{\"endpoint\":\"" + d.endpoint() + "\"}").getStatus()).isEqualTo(200);
-    notify.toUser(u.id(), "KYC_RESULT", Map.of("result", "APPROVED"));
+    notify.toUser(u.id(), "KYC_APPROVED", Map.of());
     assertThat(records(u.id()).get(7)).isEqualTo("PUSH SKIPPED 没有订阅推送的设备");
     worker.drain();
     assertThat(to(d)).isEmpty();

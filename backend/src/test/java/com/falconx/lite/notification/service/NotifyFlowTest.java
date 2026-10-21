@@ -62,16 +62,18 @@ class NotifyFlowTest extends NotifyTestSupport {
   void 站内信按客户当前界面语言显示_未读数_标记已读_只能标记自己的() throws Exception {
     User u = register();
     User other = register();
-    notify.toUser(u.id(), "KYC_RESULT", Map.of("result", "REJECTED", "reason", "照片模糊"));
-    notify.toUser(u.id(), "KYC_RESULT", Map.of("result", "APPROVED"));
+    // V30（2026-10-21，体验建议第 11 条）：通过、驳回分成两个模板，通过的文案写明充值、交易、提现都已开通
+    notify.toUser(u.id(), "KYC_REJECTED", Map.of("reason", "照片模糊"));
+    notify.toUser(u.id(), "KYC_APPROVED", Map.of());
 
     String zh = call(get("/api/notifications?lang=zh-CN"), u.cookie(), null).getContentAsString();
-    assertThat(zh).contains("\"total\":2").contains("\"kind\":\"kyc\"").contains("\"title\":\"身份认证结果\"")
-        .contains("您的身份认证已通过，现在可以提现。").contains("您的身份认证未通过。\\n驳回原因：照片模糊").contains("\"read\":false");
+    assertThat(zh).contains("\"total\":2").contains("\"kind\":\"kyc\"").contains("\"title\":\"身份认证已通过\"").contains("\"title\":\"身份认证未通过\"")
+        .contains("您的身份认证已通过，充值、交易、提现均已开通。").contains("驳回原因：照片模糊").contains("\"read\":false")
+        .doesNotContain("现在可以提现");
     assertThat(zh.indexOf("已通过")).as("最新的在前").isLessThan(zh.indexOf("未通过"));
     String en = call(get("/api/notifications?lang=en&page=1&pageSize=1"), u.cookie(), null).getContentAsString();
-    assertThat(en).contains("\"total\":2").contains("\"pageSize\":1").contains("Your identity verification has been approved. You can now withdraw.")
-        .doesNotContain("rejected");
+    assertThat(en).contains("\"total\":2").contains("\"pageSize\":1").contains("Deposits, trading and withdrawals are all available.")
+        .doesNotContain("not approved");
     assertThat(call(get("/api/notifications/unread-count"), u.cookie(), null).getContentAsString()).isEqualTo("{\"count\":2}");
 
     long first = jdbc.queryForObject("SELECT MIN(id) FROM notify_message WHERE user_id = ?", Long.class, u.id());
@@ -85,6 +87,25 @@ class NotifyFlowTest extends NotifyTestSupport {
   }
 
   @Test
+  void V30_客户通知文案整理_认证通过不再只说可以提现_减仓改成平掉部分持仓() {
+    Map<String, Object> approved = jdbc.queryForMap("SELECT audience, kind, variables, channels, body_zh, body_en FROM notify_template WHERE code = 'KYC_APPROVED'");
+    assertThat(approved).containsEntry("audience", "USER").containsEntry("kind", "kyc").containsEntry("variables", "").containsEntry("channels", "INBOX,PUSH,EMAIL");
+    assertThat((String) approved.get("body_zh")).contains("充值、交易、提现均已开通");
+    assertThat((String) approved.get("body_en")).contains("Deposits, trading and withdrawals");
+    assertThat(jdbc.queryForObject("SELECT variables FROM notify_template WHERE code = 'KYC_REJECTED'", String.class)).isEqualTo("reason");
+    assertThat(jdbc.queryForObject("SELECT name_zh FROM notify_template WHERE code = 'KYC_RESULT'", String.class)).startsWith("KYC 结果（旧");
+    assertThat(jdbc.queryForObject("SELECT body_zh FROM notify_template WHERE code = 'MARGIN_CALL'", String.class)).contains("平掉部分持仓").doesNotContain("减仓");
+    assertThat(jdbc.queryForObject("SELECT body_zh FROM notify_template WHERE code = 'ORDER_FILLED'", String.class)).startsWith("您的限价单").endsWith("已开仓。");
+    assertThat(jdbc.queryForObject("SELECT body_zh FROM notify_template WHERE code = 'LIQUIDATED'", String.class)).contains("已按 {price} 强制平仓").doesNotContain("已于");
+    // 正文里用到的变量都在 variables 列里（后台模板页按它提示运营、保存时按它检查）
+    for (Map<String, Object> t : jdbc.queryForList("SELECT code, variables, title_zh, title_en, body_zh, body_en FROM notify_template WHERE audience = 'USER'")) {
+      java.util.Set<String> declared = new java.util.HashSet<>(java.util.Arrays.asList(((String) t.get("variables")).split(",")));
+      java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{([A-Za-z0-9_]+)}").matcher(t.get("title_zh") + "\n" + t.get("title_en") + "\n" + t.get("body_zh") + "\n" + t.get("body_en"));
+      while (m.find()) assertThat(declared).as("模板 %s 的变量 %s", t.get("code"), m.group(1)).contains(m.group(1));
+    }
+  }
+
+  @Test
   void 三个渠道各一条记录_邮件按客户语言发出_关闭推送或邮件后记已跳过_站内信照常_AC25() throws Exception {
     User u = register();
     assertThat(call(get("/api/me/notify-prefs"), u.cookie(), null).getContentAsString()).isEqualTo("{\"push\":true,\"email\":true}");
@@ -94,7 +115,7 @@ class NotifyFlowTest extends NotifyTestSupport {
     assertThat(records(u.id())).last().isEqualTo("EMAIL SENT -");
     MimeMessage zh = mailsTo(u.email()).getLast();
     assertThat(zh.getSubject()).isEqualTo("充值已到账");
-    assertThat(body(zh)).isEqualTo("您通过 TRC20 充值的 100 USDT 已到账。");
+    assertThat(body(zh)).isEqualTo("您通过 TRC20 充值的 100 USDT 已到账，现在可以开始交易了。");
 
     assertThat(call(put("/api/me/notify-prefs"), u.cookie(), "{\"push\":false,\"email\":false}").getContentAsString()).isEqualTo("{\"push\":false,\"email\":false}");
     notify.toUser(u.id(), "DEPOSIT_CREDITED", Map.of("amount", "5", "chain", "BSC"));
