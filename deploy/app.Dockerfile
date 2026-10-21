@@ -7,11 +7,13 @@ ARG FX_VERSION=dev
 LABEL org.opencontainers.image.source="https://github.com/dollar3651314/falconx-lite" \
       org.opencontainers.image.revision="${FX_VERSION}"
 # FX_VERSION：健康检查返回的版本号（部署脚本用它确认新版本已经生效）
-# 内存：堆最多 512MB，容器上限 768MB（部署方案第 2 节，2 核 2G 服务器）
+# 内存（部署方案第 19 节，2026-10-21 测试服务器内存耗尽事故后调整）：容器上限 768MB，JVM 各部分上限合计约 700MB：
+#   堆 400 + 元空间 160 + 代码缓存 64 + 直接内存 64 + 线程栈（约 90 × 512K）；超出就退出、由 Docker 重启，不能靠交换分区撑着
 ENV FX_VERSION=${FX_VERSION} \
     FX_STORAGE_DIR=/data/storage \
     TZ=UTC \
-    JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=96m -Xss512k -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+    MALLOC_ARENA_MAX=2 \
+    JAVA_TOOL_OPTIONS="-Xms256m -Xmx400m -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=64m -XX:MaxDirectMemorySize=64m -Xss512k -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
 RUN useradd --system --uid 10001 --home /app falconx && mkdir -p /app /data/storage && chown -R falconx /app /data
 COPY backend/target/falconx-lite-*.jar /app/app.jar
 USER falconx
