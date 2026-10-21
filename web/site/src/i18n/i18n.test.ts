@@ -75,6 +75,10 @@ describe('默认语言跟随浏览器（第 10 节 W6）', () => {
   it('浏览器首选语言以 zh 开头用中文，否则英文', () => {
     expect(detectLang(null, ['zh-CN', 'en'])).toBe('zh-CN');
     expect(detectLang(null, ['zh-TW'])).toBe('zh-CN');
+    expect(detectLang(null, ['zh-HK'])).toBe('zh-CN');
+    expect(detectLang(null, ['zh-Hans-CN'])).toBe('zh-CN');
+    expect(detectLang(null, ['zu'])).toBe('en');
+    expect(detectLang(null, [''], '')).toBe('en');
     expect(detectLang(null, ['zh'])).toBe('zh-CN');
     expect(detectLang(null, ['en-US', 'zh-CN'])).toBe('en');
     expect(detectLang(null, ['ja-JP'])).toBe('en');

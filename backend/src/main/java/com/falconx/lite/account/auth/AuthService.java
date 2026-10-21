@@ -7,12 +7,14 @@ import com.falconx.lite.account.auth.AuthRequests.Register;
 import com.falconx.lite.account.auth.Rows.Profile;
 import com.falconx.lite.account.auth.Rows.UserRow;
 import com.falconx.lite.common.error.BizException;
+import com.falconx.lite.notification.api.NotifyApi;
 import com.falconx.lite.trading.api.LedgerApi;
 import com.falconx.lite.wallet.api.WalletApi;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -30,11 +32,12 @@ class AuthService {
   private final SendCodeLimiter codeLimiter;
   private final LedgerApi ledger;
   private final WalletApi wallet;
+  private final NotifyApi notify;
   private final Clock clock;
   private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(10);
 
   AuthService(AuthMapper mapper, EmailCodeService codes, SessionService sessions, LoginLimiter limiter, SendCodeLimiter codeLimiter, LedgerApi ledger,
-      WalletApi wallet, Clock clock) {
+      WalletApi wallet, NotifyApi notify, Clock clock) {
     this.mapper = mapper;
     this.codes = codes;
     this.sessions = sessions;
@@ -42,6 +45,7 @@ class AuthService {
     this.codeLimiter = codeLimiter;
     this.ledger = ledger;
     this.wallet = wallet;
+    this.notify = notify;
     this.clock = clock;
   }
 
@@ -99,6 +103,8 @@ class AuthService {
     ledger.openAccount(u.id);
     // 注册时同步分配充值地址（需求 4.4-1）；服务器还没配置 xpub 时跳过，打开资产页时补分配
     wallet.allocateAddresses(u.id);
+    // 欢迎站内信（体验优化 1021 UX-9）：内容和客户端新手引导一致，下一步是认证 → 充值；模板 WELCOME 只发站内信，不推送、不发邮件
+    notify.toUser(u.id, "WELCOME", Map.of());
     return u.id;
   }
 

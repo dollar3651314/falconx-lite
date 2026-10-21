@@ -1,7 +1,6 @@
 package com.falconx.lite.wallet.withdraw;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -26,11 +25,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -226,7 +227,9 @@ class BroadcastFlowTest {
     withdraws.approve(a, 9L);
     assertThat(status(a)).isEqualTo("APPROVED");
     assertThat(attempts(a)).isEmpty();
-    verify(risk, atLeastOnce()).notifyStaff(eq("HOT_WALLET_LOW"), anyMap());
+    // 体验优化 1021 UX-11：{what} 只传币种（这里手续费币 ETH 是 0），"余额不足"由模板写（以前传"手续费币不够"，渲染成"手续费币不够 不足"）
+    verify(risk, atLeastOnce()).notifyStaff(eq("HOT_WALLET_LOW"), eq(Map.of("chain", "ERC20", "address", SigningTest.TEST_KEY.getAddress(), "what", "ETH")));
+    assertThat(EvmWithdrawSender.gasCoin(Chain.BSC)).isEqualTo("BNB");
   }
 
   @Test
@@ -282,7 +285,14 @@ class BroadcastFlowTest {
     ((MutableClock) clock).advance(Duration.ofMinutes(31));
     withdraws.track();
     assertThat(attempts(a)).as("不再重发").hasSize(4);
-    verify(risk, atLeastOnce()).notifyStaff(eq("WITHDRAW_STUCK"), anyMap());
+    // 体验优化 1021 UX-11：提现编号是后台显示的对外编号（public_no），不是内部 id。
+    // 同一条链一小时只告警一次，告警的可能是同一个测试类里更早卡住的那笔：只检查编号是某笔提现的 public_no
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, String>> stuck = ArgumentCaptor.forClass(Map.class);
+    verify(risk, atLeastOnce()).notifyStaff(eq("WITHDRAW_STUCK"), stuck.capture());
+    String no = stuck.getValue().get("withdrawalId");
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_withdrawal WHERE CAST(public_no AS CHAR) = ? AND public_no <> id", Integer.class, no))
+        .as("WITHDRAW_STUCK 的编号 %s 是对外编号", no).isEqualTo(1);
     assertThat(status(a)).as("不自动退款").isEqualTo("BROADCASTING");
     // 加价后的那一笔上链了：用它的哈希完成
     String last = ts.get(0).txHash();

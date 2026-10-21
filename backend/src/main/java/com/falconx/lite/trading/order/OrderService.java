@@ -141,7 +141,8 @@ class OrderService {
       o.frozenAmount = BigDecimal.ZERO;
       o.status = "FILLED";
       mapper.insertOrder(o);
-      positionService.openLocked(o, spec, price, rate);
+      PositionRow opened = positionService.openLocked(o, spec, price, rate);
+      positionService.notifyMarketOpened(opened, spec);
       return new PlaceOrder.Result("filled", String.valueOf(o.publicNo), price.setScale(spec.digits()).toPlainString());
     });
     // 指标（E10）：成功下单的笔数，按市价成交 / 限价挂单分开

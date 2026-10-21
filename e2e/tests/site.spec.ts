@@ -157,18 +157,25 @@ test('官网：区块、行情跳动、字段、跳转、中英文、三种宽�
       await expect(d.page.getByTestId('nav-register')).toBeVisible();
       await expect(d.page.getByTestId('sticky-cta')).toHaveCount(0);
       await expect(d.page.locator('[data-testid="quote-row"][data-symbol="ETHUSD"]')).toHaveAttribute('data-status', 'OPEN', { timeout: 15_000 });
-      const text = (await d.page.locator('body').innerText()).replace(/中/g, '');
-      expect(text.match(CJK), '英文页面的中文残留（语言切换的"中"除外）').toBeNull();
+      const text = await d.page.locator('body').innerText();
+      expect(text.match(CJK), '英文页面的中文残留（语言下拉框收起时只显示 EN）').toBeNull();
+      // 体验优化 1021 UX-1：语言下拉框显示当前语言
+      await expect(d.page.getByTestId('lang-switch').getByRole('button', { name: 'Language: English' })).toBeVisible();
       await expectNoHorizontalScroll(d.page, `官网首页 ${width}`);
     });
     if (width === 1440) {
       await step('切换中文后显示中文，刷新后仍是中文（记住选择）', async () => {
-        await d.page.getByTestId('lang-switch').getByText('中').click();
+        const sw = d.page.getByTestId('lang-switch');
+        await sw.getByRole('button', { name: 'Language: English' }).click();
+        await expect(sw.getByRole('option', { name: /English/ }), '当前语言打勾').toHaveAttribute('aria-selected', 'true');
+        await sw.getByRole('option', { name: /简体中文/ }).getByRole('button').click();
         await expect(d.page.locator('html')).toHaveAttribute('lang', 'zh-CN');
         await expect(d.page.getByTestId('hero')).toContainText('交易全球行情');
         await d.page.reload();
         await expect(d.page.locator('html')).toHaveAttribute('lang', 'zh-CN');
-        await d.page.getByTestId('lang-switch').getByText('EN').click();
+        await sw.getByRole('button', { name: '语言: 简体中文' }).click();
+        await sw.getByRole('option', { name: /English/ }).getByRole('button').click();
+        await expect(d.page.locator('html')).toHaveAttribute('lang', 'en');
       });
       await step('AC2-04 电脑：品种行和顶部"注册"跳到客户端注册页，"登录"跳到登录页，语言是英文', async () => {
         await expect(d.page.locator('[data-testid="quote-row"]').first()).toHaveAttribute('href', `${CLIENT_URL}/register?lang=en`);
@@ -179,5 +186,20 @@ test('官网：区块、行情跳动、字段、跳转、中英文、三种宽�
       });
     }
     await d.close();
+  }
+
+  // ---------- 体验优化 1021 UX-1：客户端也默认跟随浏览器语言（不经过官网、没有 ?lang=）----------
+  for (const [locale, lang, label] of [['en-US', 'en', 'Language：English'], ['zh-TW', 'zh-CN', '语言：简体中文'], ['ja-JP', 'en', 'Language：English']] as const) {
+    await step(`客户端登录页：浏览器语言 ${locale} → ${lang}，语言下拉框显示当前语言`, async () => {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale, ignoreHTTPSErrors: true, serviceWorkers: 'block' });
+      try {
+        const p = await ctx.newPage();
+        await p.goto(`${CLIENT_URL}/login`);
+        await expect(p.locator('html')).toHaveAttribute('lang', lang);
+        await expect(p.getByRole('button', { name: label })).toBeVisible();
+      } finally {
+        await ctx.close();
+      }
+    });
   }
 });

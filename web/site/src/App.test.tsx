@@ -40,13 +40,23 @@ describe('官网首页（原型模式，模拟行情）', () => {
 
   it('切换英文：文字和链接里的语言都变，并记住选择', async () => {
     render(<App initialLang="zh-CN" />);
-    fireEvent.click(within(screen.getByTestId('lang-switch')).getByText('EN'));
+    // 语言下拉框（体验优化 1021 UX-1）：按钮显示当前语言，展开后当前语言打勾、标"当前"
+    const sw = screen.getByTestId('lang-switch');
+    const btn = within(sw).getByRole('button', { name: '语言: 简体中文' });
+    expect(btn).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(btn);
+    const options = within(sw).getAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual(['简体中文当前', 'English']);
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(within(options[1]).getByRole('button'));
+    expect(within(sw).queryByRole('listbox')).toBeNull();
+    expect(within(sw).getByRole('button', { name: 'Language: English' })).toBeInTheDocument();
     expect(screen.getByTestId('hero')).toHaveTextContent('trade global markets');
     expect(screen.getByTestId('hero-register').getAttribute('href')).toBe('/register?lang=en');
     expect(localStorage.getItem(LANG_KEY)).toBe('en');
     expect(document.documentElement.lang).toBe('en');
-    // 英文页面上除了语言切换的"中"以外没有中文
-    const text = (document.body.textContent || '').replace('中', '');
+    // 英文页面上没有中文（下拉框收起时只显示当前语言 EN）
+    const text = document.body.textContent || '';
     expect(text).not.toMatch(/[\u4e00-\u9fff]/);
   });
 

@@ -1,11 +1,11 @@
 /**
  * 每个页面都有的部分：测试环境标识、顶部风险提示条、导航（电脑、手机两套）、页脚、手机底部固定的"登录 | 免费注册"。
  */
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { fetchEnvLabel } from '../api/envLabel';
 import { Link } from '../app/router';
 import { clientLink, CONTACT_EMAIL } from '../config';
-import { useI18n } from '../i18n';
+import { useI18n, type Lang } from '../i18n';
 import { Icon } from './Icon';
 
 export function EnvBanner() {
@@ -60,16 +60,80 @@ export function Logo() {
   );
 }
 
+const LANG_OPTIONS: Array<{ value: Lang; label: string; short: string }> = [
+  { value: 'zh-CN', label: '简体中文', short: '中文' },
+  { value: 'en', label: 'English', short: 'EN' },
+];
+
+/**
+ * 语言下拉框（体验优化 1021 UX-1，和客户端 web/client/src/components/LangSelect.tsx 一样的交互）：
+ * 按钮显示**当前**语言，点开是下拉列表，当前语言打勾并标"当前 / Current"，点另一项切换并记住（lang.ts）。
+ * 默认跟随浏览器语言（中文浏览器用中文，其他语言或取不到时用英文）。Esc、点外面关闭。
+ */
 export function LangSwitch() {
   const { lang, setLang, t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const cur = LANG_OPTIONS.find((o) => o.value === lang) ?? LANG_OPTIONS[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+
   return (
-    <div className="lang" role="group" aria-label={t('common.langLabel')} data-testid="lang-switch">
-      <button type="button" aria-pressed={lang === 'zh-CN'} onClick={() => setLang('zh-CN')} lang="zh-CN">
-        中
+    <div className="lang" ref={ref} data-testid="lang-switch">
+      <button
+        type="button"
+        className="lang-btn"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-label={`${t('common.langLabel')}: ${cur.label}`}
+        onClick={() => setOpen((o) => !o)}
+        lang={cur.value}
+      >
+        <Icon name="globe" />
+        <span>{cur.short}</span>
+        <Icon name="chevronDown" />
       </button>
-      <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')} lang="en">
-        EN
-      </button>
+      {open && (
+        <ul className="lang-list" role="listbox" id={listId} aria-label={t('common.langLabel')}>
+          {LANG_OPTIONS.map((o) => {
+            const on = o.value === lang;
+            return (
+              <li key={o.value} role="option" aria-selected={on} lang={o.value}>
+                <button
+                  type="button"
+                  className={on ? 'on' : ''}
+                  onClick={() => {
+                    setOpen(false);
+                    if (!on) setLang(o.value);
+                  }}
+                >
+                  <span>{o.label}</span>
+                  {on && (
+                    <span className="lang-current">
+                      <Icon name="check" />
+                      {t('common.langCurrent')}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

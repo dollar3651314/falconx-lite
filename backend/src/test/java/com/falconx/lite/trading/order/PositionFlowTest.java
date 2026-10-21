@@ -57,6 +57,11 @@ class PositionFlowTest extends TradingTestSupport {
     assertThat(bucket(uid, "balance")).isEqualByComparingTo("1091.936575");
     assertThat(ledgerSum(uid, "BALANCE")).isEqualByComparingTo(bucket(uid, "balance"));
     assertThat(code(() -> positions.close(uid, id))).as("不能重复平仓").isEqualTo("NOT_FOUND");
+    // 体验优化 1021 UX-9：手动平仓发站内信 POSITION_CLOSED（只发站内信，不推送、不发邮件），只发一次
+    assertThat(notices(uid)).filteredOn(n -> n.startsWith("POSITION_CLOSED")).singleElement().asString()
+        .contains("\"symbol\":\"XAUUSD\"").contains("\"side\":\"BUY\"").contains("\"lots\":\"0.10\"").contains("\"price\":\"4136.25\"").contains("\"pnl\":\"94\"");
+    assertThat(jdbc.queryForList("SELECT channel FROM notify_record WHERE user_id = ? AND template_code IN ('POSITION_OPENED', 'POSITION_CLOSED')", String.class, uid))
+        .isNotEmpty().containsOnly("INBOX");
   }
 
   @Test

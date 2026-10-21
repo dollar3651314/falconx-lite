@@ -203,12 +203,14 @@ class WithdrawFlowTest {
 
   /**
    * 这笔提现通知客户的状态（通知方案 N6），按时间先后。
-   * 同时按客户筛选：NotifyFlowTest 给别的客户发过 orderId = "88" 的提现通知，这里的提现正好是 88 号时会混进来（CI 偶发失败，2026-10-21）
+   * 同时按客户筛选：NotifyFlowTest 给别的客户发过 orderId = "88" 的提现通知，这里的提现正好是 88 号时会混进来（CI 偶发失败，2026-10-21）。
+   * 通知里的 orderId 是对外编号 public_no（体验优化 1021 UX-11，和客户端提现记录上显示的一致），不是内部 id
    */
   List<String> notices(long withdrawalId) {
     return jdbc.queryForList("SELECT JSON_UNQUOTE(JSON_EXTRACT(params, '$.status')) FROM notify_message WHERE template_code = 'WITHDRAW_STATUS' "
-        + "AND JSON_UNQUOTE(JSON_EXTRACT(params, '$.orderId')) = ? AND user_id = (SELECT user_id FROM wallet_withdrawal WHERE id = ?) ORDER BY id",
-        String.class, String.valueOf(withdrawalId), withdrawalId);
+        + "AND JSON_UNQUOTE(JSON_EXTRACT(params, '$.orderId')) = (SELECT CAST(public_no AS CHAR) FROM wallet_withdrawal WHERE id = ?) "
+        + "AND user_id = (SELECT user_id FROM wallet_withdrawal WHERE id = ?) ORDER BY id",
+        String.class, withdrawalId, withdrawalId);
   }
 
   WithdrawalRow reviewing(long uid, long address, String amount) {
@@ -251,7 +253,8 @@ class WithdrawFlowTest {
     assertThat(status(w.id)).isEqualTo("REJECTED");
     assertThat(notices(w.id)).containsExactly("REJECTED");
     assertThat(jdbc.queryForObject("SELECT params FROM notify_message WHERE template_code = 'WITHDRAW_STATUS' AND params LIKE ?", String.class,
-        "%\"orderId\":\"" + w.id + "\"%")).as("驳回原因告诉客户").contains("地址存在风险");
+        "%\"orderId\":\"" + w.publicNo + "\"%")).as("驳回原因告诉客户").contains("地址存在风险");
+    assertThat(w.publicNo).as("通知里的编号是对外编号，不是内部 id").isNotEqualTo(w.id);
     assertThat(bal(uid)).isEqualByComparingTo("1000");
     assertThat(code(() -> withdraws.approve(w.id, 9L))).as("不能再审核").isEqualTo("WITHDRAW_NOT_REVIEWABLE");
   }

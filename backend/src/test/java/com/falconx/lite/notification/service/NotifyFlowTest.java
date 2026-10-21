@@ -60,8 +60,8 @@ class NotifyFlowTest extends NotifyTestSupport {
 
   @Test
   void 站内信按客户当前界面语言显示_未读数_标记已读_只能标记自己的() throws Exception {
-    User u = register();
-    User other = register();
+    User u = registerClean();
+    User other = registerClean();
     // V30（2026-10-21，体验建议第 11 条）：通过、驳回分成两个模板，通过的文案写明充值、交易、提现都已开通
     notify.toUser(u.id(), "KYC_REJECTED", Map.of("reason", "照片模糊"));
     notify.toUser(u.id(), "KYC_APPROVED", Map.of());
@@ -107,7 +107,7 @@ class NotifyFlowTest extends NotifyTestSupport {
 
   @Test
   void 三个渠道各一条记录_邮件按客户语言发出_关闭推送或邮件后记已跳过_站内信照常_AC25() throws Exception {
-    User u = register();
+    User u = registerClean();
     assertThat(call(get("/api/me/notify-prefs"), u.cookie(), null).getContentAsString()).isEqualTo("{\"push\":true,\"email\":true}");
     notify.toUser(u.id(), "DEPOSIT_CREDITED", Map.of("amount", "100", "chain", "TRC20"));
     assertThat(records(u.id())).containsExactly("INBOX SENT -", "PUSH SKIPPED 没有订阅推送的设备", "EMAIL PENDING -");
@@ -134,7 +134,7 @@ class NotifyFlowTest extends NotifyTestSupport {
 
   @Test
   void 偏好和语言接口校验() throws Exception {
-    User u = register();
+    User u = registerClean();
     MockHttpServletResponse r = call(put("/api/me/notify-prefs"), u.cookie(), "{\"push\":true}");
     assertThat(r.getStatus()).isEqualTo(400);
     assertThat(r.getContentAsString()).contains("\"field\":\"email\"");
@@ -145,7 +145,7 @@ class NotifyFlowTest extends NotifyTestSupport {
 
   @Test
   void 后台手动发送_原样发送_记录操作人_遵守客户偏好() throws Exception {
-    User u = register();
+    User u = registerClean();
     admin.manual(u.id(), Set.of(NotifyChannel.INBOX, NotifyChannel.EMAIL, NotifyChannel.PUSH), " 系统维护通知 ", "今晚 22:00 维护 10 分钟。", 9);
     String list = call(get("/api/notifications?lang=en"), u.cookie(), null).getContentAsString();
     assertThat(list).contains("\"kind\":\"system\"").contains("\"title\":\"系统维护通知\"").contains("今晚 22:00 维护 10 分钟。");
@@ -161,7 +161,7 @@ class NotifyFlowTest extends NotifyTestSupport {
 
   @Test
   void 邮件发送失败按任务表重试_5次用完记失败_未配置时不重试记失败() throws Exception {
-    User u = register();
+    User u = registerClean();
     MailTransport broken = (to, subject, body) -> {
       throw new jakarta.mail.MessagingException("连接被拒绝");
     };
@@ -193,6 +193,35 @@ class NotifyFlowTest extends NotifyTestSupport {
 
   long taskOf(long recordId) {
     return jdbc.queryForObject("SELECT id FROM common_task WHERE task_type = 'MAIL_SEND' AND JSON_EXTRACT(payload, '$.recordId') = ?", Long.class, recordId);
+  }
+
+  @Test
+  void UX9_注册发欢迎站内信_引导认证和充值_只发站内信_中英文() throws Exception {
+    User u = register();
+    assertThat(records(u.id())).as("只有站内信，不推送、不发邮件").containsExactly("INBOX SENT -");
+    assertThat(mailsTo(u.email())).as("只有注册验证码一封邮件").hasSize(1);
+    String zh = call(get("/api/notifications?lang=zh-CN"), u.cookie(), null).getContentAsString();
+    assertThat(zh).contains("\"total\":1").contains("\"kind\":\"system\"").contains("\"title\":\"欢迎来到 Quick Come\"")
+        .contains("完成身份认证").contains("充值 USDT").contains("新手引导");
+    String en = call(get("/api/notifications?lang=en"), u.cookie(), null).getContentAsString();
+    assertThat(en).contains("\"title\":\"Welcome to Quick Come\"").contains("Verify your identity").contains("Deposit USDT");
+    assertThat(call(get("/api/notifications/unread-count"), u.cookie(), null).getContentAsString()).isEqualTo("{\"count\":1}");
+  }
+
+  @Test
+  void UX9_UX11_V31_新模板只发站内信_热钱包余额模板改成币种加余额不足() {
+    for (String code : List.of("POSITION_OPENED", "POSITION_CLOSED", "WELCOME")) {
+      Map<String, Object> t = jdbc.queryForMap("SELECT audience, kind, channels, body_zh, body_en FROM notify_template WHERE code = ?", code);
+      assertThat(t).as(code).containsEntry("audience", "USER").containsEntry("channels", "INBOX");
+      assertThat((String) t.get("body_en")).as(code + " 英文里没有中文").doesNotContainPattern("[\\u4e00-\\u9fff]");
+    }
+    assertThat(jdbc.queryForObject("SELECT kind FROM notify_template WHERE code = 'POSITION_OPENED'", String.class)).isEqualTo("fill");
+    assertThat(jdbc.queryForObject("SELECT kind FROM notify_template WHERE code = 'WELCOME'", String.class)).isEqualTo("system");
+    Rows.TemplateRow hot = mapper.template("HOT_WALLET_LOW");
+    Render.Text zh = Render.render(hot, Map.of("chain", "TRC20", "address", "TXyz", "what", "TRX"), Render.ZH);
+    assertThat(zh.body()).isEqualTo("TRC20 热钱包 TXyz 的 TRX 余额不足，提现暂停上链，请补充。");
+    Render.Text en = Render.render(hot, Map.of("chain", "BSC", "address", "0xabc", "what", "BNB"), Render.EN);
+    assertThat(en.body()).startsWith("The BNB balance of the BSC hot wallet 0xabc is too low.").doesNotContainPattern("[\\u4e00-\\u9fff]");
   }
 
   @Test

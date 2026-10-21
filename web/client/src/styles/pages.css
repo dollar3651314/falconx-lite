@@ -102,12 +102,16 @@
 .acct-strip .num.tone-safe { color: var(--g); } .acct-strip .num.tone-warn { color: var(--amber); } .acct-strip .num.tone-danger { color: var(--danger-text); }
 
 /* ---------- 交易页（桌面三栏，效果图 C-桌面-交易页.png） ---------- */
-.trade-desktop { display: grid; grid-template-columns: 320px minmax(0, 1fr) 320px; gap: 8px; height: calc(100vh - var(--banner-h) - var(--top-h) - 24px); min-height: 660px; }
+/* 体验优化 1021：高度按实际视口算（主区上下内边距 12 + 24），最小高度 520，笔记本浏览器里不再整页多出一截（第 3 条）；
+   左栏三种状态 wl-mode-names 只看自选名称（默认）/ wl-mode-full 全部行情 / wl-mode-collapsed 收起（第 7 条，components/WatchRail.tsx） */
+.trade-desktop { display: grid; grid-template-columns: 188px minmax(0, 1fr) 320px; gap: 8px; height: calc(100vh - var(--banner-h) - var(--top-h) - 36px); min-height: 520px; transition: grid-template-columns 0.15s; }
+.trade-desktop.wl-mode-full { grid-template-columns: 320px minmax(0, 1fr) 320px; }
+.trade-desktop.wl-mode-collapsed { grid-template-columns: 40px minmax(0, 1fr) 320px; }
 .panel { background: var(--s1); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow); min-height: 0; overflow: hidden; }
 .panel.wl { display: flex; flex-direction: column; }
 .panel.wl .sym-list { flex: 1; min-height: 0; }
 .trade-desktop .center { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
-.chartp { flex: 1; display: flex; flex-direction: column; min-height: 340px; }
+.chartp { flex: 1; display: flex; flex-direction: column; min-height: 260px; }
 .chartp .chart-credit { padding-bottom: 4px; }
 .chart-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .chart-wrap .kchart-legend { top: 62px; }
@@ -118,16 +122,23 @@
 .sym-head-d .chg { font-size: 13.5px; font-weight: 600; }
 .sym-head-d .st { font-size: 11px; color: var(--subtle); }
 .sym-head-d .st .num { display: block; font-size: 12.5px; color: var(--text); }
-.posp { height: 250px; flex: none; display: flex; flex-direction: column; }
-/* 打开 MACD / RSI 副图时持仓区让出一些高度给图表 */
-.center:has(.kchart[data-sub-panes='1']) .posp { height: 210px; }
-.center:has(.kchart[data-sub-panes='2']) .posp { height: 180px; }
+.posp { height: clamp(150px, 28vh, 250px); flex: none; display: flex; flex-direction: column; }
+/* 打开 MACD / RSI 副图时持仓区让出一些高度给图表；持仓区高度随视口缩放（矮屏幕上把高度留给图表） */
+.center:has(.kchart[data-sub-panes='1']) .posp { height: clamp(140px, 24vh, 210px); }
+.center:has(.kchart[data-sub-panes='2']) .posp { height: clamp(130px, 20vh, 180px); }
 .posp .ptabs-wrap { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .posp .ptabs-body { overflow: auto; min-height: 0; flex: 1; }
-.panel.op { padding: 14px; overflow: auto; display: flex; flex-direction: column; }
+.panel.op { padding: 14px 14px 0; overflow: auto; display: flex; flex-direction: column; }
 .panel.op .order-panel { flex: 1; }
-@media (min-width: 1024px) and (max-width: 1439px) { .trade-desktop { grid-template-columns: 300px minmax(0, 1fr) 300px; } }
-@media (min-width: 1024px) and (max-width: 1279px) { .trade-desktop { grid-template-columns: 252px minmax(0, 1fr) 288px; } .v-side .sym-head, .v-side .sym-row { grid-template-columns: minmax(0, 1fr) 76px 52px; } .v-side .sym-head span:nth-child(3), .v-side .sym-row .sym-price.up { display: none; } }
+/* 右栏：内容在面板里滚动，确认按钮贴在面板底部，任何高度都看得到（体验优化 1021 第 3 条） */
+.op-sticky { position: sticky; bottom: 0; margin-top: auto; padding: 10px 0 12px; background: var(--s1); border-top: 1px solid var(--hair); box-shadow: 0 -8px 12px -10px rgba(15, 23, 42, 0.25); z-index: 2; }
+.op-sticky .op-submit { margin-top: 0; }
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .trade-desktop { grid-template-columns: 176px minmax(0, 1fr) 300px; }
+  .trade-desktop.wl-mode-full { grid-template-columns: 300px minmax(0, 1fr) 300px; }
+  .trade-desktop.wl-mode-collapsed { grid-template-columns: 40px minmax(0, 1fr) 300px; }
+}
+@media (min-width: 1024px) and (max-width: 1279px) { .trade-desktop.wl-mode-full { grid-template-columns: 252px minmax(0, 1fr) 288px; } .v-side .sym-head, .v-side .sym-row { grid-template-columns: minmax(0, 1fr) 76px 52px; } .v-side .sym-head span:nth-child(3), .v-side .sym-row .sym-price.up { display: none; } }
 @media (max-width: 1279px) { .sym-head-d .st:last-child { display: none; } }
 
 /* ---------- 资产 ---------- */

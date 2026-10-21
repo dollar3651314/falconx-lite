@@ -1,5 +1,8 @@
 /**
- * 官网语言（v2 需求第 10 节 W6）：默认跟随浏览器——浏览器首选语言以 zh 开头用中文，否则英文；访客手动切换后记住（localStorage）。
+ * 官网语言（v2 需求第 10 节 W6；体验优化 1021 UX-1，Amos 2026-10-21："客户端和官网都默认跟随浏览器的语言，如果查不到浏览器语言再用英文"）：
+ * 默认跟随浏览器——浏览器首选语言是中文（zh、zh-CN、zh-TW、zh-HK 等所有 zh-*）用中文，其他语言或取不到时用英文；
+ * 访客在语言下拉框里选过后记住（localStorage），以后优先用选的。跳客户端时带 `?lang=`（config.ts 的 clientLink），客户端以它为准。
+ * 规则和客户端 web/client/src/i18n/urlLang.ts 的 langFromBrowser 一致。
  */
 export type Lang = 'zh-CN' | 'en';
 
@@ -9,7 +12,8 @@ export const LANG_KEY = 'qc.site.lang';
 export function detectLang(stored: string | null | undefined, languages: readonly string[] | undefined, language?: string): Lang {
   if (stored === 'zh-CN' || stored === 'en') return stored;
   const first = (languages && languages.length > 0 ? languages[0] : language) || '';
-  return first.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
+  const s = first.trim().toLowerCase();
+  return s === 'zh' || s.startsWith('zh-') || s.startsWith('zh_') ? 'zh-CN' : 'en';
 }
 
 export function readStoredLang(): string | null {

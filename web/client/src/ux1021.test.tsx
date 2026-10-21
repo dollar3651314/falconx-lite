@@ -14,6 +14,7 @@ import { LangSelect } from './components/LangSelect';
 import { ClosePositionDialog } from './components/PositionDialogs';
 import { resetOnboarding } from './hooks/useOnboarding';
 import { setLanguage } from './i18n';
+import { langFromBrowser, pickLang } from './i18n/urlLang';
 import { validateCloseLots } from './lib/validators';
 import { db, resetDb } from './mocks/db';
 import { symbolInfo } from './mocks/market';
@@ -69,8 +70,19 @@ describe('第 1 条：语言下拉框', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 
-  it('默认中文，不跟随浏览器语言', () => {
+  it('默认跟随浏览器语言：zh 开头的都用中文，其他或取不到用英文；?lang= 优先并记住；自己选过的优先于浏览器（UX-1）', () => {
+    // 单元测试把浏览器语言设成了 zh-CN（test/browserLang.ts），页面是中文
     expect(document.documentElement.lang).toBe('zh-CN');
+    for (const l of ['zh', 'zh-CN', 'zh-TW', 'zh-HK', 'zh-Hans-CN', 'ZH-cn']) expect(langFromBrowser([l, 'en'])).toBe('zh-CN');
+    for (const l of ['en-US', 'en', 'ja-JP', 'fr', 'zu']) expect(langFromBrowser([l, 'zh-CN'])).toBe('en');
+    expect(langFromBrowser(undefined, 'zh-TW'), 'languages 取不到时看 language').toBe('zh-CN');
+    expect(langFromBrowser([], undefined), '都取不到用英文').toBe('en');
+    expect(langFromBrowser([''], ''), '空字符串也算取不到').toBe('en');
+    expect(pickLang({ search: '', stored: null, languages: ['en-GB'] })).toEqual({ lang: 'en', remember: false });
+    expect(pickLang({ search: '', stored: 'zh-CN', languages: ['en-GB'] }), '自己选过中文，英文浏览器也用中文').toEqual({ lang: 'zh-CN', remember: false });
+    expect(pickLang({ search: '', stored: 'en', languages: ['zh-CN'] }), '自己选过英文').toEqual({ lang: 'en', remember: false });
+    expect(pickLang({ search: '?lang=en', stored: 'zh-CN', languages: ['zh-CN'] }), '官网带的 ?lang= 最优先，并记住').toEqual({ lang: 'en', remember: true });
+    expect(pickLang({ search: '?lang=xx', stored: null, languages: ['zh-HK'] })).toEqual({ lang: 'zh-CN', remember: false });
   });
 });
 

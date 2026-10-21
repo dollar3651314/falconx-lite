@@ -17,7 +17,7 @@ class EnvLabelFlowTest extends NotifyTestSupport {
 
   @Test
   void 测试环境_邮件标题加前缀_站内信不加() throws Exception {
-    User u = register();
+    User u = registerClean();
     assertThat(mailsTo(u.email()).getFirst().getSubject()).isEqualTo("[测试] Quick Come 验证码 | [TEST] Quick Come verification code");
 
     notify.toUser(u.id(), "DEPOSIT_CREDITED", Map.of("amount", "100", "chain", "TRC20"));

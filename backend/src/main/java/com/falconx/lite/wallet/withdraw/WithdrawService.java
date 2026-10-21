@@ -371,7 +371,8 @@ public class WithdrawService implements WithdrawAdminApi {
     w.status = to;
     if (notifyCustomer(from, to, actor)) {
       Map<String, String> p = new LinkedHashMap<>();
-      p.put("orderId", String.valueOf(w.id));
+      // 对外编号（雪花 ID，约定 25）：和客户端提现记录上显示的编号一致（体验优化 1021 UX-11，以前传的是内部自增 id）
+      p.put("orderId", String.valueOf(w.publicNo));
       p.put("amount", w.amount.stripTrailingZeros().toPlainString());
       p.put("status", to);
       // 只有驳回把原因告诉客户；紧急取消、上链失败的原因是内部信息

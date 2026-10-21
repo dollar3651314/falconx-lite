@@ -6,7 +6,6 @@ import './styles/base.css';
 import './styles/layout.css';
 import './styles/components.css';
 import './styles/pages.css';
-import './styles/ux1021.css';
 import App from './App';
 
 createRoot(document.getElementById('root')!).render(

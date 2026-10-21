@@ -1,7 +1,7 @@
 /**
  * 语言下拉框（体验优化 1021 第 1 条）：按钮上显示**当前**语言，点开是传统下拉列表，当前语言打勾，点另一项切换。
  * 原来的 LangSwitch 按钮上写的是"要切换到的语言"，Amos 试用时误以为那是当前语言。
- * 默认语言是中文，不跟随浏览器（i18n/index.ts），只有客户自己选了或官网带 `?lang=` 才换。
+ * 默认跟随浏览器语言（中文浏览器用中文，其他语言或取不到时用英文，i18n/index.ts，UX-1）；在这里选过以后记住、优先用选的。
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

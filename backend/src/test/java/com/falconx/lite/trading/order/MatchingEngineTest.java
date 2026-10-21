@@ -109,8 +109,9 @@ class MatchingEngineTest extends TradingTestSupport {
     // (4135.50 − 4126.85) × 10 = 86.5
     assertThat(p.pnl()).isEqualByComparingTo("86.5");
     assertThat(ledgerSum(uid, "BALANCE")).isEqualByComparingTo(bucket(uid, "balance"));
-    // 市价单是客户自己下的，不通知；止盈触发通知
-    assertThat(notices(uid)).singleElement().asString().startsWith("TP_SL_TRIGGERED").contains("\"trigger\":\"TP\"").contains("\"price\":\"4135.50\"");
+    // 市价开仓只发站内信 POSITION_OPENED（体验优化 1021 UX-9）；止盈触发通知
+    assertThat(notices(uid)).hasSize(2).first().asString().startsWith("POSITION_OPENED").contains("\"lots\":\"0.10\"").contains("\"price\":\"4126.85\"");
+    assertThat(notices(uid)).last().asString().startsWith("TP_SL_TRIGGERED").contains("\"trigger\":\"TP\"").contains("\"price\":\"4135.50\"");
   }
 
   @Test
@@ -124,7 +125,7 @@ class MatchingEngineTest extends TradingTestSupport {
     assertThat(p.closePrice()).isEqualByComparingTo("4135.90");
     // (4126.25 − 4135.90) × 10 = −96.5
     assertThat(p.pnl()).isEqualByComparingTo("-96.5");
-    assertThat(notices(uid)).singleElement().asString().startsWith("TP_SL_TRIGGERED").contains("\"trigger\":\"SL\"");
+    assertThat(notices(uid)).hasSize(2).last().asString().startsWith("TP_SL_TRIGGERED").contains("\"trigger\":\"SL\"");
   }
 
   @Test
@@ -140,7 +141,7 @@ class MatchingEngineTest extends TradingTestSupport {
     // 实际亏损 (4100 − 4126.85) × 10 = −268.5，封顶为保证金
     assertThat(p.pnl()).isEqualByComparingTo("-206.3425");
     // 强平通知，不再另发止损通知
-    assertThat(notices(uid)).singleElement().asString().startsWith("LIQUIDATED").contains("\"price\":\"4100.00\"");
+    assertThat(notices(uid)).hasSize(2).last().asString().startsWith("LIQUIDATED").contains("\"price\":\"4100.00\"");
     assertThat(bucket(uid, "balance")).isEqualByComparingTo(new BigDecimal("300").subtract(new BigDecimal("2.063425")).subtract(new BigDecimal("206.3425")));
   }
 

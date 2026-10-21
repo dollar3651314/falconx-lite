@@ -96,8 +96,8 @@ class EvmWithdrawSender implements WithdrawSender {
       BigInteger usdt = JsonRpc.bigHex(rpc.call("eth_call", List.of(Map.of("to", contract, "data", BALANCE_OF + pad(hot.getAddress())), "latest")).asString());
       gasPrice = JsonRpc.bigHex(rpc.call("eth_gasPrice", List.of()).asString()).multiply(BigInteger.valueOf(110)).divide(BigInteger.valueOf(100));
       BigInteger gas = JsonRpc.bigHex(rpc.call("eth_getBalance", List.of(hot.getAddress(), "latest")).asString());
-      if (usdt.compareTo(amount) < 0) return lowFunds("USDT 不够");
-      if (gas.compareTo(gasPrice.multiply(BigInteger.valueOf(props.gasLimit()))) < 0) return lowFunds("手续费币不够");
+      if (usdt.compareTo(amount) < 0) return lowFunds("USDT");
+      if (gas.compareTo(gasPrice.multiply(BigInteger.valueOf(props.gasLimit()))) < 0) return lowFunds(gasCoin(chain));
     } catch (NodeException e) {
       return new Wait("节点暂时不可用：" + e.getMessage());
     }
@@ -132,7 +132,7 @@ class EvmWithdrawSender implements WithdrawSender {
       txs.setStatus(s.id(), "FAILED");
       resyncNonce();
       log.warn("节点拒绝提现广播 chain={} withdrawal={}：{}", chain, order.withdrawalId(), e.getMessage());
-      if (msg.contains("insufficient funds")) return lowFunds("手续费币不够");
+      if (msg.contains("insufficient funds")) return lowFunds(gasCoin(chain));
       return history.size() + 1 >= MAX_FAILED_SENDS ? new Rejected(e.getMessage()) : new Wait(e.getMessage());
     }
   }
@@ -154,7 +154,7 @@ class EvmWithdrawSender implements WithdrawSender {
       Duration age = Duration.between(latest.createdAt(), now());
       if (age.compareTo(props.stuckAfter()) > 0) {
         if (sent.size() <= props.maxReplacements()) replace(latest);
-        else alert("WITHDRAW_STUCK", Map.of("chain", chain.name(), "withdrawalId", String.valueOf(withdrawalId), "nonce", String.valueOf(latest.nonce())));
+        else alert("WITHDRAW_STUCK", Map.of("chain", chain.name(), "withdrawalId", publicNo(withdrawalId), "nonce", String.valueOf(latest.nonce())));
       } else if (age.compareTo(Duration.ofMinutes(2)) > 0) {
         rebroadcast(latest);
       }
@@ -209,9 +209,24 @@ class EvmWithdrawSender implements WithdrawSender {
     }
   }
 
-  private Outcome lowFunds(String what) {
-    alert("HOT_WALLET_LOW", Map.of("chain", chain.name(), "address", hot.getAddress(), "what", what));
-    return new Wait("热钱包" + what);
+  /**
+   * 热钱包余额不足：告警邮件的 {@code {what}} 只传币种（USDT / ETH / BNB），"余额不足"由模板写
+   * （体验优化 1021 UX-11：以前传"USDT 不够"，渲染成"USDT 不够 不足"，英文邮件里也是中文）。
+   */
+  private Outcome lowFunds(String coin) {
+    alert("HOT_WALLET_LOW", Map.of("chain", chain.name(), "address", hot.getAddress(), "what", coin));
+    return new Wait("热钱包 " + coin + " 余额不足");
+  }
+
+  /** 付手续费的币：以太坊 ETH，BSC 是 BNB */
+  static String gasCoin(Chain chain) {
+    return chain == Chain.BSC ? "BNB" : "ETH";
+  }
+
+  /** 告警邮件里的提现编号：后台显示的对外编号；查不到时（不应该发生）退回内部 id */
+  private String publicNo(long withdrawalId) {
+    Long no = txs.publicNo(withdrawalId);
+    return String.valueOf(no == null ? withdrawalId : no);
   }
 
   /** 同一条链一小时最多通知一次 */

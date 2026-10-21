@@ -11,6 +11,7 @@
     "menu": "Menu",
     "close": "Close",
     "langLabel": "Language",
+    "langCurrent": "Current",
     "envTest": "Test environment",
     "backHome": "Back to home",
     "tbd": "To be provided"

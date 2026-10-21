@@ -94,7 +94,7 @@ class PushFlowTest extends NotifyTestSupport {
 
   @Test
   void 公钥接口_订阅_每台设备一条记录_加密发出_浏览器能解密_带VAPID签名() throws Exception {
-    User u = register();
+    User u = registerClean();
     assertThat(call(get("/api/notifications/push/key"), u.cookie(), null).getContentAsString())
         .isEqualTo("{\"publicKey\":\"" + WebPushCryptoTest.TEST_PUBLIC + "\"}");
     Device phone = subscribed(u);
@@ -119,7 +119,7 @@ class PushFlowTest extends NotifyTestSupport {
 
   @Test
   void 按客户语言推送_普通通知不加急_手动发送原样推送() throws Exception {
-    User u = register();
+    User u = registerClean();
     Device d = subscribed(u);
     call(put("/api/me/notify-lang"), u.cookie(), "{\"lang\":\"en\"}");
     notify.toUser(u.id(), "DEPOSIT_CREDITED", Map.of("amount", "100", "chain", "TRC20"));
@@ -137,7 +137,7 @@ class PushFlowTest extends NotifyTestSupport {
 
   @Test
   void 订阅失效410就删除_推送服务500按任务表重试_400不重试() throws Exception {
-    User u = register();
+    User u = registerClean();
     Device gone = subscribed(u);
     Device flaky = subscribed(u);
     Device bad = subscribed(u);
@@ -161,7 +161,7 @@ class PushFlowTest extends NotifyTestSupport {
 
   @Test
   void 关闭推送记已跳过_没有设备记已跳过_取消订阅() throws Exception {
-    User u = register();
+    User u = registerClean();
     notify.toUser(u.id(), "KYC_APPROVED", Map.of());
     assertThat(records(u.id()).get(1)).isEqualTo("PUSH SKIPPED 没有订阅推送的设备");
     Device d = subscribed(u);
@@ -178,8 +178,8 @@ class PushFlowTest extends NotifyTestSupport {
 
   @Test
   void 订阅校验_只接受推送服务地址和合法密钥_同一地址换账号归新账号_最多10台设备() throws Exception {
-    User u = register();
-    User other = register();
+    User u = registerClean();
+    User other = registerClean();
     Device d = device();
     String evil = d.json().replace(d.endpoint(), "https://169.254.169.254/latest/meta-data");
     MockHttpServletResponse r = call(post("/api/notifications/push/subscriptions"), u.cookie(), evil);

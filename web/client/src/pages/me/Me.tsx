@@ -10,10 +10,9 @@ import { Icon, type IconName } from '../../components/Icon';
 import { PageHeader } from '../../components/Layout';
 import { ConfirmDialog } from '../../components/Modal';
 import { LangSelect } from '../../components/LangSelect';
-import { currentLang, setLanguage } from '../../i18n';
+import { currentLang } from '../../i18n';
 import { useAsync } from '../../hooks/useAsync';
 import { openOnboarding } from '../../hooks/useOnboarding';
-import { UX1021 } from '../../lib/ux1021';
 import { useUnread } from '../../hooks/useUnread';
 import { displayName } from '../../lib/profile';
 
@@ -73,15 +72,13 @@ export default function Me() {
           <MenuItem to="/me/notifications" icon="bell" label={t('me.notifications')} extra={unread > 0 ? <span className="count-badge">{unread}</span> : undefined} />
           <MenuItem to="/me/notify-prefs" icon="bell" label={t('me.notifyPrefs')} />
           <MenuItem to="/me/password" icon="lock" label={t('me.changePassword')} />
-          {UX1021 && (
-            <li>
-              <button type="button" className="menu-item" onClick={openOnboarding}>
-                <Icon name="checkCircle" size={20} />
-                <span className="menu-label">{t('me.onboarding')}</span>
-                <Icon name="chevronRight" size={16} className="chev" />
-              </button>
-            </li>
-          )}
+          <li>
+            <button type="button" className="menu-item" onClick={openOnboarding}>
+              <Icon name="checkCircle" size={20} />
+              <span className="menu-label">{t('me.onboarding')}</span>
+              <Icon name="chevronRight" size={16} className="chev" />
+            </button>
+          </li>
         </ul>
       </section>
 
@@ -92,19 +89,7 @@ export default function Me() {
             <Icon name="globe" size={20} />
             {t('me.language')}
           </span>
-          {UX1021 ? (
-            <LangSelect />
-          ) : (
-            <Segmented
-              label={t('me.language')}
-              value={i18n.language === 'en' ? 'en' : 'zh-CN'}
-              onChange={(v) => void setLanguage(v)}
-              options={[
-                { value: 'zh-CN', label: '中文' },
-                { value: 'en', label: 'English' },
-              ]}
-            />
-          )}
+          <LangSelect />
         </div>
         <div className="setting-row">
           <span>

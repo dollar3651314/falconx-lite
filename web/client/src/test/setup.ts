@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { setMockDelay } from '../mocks/delay';
+import './browserLang';
 import '../i18n';
 
 // 测试里不需要模拟网络延迟
